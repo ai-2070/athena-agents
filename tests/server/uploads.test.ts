@@ -255,3 +255,27 @@ describe('telling the agent', () => {
     expect(withAttachments('Just text', [])).toBe('Just text');
   });
 });
+
+describe("the uploads folder's .gitignore", () => {
+  // (a file link needs admin rights on Windows)
+  it.skipIf(process.platform === 'win32')('is never made through a link that points nowhere', () => {
+    const root = uploadsRoot();
+    const brain = path.dirname(root);
+    fs.mkdirSync(path.join(brain, '.git'), { recursive: true });
+    fs.mkdirSync(root, { recursive: true });
+    const outside = path.join(path.dirname(brain), `missing-${Date.now()}`, '.gitignore');
+    fs.mkdirSync(path.dirname(outside), { recursive: true });
+    fs.rmSync(path.join(root, '.gitignore'), { force: true });
+    fs.symlinkSync(outside, path.join(root, '.gitignore'));
+    newBatch();
+    expect(fs.existsSync(outside)).toBe(false);
+  });
+
+  it('is made in a Git project when there is none', () => {
+    const root = uploadsRoot();
+    fs.mkdirSync(path.join(path.dirname(root), '.git'), { recursive: true });
+    fs.rmSync(path.join(root, '.gitignore'), { force: true });
+    newBatch();
+    expect(fs.readFileSync(path.join(root, '.gitignore'), 'utf8')).toContain('*');
+  });
+});

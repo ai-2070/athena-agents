@@ -143,6 +143,15 @@ export function realTarget(p: string): string | null {
   }
 }
 
+/** Whether p is really where it says under root: no link on the way from root to it (root itself may be one). */
+export function noLinksBelow(root: string, p: string): boolean {
+  const r = realTarget(root);
+  const q = realTarget(p);
+  if (!r || !q) return false;
+  const fold = (x: string) => (IS_WIN ? x.toLowerCase() : x);
+  return fold(q) === fold(path.join(r, path.relative(path.resolve(root), path.resolve(p))));
+}
+
 /** Two paths are the same folder: links followed, and case ignored only on Windows. A folder that isn't there is no
  *  other folder. */
 export function sameFolder(a: string, b: string): boolean {

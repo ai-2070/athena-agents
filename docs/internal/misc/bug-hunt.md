@@ -73,6 +73,7 @@ Completed reviews:
 - Trigger/evidence: a Git-backed Brain folder has `uploads/.gitignore` linked to a nonexistent outside file. `exists()` follows the link and returns false; `writeFileSync()` then creates its target without checking that child.
 - Impact/expected: fixed ignore-all contents can be created outside uploads, including in another repository's missing `.gitignore`. Child writes should respect containment.
 - Limits: crafted local project, working file symlinks and write permission required. Straightforward trigger does not overwrite an existing target; not reproduced.
+- Fixed: the uploads `.gitignore` is created with `wx`, so nothing is written where any entry is, a dangling link included. Tests in `tests/server/uploads.test.ts` (the link case skipped on Windows).
 
 ### BH-005 — Refused uploads can create outside directories
 
@@ -726,6 +727,7 @@ Completed reviews:
 - Trigger/evidence: replace a memory owner directory with a junction/symlink to an outside directory containing MEMORY.md. `plainFile()` checks only the final file, so reads accept it through the linked ancestor. For writes, link the enclosing `memory` directory instead: immediate owner/file checks do not inspect that ancestor.
 - Impact/expected: outside contents can enter agent/Brain instructions, and writes can replace an outside MEMORY.md. Resolve and validate the complete destination against the intended data root, not only final components.
 - Limits: requires filesystem control over the data-tree link and destination permissions; not an unauthenticated remote attack. Ordinary leaf-link coverage (`tests/server/memory.test.ts:125-133`) does not cover ancestor links. No read/write scenario run.
+- Fixed: memory reads, writes and imports go only to a MEMORY.md with no link anywhere between the data folder and it (`noLinksBelow()` in `util.ts`). Test in `tests/server/memory.test.ts` (a junction, so it runs on Windows too).
 
 ### BH-085 — Memory import writes through an existing file symlink
 
@@ -734,6 +736,7 @@ Completed reviews:
 - Trigger/evidence: a restore destination has a plain owner directory but MEMORY.md itself is a symlink to an outside file. `putMemory()` checks only the directory, then `writeFileSync()` follows the file link. Its folder/backup callers use that helper.
 - Impact/expected: import can overwrite the outside target with restored memory despite the ordinary editor rejecting that link. Apply equivalent destination safety to import.
 - Limits: requires an already-planted destination link (or concurrent filesystem control over a new restore destination) plus target write permission. This does not claim that a backup archive alone can create the link; no restore or symlink executed.
+- Fixed: `putMemory()` checks the whole path for links and replaces the file through a new temporary file instead of writing through what is there. Test in `tests/server/memory.test.ts` (skipped on Windows).
 
 ### BH-086 — Agent terminals send Dashboard tool calls to the currently open project
 

@@ -65,9 +65,16 @@ export function newBatch(): { batch: string; dir: string } {
     }
   }
   // a Git project: keep dropped files out of commits (an agent's `git add -A` would take them all)
+  // (made only where nothing is, not even a link that points nowhere: writing would create its outside target)
   const ignore = path.join(root, '.gitignore');
-  if (exists(path.join(ensureBrain(), '.git')) && !exists(ignore))
-    fs.writeFileSync(ignore, '# Files attached in the dashboard. Move a file out of uploads/ to commit it.\n*\n');
+  if (exists(path.join(ensureBrain(), '.git')))
+    try {
+      fs.writeFileSync(ignore, '# Files attached in the dashboard. Move a file out of uploads/ to commit it.\n*\n', {
+        flag: 'wx',
+      });
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e;
+    }
   return { batch, dir };
 }
 

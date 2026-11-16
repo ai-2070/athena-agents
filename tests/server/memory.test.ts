@@ -135,6 +135,35 @@ describe('MEMORY.md', () => {
   });
 });
 
+describe('memory behind a linked folder', () => {
+  it('never reads, writes or imports through a linked owner or memory folder', () => {
+    const a = newAgent({ name: 'Junctioned' });
+    const outside = fs.mkdtempSync(path.join(os.homedir(), 'outside-owner-'));
+    fs.writeFileSync(path.join(outside, 'MEMORY.md'), 'outside-sentinel');
+    const owner = dataPath('projects', project.id, 'memory', a.id);
+    fs.mkdirSync(path.dirname(owner), { recursive: true });
+    // (a junction needs no admin rights on Windows)
+    fs.symlinkSync(outside, owner, process.platform === 'win32' ? 'junction' : 'dir');
+    expect(memory.readMemory(a.id)).toBe('');
+    expect(() => memory.writeMemory(a.id, 'overwrite')).toThrow(/link/);
+    expect(memory.putMemory(project.id, a.id, 'imported')).toBe(false);
+    expect(fs.readFileSync(path.join(outside, 'MEMORY.md'), 'utf8')).toBe('outside-sentinel');
+  });
+
+  it.runIf(linksWork)('an import replaces a linked MEMORY.md instead of writing through it', () => {
+    const a = newAgent({ name: 'Imported' });
+    const outside = path.join(os.homedir(), 'outside-import.txt');
+    fs.writeFileSync(outside, 'outside-sentinel');
+    const file = dataPath('projects', project.id, 'memory', a.id, 'MEMORY.md');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.symlinkSync(outside, file);
+    expect(memory.putMemory(project.id, a.id, 'imported')).toBe(true);
+    expect(fs.readFileSync(outside, 'utf8')).toBe('outside-sentinel');
+    expect(fs.lstatSync(file).isSymbolicLink()).toBe(false);
+    expect(memory.readMemory(a.id)).toBe('imported\n');
+  });
+});
+
 describe("the Brain's memory", () => {
   it('is in its instructions; it adds to it and rewrites it with actions', () => {
     expect(memory.brainMemoryContext()).toContain('nothing remembered yet');
