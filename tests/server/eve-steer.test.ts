@@ -7,6 +7,7 @@ import {
   attachSession,
   beginRun,
   bindSession,
+  readBinding,
   readRun,
   setRunStatus,
   settleRun,
@@ -23,6 +24,20 @@ vi.mock('../../server/eve/admission.ts', async (original) => ({
     return [{ type: 'text', text: 'and a summary' }];
   },
 }));
+
+// the private Eve worker: ready at once; ending retired sessions is counted
+const worker = vi.hoisted(() => ({ retired: 0 }));
+vi.mock('../../server/eve/runtime.ts', async (original) => {
+  const real = await original<typeof import('../../server/eve/runtime.ts')>();
+  return {
+    ...real,
+    eveRuntime: {
+      ready: async () => ({ url: 'http://127.0.0.1:1', token: 'fixture' }),
+      retireBindings: async () => void worker.retired++,
+      close: async () => {},
+    },
+  };
+});
 
 function steerableRun(runId: string) {
   const agent = agents.save(newAgent({ engine: 'eve', name: 'Steered agent', toolGroups: [] }));
@@ -52,5 +67,37 @@ describe('a steer message read while its turn ends', () => {
       sendSteer('steer-ended', { id: 'late', text: 'and a summary', attachments: [], from: null }),
     ).rejects.toThrow('can no longer take a message');
     expect(readRun('steer-ended')?.steers ?? []).toEqual([]);
+  });
+});
+
+describe('a steer message whose answer is lost', () => {
+  it('ends the session, so a turn Eve may have started with it never runs beside the one sent again', async () => {
+    const binding = steerableRun('steer-lost');
+    during.read = () => {};
+    const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('socket hang up'));
+    try {
+      await expect(
+        sendSteer('steer-lost', { id: 'lost', text: 'and a summary', attachments: [], from: null }),
+      ).rejects.toThrow();
+    } finally {
+      fetch.mockRestore();
+    }
+    expect(readRun('steer-lost')?.steers?.[0]).toMatchObject({ id: 'lost', dropped: true });
+    expect(readBinding(binding.id)?.retired).toBe(true);
+    expect(worker.retired).toBeGreaterThan(0);
+  });
+
+  it('keeps the session when Eve said no', async () => {
+    const binding = steerableRun('steer-refused');
+    during.read = () => {};
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue(Response.json({ error: 'busy' }, { status: 409 }));
+    try {
+      await expect(
+        sendSteer('steer-refused', { id: 'no', text: 'and a summary', attachments: [], from: null }),
+      ).rejects.toThrow('did not take');
+    } finally {
+      fetch.mockRestore();
+    }
+    expect(readBinding(binding.id)?.retired).toBeFalsy();
   });
 });

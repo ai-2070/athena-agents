@@ -530,6 +530,7 @@ Completed reviews:
 - Trigger/evidence: Eve accepts a steer as prior turn finishes but receipt is lost; old run completes before fallback. Fallback marks dropped and resubmits; `stopRun(oldId)` cannot retire the removed run's reusable binding.
 - Impact/expected: different idempotency keys (`athena:steer:<id>` / `athena:<newRunId>`) allow repeated instructions/effects. Retire/reconcile ambiguous delivery before retry.
 - Limits: accepted old turn can use fallback active-run configuration; no transport race executed.
+- Fixed: when a steer may have reached Eve but its answer was lost (a transport error, a timeout, a 5xx or a bad receipt), `sendSteer()` retires the session and ends it at the worker before the caller sends the message again, so a turn Eve started with it cannot run beside the resend; a sure refusal (4xx) keeps the session. Tests in `tests/server/eve-steer.test.ts`.
 
 ### BH-061 — Eve steering bypasses intact-current-input budgeting
 
