@@ -535,6 +535,7 @@ Completed reviews:
 - Trigger/evidence: encoded branch/folder contains `#`, `?` or literal percent escape. Parser decodes, but origin interpolation does not re-encode; Update reparses it.
 - Impact/expected: fragment/query truncation or double-decoding breaks updates or selects another folder. Preserve segment encoding.
 - Limits: no repository accessed.
+- Fixed: a skill's origin link encodes each part of its branch and folder, so reading it back for Update gives the same place. Test in `tests/server/skillinstall.test.ts`.
 
 ### BH-058 — Missing GitHub CLI credentials stay cached after sign-in
 

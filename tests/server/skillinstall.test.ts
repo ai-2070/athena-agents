@@ -231,6 +231,19 @@ describe('installing', () => {
     delete files['skills/writer/references/example/detail.md'];
   });
 
+  it('writes where it came from so that the same link reads back, # and % in a folder name included', async () => {
+    const { parseGitHubUrl: parse } = await import('../../server/skillinstall.ts');
+    repos['acme/skills'].main['skills/c#-100%/SKILL.md'] = '---\nname: Sharp\ndescription: Use for C#.\n---\n\nSharp.';
+    try {
+      await installFromGitHub('https://github.com/acme/skills/tree/main/skills/c%23-100%25');
+      const origin = skills.findSkill('Sharp')!.origin!;
+      expect(origin.path).toBe('skills/c#-100%');
+      expect(parse(origin.url).rest).toEqual(['main', 'skills', 'c#-100%']);
+    } finally {
+      delete repos['acme/skills'].main['skills/c#-100%/SKILL.md'];
+    }
+  });
+
   it('takes every file from one commit, even when the branch moves on while they come down', async () => {
     pinCommits = true;
     const files = repos['acme/skills'].main;

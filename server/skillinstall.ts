@@ -151,6 +151,8 @@ async function resolve(link: GitHubLink): Promise<{ ref: string; path: string; t
   );
 }
 
+const segments = (p: string) => p.split('/').map(encodeURIComponent).join('/');
+
 /** The commit a branch or tag is at now, or null when GitHub doesn't say. */
 async function commitOf(link: GitHubLink, ref: string): Promise<string | null> {
   const r = await api<{ sha?: unknown }>(`/repos/${link.owner}/${link.repo}/commits/${encodeURIComponent(ref)}`);
@@ -257,7 +259,8 @@ export async function installFromGitHub(
         const md = skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), 'x');
         if (!md.body.trim() && !md.description) throw new Error('its SKILL.md is empty');
         const origin: SkillOrigin = {
-          url: `https://github.com/${link.owner}/${link.repo}/tree/${ref}${root ? `/${root}` : ''}`,
+          // (each part of the address encoded, as the link is read back: a # ? or % in a branch or folder stays it)
+          url: `https://github.com/${link.owner}/${link.repo}/tree/${segments(ref)}${root ? `/${segments(root)}` : ''}`,
           repo: `${link.owner}/${link.repo}`,
           ref,
           path: root,
