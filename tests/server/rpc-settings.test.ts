@@ -58,6 +58,14 @@ describe('settings and keys over oRPC', () => {
       json: { error: 'maxToolSteps must be a number.' },
     });
     expect(await send('PUT', '/api/settings', { defaults: { engine: 'gpt' } })).toMatchObject({ status: 400 });
+    // limits a turn couldn't work with are refused when saved, not when the next turn starts
+    expect(await send('PUT', '/api/settings', { maxToolSteps: 2.5 })).toEqual({
+      status: 400,
+      json: { error: 'The most tool steps is a whole number.' },
+    });
+    expect(await send('PUT', '/api/settings', { maxToolSteps: 0 })).toMatchObject({ status: 400 });
+    expect(await send('PUT', '/api/settings', { costLimitUsdPerRun: -1 })).toMatchObject({ status: 400 });
+    expect(await send('PUT', '/api/settings', { contextWindowTokens: -100 })).toMatchObject({ status: 400 });
     expect(getSettings().maxToolSteps).toBe(before.maxToolSteps);
     expect(getSettings().allowedFolders).toEqual(before.allowedFolders);
   });

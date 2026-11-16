@@ -75,10 +75,17 @@ const settingsPatch = z
       })
       .partial(),
     telegram: z.object({ chatId: text('The Telegram chat') }).partial(),
-    maxToolSteps: count('maxToolSteps'),
-    costLimitUsdPerRun: count('costLimitUsdPerRun'),
-    contextWindowTokens: count('contextWindowTokens'),
-    toolResultChars: count('toolResultChars'),
+    // (limits a turn can work with: a fraction or a minus would stop every turn after it was saved)
+    maxToolSteps: count('maxToolSteps')
+      .int('The most tool steps is a whole number.')
+      .min(1, 'Allow at least 1 tool step.'),
+    costLimitUsdPerRun: count('costLimitUsdPerRun').min(0, "The cost limit can't be below 0 (0: no limit)."),
+    contextWindowTokens: count('contextWindowTokens')
+      .int('The context window is a whole number of tokens.')
+      .min(0, "The context window can't be below 0 (0: the model's own)."),
+    toolResultChars: count('toolResultChars')
+      .int('The tool result size is a whole number of characters.')
+      .min(0, "The tool result size can't be below 0."),
     favoriteModels: z.array(z.object({ engine, model: z.string(), provider: z.string().optional() }), {
       error: 'favoriteModels must be a list of models.',
     }),

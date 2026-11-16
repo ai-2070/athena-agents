@@ -910,6 +910,7 @@ Completed reviews:
 - Trigger/evidence: save fractional/negative maximum tool steps, negative cost, or negative context window. Contract accepts arbitrary finite numbers and the standalone Save button does not enforce number-input constraints.
 - Impact/expected: globally saved configuration breaks subsequent Eve turns or yields negative input budgets. Reject invalid limits at save time and retain usable settings.
 - Limits: explicit source failure paths; no invalid settings written.
+- Fixed: saving settings refuses a fractional or below-1 tool step limit, and a negative cost limit, context window or tool result size, in plain words. Test in `tests/server/rpc-settings.test.ts`.
 
 ### BH-101 — Post-reset Codex refresh can reuse pre-reset work
 
