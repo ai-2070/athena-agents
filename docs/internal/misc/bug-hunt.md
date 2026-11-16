@@ -717,6 +717,7 @@ Completed reviews:
 - Trigger/evidence: A's ordinary request passes project-header guard, awaits body, then B opens before handler. Only explicitly scoped routes are pinned; Outbox is not among them. Draft/approval captures current project too late.
 - Impact/expected: A's request saves/operates in B. Retain admitted ownership or revalidate after parsing.
 - Limits: source scheduling window only; no HTTP scenario.
+- Fixed: every JSON route checks the page's project again once its body has been read, and refuses (409) a change for a project that is no longer open, as `index.ts` already did when the request arrived. Under Bun the server seems to receive the whole body first, so the in-process Node test in `tests/server/rpc.test.ts` is what shows it.
 
 ### BH-083 — Reddit refresh accepts HTTP-success error documents
 

@@ -7,6 +7,7 @@ import type { AnyRouter } from '@orpc/server';
 import { BodyLimitPlugin } from '@orpc/server/node';
 import { OpenAPIHandler } from '@orpc/openapi/node';
 import { apiRouter } from './api/index.ts';
+import { activeProject } from './store.ts';
 
 /** The most a JSON body may be, here and in the old routes. */
 export const JSON_LIMIT = 25 * 1024 * 1024;
@@ -47,7 +48,14 @@ export function rpcErrorMessage(e: ORPCError<string, unknown>): string {
 
 /** The body as the old routes read it: none is {}, and one that is there must be a JSON object (or list), not
  *  null or a bare number or string. Over the limit is refused in the old routes' words. */
-function oldBody<R extends { body: () => Promise<unknown> }>(request: R): R {
+function oldBody<
+  R extends {
+    body: () => Promise<unknown>;
+    method: string;
+    url: URL;
+    headers: Record<string, string | string[] | undefined>;
+  },
+>(request: R): R {
   let read: Promise<unknown> | undefined;
   const body = async (): Promise<unknown> => {
     let b: unknown;
@@ -58,6 +66,20 @@ function oldBody<R extends { body: () => Promise<unknown> }>(request: R): R {
         throw new ORPCError('PAYLOAD_TOO_LARGE', { status: 413, message: 'Too large', cause: e });
       throw e;
     }
+    // Another project opened while the body came in: the change was for the one the page showed, so it isn't made
+    // (index.ts checks this as the request arrives; a project route, or one that names its project, has its own)
+    const page = request.headers['x-dash-project'];
+    if (
+      request.method !== 'GET' &&
+      typeof page === 'string' &&
+      page &&
+      !/^\/api\/(projects|p\/)/.test(request.url.pathname) &&
+      page !== activeProject().id
+    )
+      throw new ORPCError('CONFLICT', {
+        status: 409,
+        message: 'Another project was opened meanwhile. Nothing was changed; try again.',
+      });
     if (b === undefined) return {};
     if (b === null || typeof b !== 'object')
       throw new ORPCError('BAD_REQUEST', { message: 'Body must be a JSON object' });
