@@ -10,8 +10,10 @@ import { readExecution } from '../../server/execution.ts';
 import { recoverEveRuns } from '../../server/eve/recovery.ts';
 import type { SessionSnapshot } from 'eve/client';
 
-// Eve's own: the id it gives a delivery sent with an idempotency key
-const eve = (await import('../../node_modules/eve/dist/src/channel/delivery-idempotency.js')) as {
+// Eve's own: the id it gives a delivery sent with an idempotency key. Eve 1.0.1 ships no types for this file, so it
+// is imported by URL to keep tsc from looking for them.
+const idempotency = new URL('../../node_modules/eve/dist/src/channel/delivery-idempotency.js', import.meta.url).href;
+const eve = (await import(idempotency)) as {
   deliveryIdForIdempotencyKey: (key: string) => Promise<string>;
 };
 
