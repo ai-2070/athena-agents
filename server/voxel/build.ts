@@ -785,6 +785,16 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
         `The material "${m.after.name}" was changed again after that. Change it back yourself with {"material": "${m.after.name}", …}.`,
         409,
       );
+  // copies it gives back must be of prefabs still there: one deleted since would come back as nothing to see
+  const gives = mine.instancesBefore ?? (mine.dataBefore ? mine.dataBefore.instances : undefined) ?? [];
+  const gone = [...new Set(gives.map((i) => i.prefab))].filter(
+    (id) => id !== mine.prefabMade && !w.prefabs.some((p) => p.id === id),
+  );
+  if (gone.length)
+    throw bad(
+      `Undoing it would put back copies of ${gone.length === 1 ? 'a prefab' : `${gone.length} prefabs`} deleted since. Undo that deletion first, or build it again.`,
+      409,
+    );
   // a prefab the change made goes away with it, unless it is in use now
   const made = mine.prefabMade || (mine.kind === 'prefab' && !mine.metaBefore ? mine.objectId : '');
   if (made) {

@@ -1277,6 +1277,7 @@ Completed reviews:
 - Trigger/evidence: delete object with copies, delete now-unused prefab, undo object deletion. Undo checks later edits to object ID but not referenced prefab availability.
 - Impact/expected: success restores invisible missing parts. Restore dependencies or refuse atomically.
 - Limits: ordinary prefab deletion checks current uses, not undo history; no undo run.
+- Fixed: undo refuses, before changing anything, to put back copies of a prefab that has been deleted since, saying to undo that deletion first. Test in `tests/server/voxel-prefabs.test.ts`.
 
 ### BH-141 — Undoing imports leaks their added palette slots
 

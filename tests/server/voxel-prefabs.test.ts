@@ -486,6 +486,23 @@ describe('prefabs: undo, skins and limits', () => {
     expect(shownWorld().world!.prefabs.some((p) => p.name === 'Post')).toBe(true);
   });
 
+  it("won't bring back an object's copies of a prefab deleted since", () => {
+    build({ by: me, prefab: 'Lamp', steps: [{ box: [1, 2, 1], use: 'wood' }] });
+    build({
+      by: me,
+      object: 'Lamp row',
+      steps: [
+        { place: 'Lamp', at: [0, 0, 0] },
+        { place: 'Lamp', at: [2, 0, 0] },
+      ],
+    });
+    changeObject({ by: me, object: 'Lamp row', delete: true });
+    // (someone else deletes the prefab: nothing uses it now)
+    deletePrefab({ by: { kind: 'user', name: 'You' }, prefab: 'Lamp' });
+    expect(() => undo(me)).toThrow(/copies of a prefab deleted since/);
+    expect(shownWorld().world!.objects.some((o) => o.name === 'Lamp row')).toBe(false);
+  });
+
   it("can't delete a prefab the Brain, a team or an agent wears", () => {
     build({ by: me, prefab: 'Shell', steps: [{ box: [3, 3, 3], use: 'glass', hollow: true }] });
     setSkin({ by: me, to: 'brain', fields: { shell: 'Shell' } });
