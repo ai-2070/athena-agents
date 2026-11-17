@@ -9,6 +9,7 @@ import { createProject } from '../../server/projects.ts';
 import {
   forgetScene,
   markLoaded,
+  packScene,
   pinVersion,
   pollScenes,
   pruneVersions,
@@ -18,7 +19,9 @@ import {
   sceneVersions,
   SETTLE_MS,
   settleScene,
+  startFromTemplate,
   takeVersion,
+  unpackScene,
   versionFile,
   watchScene,
 } from '../../server/scene/history.ts';
@@ -219,6 +222,35 @@ describe('scene versions', () => {
     }
     expect(takeVersion(p, outside)).toBeNull();
     expect(sceneOverview(p).problem).toMatch(/link/);
+  });
+
+  it('starting from a template removes a link planted in the folder instead of writing through it', (ctx) => {
+    const target = path.join(os.homedir(), `target-${Date.now()}.html`);
+    fs.writeFileSync(target, 'not the scene');
+    fs.mkdirSync(sceneDir(p), { recursive: true });
+    try {
+      fs.symlinkSync(target, path.join(sceneDir(p), 'index.html'), 'file');
+    } catch {
+      return ctx.skip(); // (no file links on this system without rights)
+    }
+    const v = startFromTemplate(p, 'starter', { kind: 'user', name: 'You' });
+    expect(v).not.toBeNull();
+    expect(fs.readFileSync(target, 'utf8')).toBe('not the scene');
+    expect(fs.lstatSync(path.join(sceneDir(p), 'index.html')).isSymbolicLink()).toBe(false);
+    expect(read(p, 'index.html')).toMatch(/<html|<!doctype/i);
+  });
+
+  it('brings a scene back from a backup even when one of its files cannot be written', async () => {
+    write(p, 'index.html', HTML);
+    write(p, 'main.js', 'ok');
+    takeVersion(p, outside);
+    const { scene } = packScene(p, 10 * 1024 * 1024);
+    // a file and a folder of the same name: the second can't be written, the rest comes back
+    scene!.files.push({ path: 'main.js/inner.js', data: Buffer.from('x').toString('base64') });
+    const q = await project();
+    expect(unpackScene(q, scene!)).toBe(true);
+    expect(read(q, 'main.js')).toBe('ok');
+    expect(sceneVersions(q).length).toBeGreaterThan(0);
   });
 });
 

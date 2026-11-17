@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { emit, listProjects, activeProject } from '../store.ts';
-import { dataPath, ensureDir, isPlainDir, readJSON, ROOT, uid, writeJSON } from '../util.ts';
+import { dataPath, ensureDir, isInside, isPlainDir, readJSON, ROOT, uid, writeJSON } from '../util.ts';
 import { SCENE_LIMITS, SCENE_TEMPLATES, scenePath, sceneType } from '../../shared/scene.ts';
 import type { SceneTemplate } from '../../shared/scene.ts';
 import type { Project, SceneAuthor, SceneVersion, SceneVersions } from '../../shared/types.ts';
@@ -285,22 +285,7 @@ export function restoreVersion(p: Project, id: string, by: SceneAuthor, onlyPath
   if (onlyPath === undefined)
     // files that version didn't have go (only the kind a version would hold: other files are left alone)
     for (const f of scanScene(p).files) if (!v.files[f.rel]) fs.rmSync(f.abs, { force: true });
-  for (const [rel, buf] of bufs) {
-    const file = path.join(root, ...rel.split('/'));
-    // (every folder on the way must be a plain one inside the scene folder)
-    let dir = root;
-    for (const part of rel.split('/').slice(0, -1)) {
-      dir = path.join(dir, part);
-      ensureDir(dir);
-      if (!isPlainDir(dir)) throw new Error(`${path.relative(root, dir)} is a link; not writing there.`);
-    }
-    try {
-      if (fs.lstatSync(file).isSymbolicLink()) fs.rmSync(file, { force: true });
-    } catch {
-      /* not there yet */
-    }
-    fs.writeFileSync(file, buf);
-  }
+  for (const [rel, buf] of bufs) writeSceneFile(root, rel, buf);
   const note =
     onlyPath !== undefined
       ? `Brought back ${onlyPath} from the version of ${when(v.at)}`
@@ -309,6 +294,25 @@ export function restoreVersion(p: Project, id: string, by: SceneAuthor, onlyPath
   // the folder already was that version: the Station shows it again all the same
   if (!made) emit('scene', { project: p.id });
   return made;
+}
+
+/** Writes a file into the scene folder: every folder on the way must be a plain one inside it, and a link where
+ *  the file goes is removed, never written through (the scan skips links, so one planted there is still there). */
+function writeSceneFile(root: string, rel: string, buf: Buffer): void {
+  let dir = root;
+  for (const part of rel.split('/').slice(0, -1)) {
+    dir = path.join(dir, part);
+    ensureDir(dir);
+    if (!isPlainDir(dir)) throw new Error(`${path.relative(root, dir)} is a link or a file; not writing there.`);
+  }
+  const file = path.join(dir, rel.split('/').at(-1) || '');
+  if (!isInside(root, file)) throw new Error(`${rel} is outside the scene folder; not writing there.`);
+  try {
+    if (fs.lstatSync(file).isSymbolicLink()) fs.rmSync(file, { force: true });
+  } catch {
+    /* not there yet */
+  }
+  fs.writeFileSync(file, buf);
 }
 
 /** Keeps the last versions, pinned ones, the newest one that loads (and of each recent day), within the history's
@@ -521,11 +525,12 @@ export function unpackScene(p: Project, scene: PackedScene): boolean {
     for (const f of files.slice(0, SCENE_LIMITS.files)) {
       const buf = Buffer.from(f.data, 'base64');
       if (buf.length > SCENE_LIMITS.fileBytes) continue;
-      const file = path.join(root, ...f.path.split('/'));
-      ensureDir(path.dirname(file));
-      if (!isInsideDir(root, path.dirname(file))) continue;
-      fs.writeFileSync(file, buf);
-      wrote = true;
+      try {
+        writeSceneFile(root, f.path, buf);
+        wrote = true;
+      } catch {
+        /* (a.js and a.js/b.js, a full disk): that file stays out */
+      }
     }
   }
   // the history: blobs only when their contents match their name, versions only when every file they list is there
@@ -574,11 +579,6 @@ export function unpackScene(p: Project, scene: PackedScene): boolean {
   if (wrote) takeVersion(p, { kind: 'backup' }, 'Brought back from a backup');
   return wrote;
 }
-const isInsideDir = (root: string, dir: string): boolean => {
-  const r = path.resolve(root);
-  const d = path.resolve(dir);
-  return d === r || d.startsWith(r + path.sep);
-};
 
 // ---------- starting from a template ----------
 const templateDir = (id: SceneTemplate): string =>
@@ -595,9 +595,11 @@ export function startFromTemplate(p: Project, id: SceneTemplate, by: SceneAuthor
   if (!isPlainDir(dash)) throw new Error("The project's .dashboard folder is a link; not writing there.");
   ensureDir(root);
   if (!isPlainDir(root)) throw new Error('The scene folder is a link; not writing there.');
+  // (read first: a template that can't be read changes nothing)
+  const files = fs.readdirSync(src).map((name) => ({ name, buf: fs.readFileSync(path.join(src, name)) }));
   takeVersion(p, { kind: 'outside' });
   for (const f of scanScene(p).files) fs.rmSync(f.abs, { force: true });
-  for (const name of fs.readdirSync(src)) fs.copyFileSync(path.join(src, name), path.join(root, name));
+  for (const f of files) writeSceneFile(root, f.name, f.buf);
   return takeVersion(p, by, `Started from the ${label.toLowerCase()} scene`);
 }
 

@@ -1116,7 +1116,13 @@ export async function restoreBackup(
     }
   }
   // the Station's scene and its versions
-  const scene = b.scene ? unpackScene(created, b.scene) : false;
+  let scene = false;
+  if (b.scene)
+    try {
+      scene = unpackScene(created, b.scene);
+    } catch (e) {
+      console.error('restore: the scene did not come back:', e);
+    }
   if (b.brainModel)
     try {
       setModel(id, b.brainModel.path, `data:application/octet-stream;base64,${b.brainModel.data}`);

@@ -1,7 +1,7 @@
 // The scene look (shared/api/scene.ts): the address of a project's scene, its versions, load reports, going back.
 import { implement } from '@orpc/server';
 import { scene as sceneContract } from '../../shared/api/scene.ts';
-import { listProjects, log } from '../store.ts';
+import { log, projectById } from '../store.ts';
 import {
   markLoaded,
   pinVersion,
@@ -16,24 +16,21 @@ import { isSceneTemplate } from '../../shared/scene.ts';
 import { sceneToken } from '../scene/serve.ts';
 import { addSceneLogs, deliverSceneLook } from '../scene/look.ts';
 import { refuse, refusing } from './refuse.ts';
-import type { Project } from '../../shared/types.ts';
 
 const s = implement(sceneContract);
 
-const projectOf = (id: string): Project => listProjects().find((p) => p.id === id) || refuse('No such project.', 404);
-
 export const sceneRouter = s.router({
   open: s.open.handler(({ input }) => {
-    const p = projectOf(input.project);
+    const p = projectById(input.project);
     return { ...sceneOverview(p), base: `/scene/${sceneToken(p.id)}` };
   }),
-  versions: s.versions.handler(({ input }) => sceneOverview(projectOf(input.project))),
+  versions: s.versions.handler(({ input }) => sceneOverview(projectById(input.project))),
   loaded: s.loaded.handler(({ input }) => {
-    const p = projectOf(input.project);
+    const p = projectById(input.project);
     return { ok: !!markLoaded(p, input.version, input.loads, input.error) };
   }),
   restore: s.restore.handler(({ input }) => {
-    const p = projectOf(input.project);
+    const p = projectById(input.project);
     if (!sceneVersion(p, input.version)) refuse('There is no such version of the scene.', 404);
     refusing(() => restoreVersion(p, input.version, { kind: 'user', name: 'You' }, input.path));
     log('project', `Went back to an earlier version of the scene in "${p.name}"`);
@@ -41,12 +38,12 @@ export const sceneRouter = s.router({
   }),
   snapshot: s.snapshot.handler(({ input: { request, ...look } }) => ({ ok: deliverSceneLook(request, look) })),
   log: s.log.handler(({ input }) => {
-    projectOf(input.project);
+    projectById(input.project);
     addSceneLogs(input.project, input.lines);
     return { ok: true };
   }),
   start: s.start.handler(({ input }) => {
-    const p = projectOf(input.project);
+    const p = projectById(input.project);
     if (!isSceneTemplate(input.template)) refuse('Pick one of the templates.');
     refusing(() =>
       startFromTemplate(p, input.template as Parameters<typeof startFromTemplate>[1], { kind: 'user', name: 'You' }),
@@ -55,11 +52,11 @@ export const sceneRouter = s.router({
     return sceneOverview(p);
   }),
   saveThumb: s.saveThumb.handler(({ input }) => ({
-    ok: saveThumb(projectOf(input.project), input.version, input.image),
+    ok: saveThumb(projectById(input.project), input.version, input.image),
   })),
-  thumb: s.thumb.handler(({ input }) => ({ image: readThumb(projectOf(input.project), input.version) })),
+  thumb: s.thumb.handler(({ input }) => ({ image: readThumb(projectById(input.project), input.version) })),
   pin: s.pin.handler(({ input }) => {
-    const p = projectOf(input.project);
+    const p = projectById(input.project);
     if (!pinVersion(p, input.version, input.pinned)) refuse('There is no such version of the scene.', 404);
     return sceneOverview(p);
   }),
