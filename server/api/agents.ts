@@ -14,6 +14,7 @@ import * as commands from '../commands.ts';
 import * as kb from '../knowledge.ts';
 import * as teams from '../teams.ts';
 import { streamRun } from '../uistream.ts';
+import { withPreview } from '../eve/preview.ts';
 import { exists, openWithShell } from '../util.ts';
 import { refuse } from './refuse.ts';
 import { said, saidSomething } from './said.ts';
@@ -99,7 +100,9 @@ export const agentsRouter = os.router({
           : { ...engines.startRun(a, c, text, { attachments }), steerId: undefined };
       // a new run (now, or once the one before it stopped) shows what it said before this stream listened; a
       // message that joined the turn going on doesn't replay it: the view shows that turn already
-      const turn = steerId ? {} : { turn: () => engines.liveChat(c.id)?.items ?? [] };
+      const turn = steerId
+        ? {}
+        : { turn: (started: string) => withPreview(engines.liveChat(c.id)?.items ?? [], started) };
       return streamToEventIterator(
         streamRun({
           chatId: c.id,
@@ -114,7 +117,13 @@ export const agentsRouter = os.router({
     reconnect: os.chats.reconnect.handler(({ input: { id, chatId } }) => {
       const runId = engines.chatRunId(id, chatId);
       return runId
-        ? streamToEventIterator(streamRun({ chatId, runId, turn: () => engines.liveChat(chatId)?.items ?? [] }))
+        ? streamToEventIterator(
+            streamRun({
+              chatId,
+              runId,
+              turn: (started) => withPreview(engines.liveChat(chatId)?.items ?? [], started),
+            }),
+          )
         : null;
     }),
     list: os.chats.list.handler(({ input }) => chats.list(input.id)),

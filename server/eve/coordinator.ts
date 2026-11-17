@@ -6,6 +6,7 @@ import { readBinding, readRun, sessionContext, settleRun } from './state.ts';
 import { deliverApprovalDecisions, eveClient, observeEveEvent, reconcileSnapshot, stopEveRun } from './recovery.ts';
 import { EveProjectionError } from './projection.ts';
 import { projectTranscript } from './transcript.ts';
+import { forgetPreview, showDelta } from './preview.ts';
 import type { EveHost } from './host.ts';
 import type { ServerEvent } from '../../shared/types.ts';
 import type { SessionSnapshot, SessionStreamEvent } from 'eve/client';
@@ -88,7 +89,10 @@ export class EveCoordinator {
     this.jobs.set(runId, job);
     job.promise = this.watch(runId, signal, (wake) => {
       job.wake = wake;
-    }).finally(() => this.jobs.delete(runId));
+    }).finally(() => {
+      this.jobs.delete(runId);
+      forgetPreview(runId);
+    });
     // A caller may follow via nativeRunPromise; background transport errors never escape.
     void job.promise.catch(() => {});
     return job.promise;
@@ -164,6 +168,7 @@ export class EveCoordinator {
         wake();
         const cursor = readRun(runId)!.cursor;
         for await (const event of connection.stream(cursor?.line || 0, reading)) {
+          showDelta(runId, event);
           observeEveEvent(runId, event);
           projectTranscript(runId);
           if (!activeStatus(readRun(runId)!.status)) {

@@ -4,6 +4,7 @@ import { liveChat } from '../engines/index.ts';
 import { keepToolImages } from '../toolimages.ts';
 import { markProjected, readRun, transcriptContext } from './state.ts';
 import { EveProjectionError } from './projection.ts';
+import { unshownText } from './preview.ts';
 import { admissionSelection } from './admission.ts';
 import { measuredBy } from '../context.ts';
 import { readExecution } from '../execution.ts';
@@ -116,8 +117,15 @@ export function projectTranscript(runId: string): void {
         const item = chat.items.find((item) => item.sourceId === sourceId);
         if (item?.type === 'compaction')
           emit('compacted', { agentId: agent.id, chatId: chat.id, projectId: project.id, itemId: item.id });
-      } else
+      } else {
+        // (whoever follows the run saw the part as it was written: only what they haven't seen goes out)
+        if (event.kind === 'text') {
+          const partId = Object.entries(run.textParts || {}).find(([, id]) => id === fact.id)?.[0];
+          event = { kind: 'text', text: unshownText(runId, partId, event.text) };
+          if (!event.text) continue;
+        }
         emit('run', { runId, agentId: agent.id, chatId: chat.id, projectId: project.id, event, eventId: sourceId });
+      }
     }
   });
 }

@@ -9,12 +9,14 @@ import {
   activeRuns,
   finishNativeRun,
   isChatBusy,
+  liveChat,
   nativeRunPromise,
   onRunEnd,
   recoverExecution,
   runInfo,
   stopRun,
 } from '../../server/engines/index.ts';
+import { withPreview } from '../../server/eve/preview.ts';
 import { EveCoordinator } from '../../server/eve/coordinator.ts';
 import { attachSession, beginRun, bindSession, readRun, setRunStatus } from '../../server/eve/state.ts';
 import { observeEveEvent } from '../../server/eve/recovery.ts';
@@ -199,6 +201,39 @@ describe('native run lifecycle', () => {
     f.coordinator.restore();
     expect(ends).toHaveLength(1);
     expect(chats.get(f.agent.id, f.chat.id)!.items.filter((item) => item.type === 'user')).toHaveLength(1);
+  });
+
+  it('shows the answer as it is written, once, and saves only the completed text', async () => {
+    const f = fixture();
+    const texts: string[] = [];
+    const listen = (e: ServerEvent) => {
+      const event = e.event as { kind?: string; text?: string } | undefined;
+      if (e.type === 'run' && e.runId === f.id && event?.kind === 'text') texts.push(event.text || '');
+    };
+    bus.on('event', listen);
+    try {
+      f.coordinator.restore();
+      const done = nativeRunPromise(f.id)!;
+      f.coordinator.start();
+      await expect.poll(f.connections).toBe(1);
+      f.add({ type: 'content.delta', data: { partId: 'thinking', kind: 'reasoning', delta: 'Private plan' } });
+      f.add({ type: 'content.delta', data: { partId: 'reply', kind: 'text', delta: 'Hel' } });
+      f.add({ type: 'content.delta', data: { partId: 'reply', delta: 'lo' } });
+      await expect.poll(() => texts).toEqual(['Hel', 'lo']);
+      // a view that opens now gets what was written so far; the chat itself keeps only completed text
+      expect(withPreview(liveChat(f.chat.id)!.items, f.id).at(-1)).toMatchObject({ type: 'assistant', text: 'Hello' });
+      expect(liveChat(f.chat.id)!.items.some((item) => item.type === 'assistant')).toBe(false);
+      // reading the stream again after a dropped connection doesn't show it twice
+      f.breakStream();
+      await expect.poll(f.connections).toBe(2);
+      f.finish('Hello world');
+      expect(await done).toBe('Hello world');
+      expect(texts).toEqual(['Hel', 'lo', ' world']);
+      const saved = chats.get(f.agent.id, f.chat.id)!.items.filter((item) => item.type === 'assistant');
+      expect(saved.map((item) => item.type === 'assistant' && item.text)).toEqual(['Hello world']);
+    } finally {
+      bus.off('event', listen);
+    }
   });
 
   it("says a dropped connection is its own project's, with another project open", async () => {

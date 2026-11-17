@@ -117,7 +117,7 @@ export interface StreamRunOptions {
   waiting?: string;
   /** The run's turn so far (its chat's items), read the moment the run is known: at once, or when a run that
    *  starts later starts. Shown first, so what it said before anyone listened isn't lost. */
-  turn?: () => readonly ChatItem[];
+  turn?: (runId: string) => readonly ChatItem[];
   /** the message this stream's request sent into the turn going on: the view shows it already */
   ownSteer?: string;
   /** whether the run is still going: one that ended before the stream began ends it at once */
@@ -166,7 +166,7 @@ export function streamRun({
       // ends the stream at once: its done event went already.
       const follow = (started: string) => {
         id = started;
-        w.replay(turn());
+        w.replay(turn(started));
         if (live && !live(started)) end();
       };
       w.start(`run-${id ?? `next-${Date.now()}`}`);
