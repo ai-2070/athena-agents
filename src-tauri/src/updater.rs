@@ -14,6 +14,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::{Update, UpdaterExt};
+use tauri_plugin_window_state::{AppHandleExt, StateFlags};
 
 /// Not right at start: the server and the page come first.
 const FIRST_CHECK: Duration = Duration::from_secs(30);
@@ -49,8 +50,16 @@ fn off_because() -> Option<&'static str> {
 }
 
 async fn check(app: &AppHandle, later: &mut Option<String>) -> Result<(), String> {
+    // Before Windows starts the installer, the plugin would take the app apart (its windows, the tray, the
+    // single-instance lock): if Windows then refuses the installer, the app is left hidden and half gone. Only the
+    // window's place is saved instead; when the installer does start, the app exits and Windows frees the rest.
+    let keep = app.clone();
     let found = app
-        .updater()
+        .updater_builder()
+        .on_before_exit(move || {
+            let _ = keep.save_window_state(StateFlags::all());
+        })
+        .build()
         .map_err(|e| e.to_string())?
         .check()
         .await

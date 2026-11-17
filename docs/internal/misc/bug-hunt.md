@@ -619,6 +619,7 @@ Completed reviews:
 - Trigger/evidence: update download/extraction succeeds but Windows refuses installer launch. Tauri cleanup precedes `ShellExecuteW`, hiding windows, dropping tray/resources and releasing single-instance ownership.
 - Impact/expected: app restarts its server/warns but does not rebuild/show resources; hidden app has no tray while `HAS_TRAY` stays true, and another instance can start. Failure should leave the old app usable.
 - Limits: locked dependencies inspected; Windows failure path not executed.
+- Fixed: the app's updater replaces the plugin's default hook (Tauri's `cleanup_before_exit`: windows, tray and single-instance lock taken apart before `ShellExecuteW`) with one that only saves the window's place. If Windows refuses the installer, the app is still whole and the existing error path restarts its server and says so; when the installer starts, the app exits and Windows frees the rest. Builds with `cargo clippy`; the refusal itself wasn't run (no test).
 
 ### BH-065 — Desktop readiness can navigate to another process's port
 
