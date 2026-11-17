@@ -139,6 +139,7 @@ Connect agents to programs and services with the Model Context Protocol. Add ser
 - **Routines:** work you want done again and again, run by hand or on a schedule.
 - **Programs:** the Programs page finds creative and CAD apps on your computer (Blender, Photoshop, DaVinci Resolve, GIMP, OpenSCAD…) so agents can use them. Agents run your ComfyUI workflows with their own prompts and pictures, and get the images, video, audio and 3D files back.
 - **History:** every agent, team, skill and memory keeps its last 50 versions, so any change can be undone.
+- **Session search:** turn it on in Settings and every agent, team and the Brain can search and read all the project's saved chats, not only their own. Off by default.
 - **Built-in tools:** files (read in parts, edit, find, search), the text of PDFs and Word, Excel and PowerPoint files, web pages as Markdown, commands, delegating to other agents, and more. Long results keep their start and end, with the whole text saved for the agent to read.
 
 The [full guide](docs/guide.md) covers all of it in detail.
@@ -154,7 +155,7 @@ Choose how much each agent may do on its own:
 | **Full**           | Never. Only for agents and access you trust.                   |
 
 - **The Brain approves** routine, reversible requests for you and sends anything risky or unclear to **Needs you**. That's a model's judgment, not a guarantee.
-- **The Brain's tools** start on **Full**: the Brain may run any tool of the MCP servers that are on, including ones that send or delete. Choose **Ask first** to approve those yourself.
+- **What the Brain may do** starts on **Full**: the Brain hires, builds teams and hands out work by itself, and may run any tool of the MCP servers that are on, including ones that send or delete. Choose **Ask first** to approve anything that changes something yourself, or **Read only** to have it only answer and look things up.
 - **No login means no lock.** The app only listens on your own computer (`127.0.0.1`), but anyone who can reach it can use it. Never put it behind a public tunnel or proxy.
 - **Keys stay on the server.** API keys and account tokens are never sent to the browser or put into project saves and backups.
 - **It's not a sandbox.** File tools stay inside the folders you allow, but shell commands and outside tools run with your account's access.

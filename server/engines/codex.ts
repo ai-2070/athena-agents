@@ -20,6 +20,7 @@ import { effortFor } from '../../shared/effort.ts';
 import { splitContent } from '../toolimages.ts';
 import type { Agent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
+import { BRAIN_ID } from '../brainmcp.ts';
 
 /** EngineStatus['codex'] plus the first line of `codex login status` and where codex is. */
 export interface CodexStatus {
@@ -276,7 +277,9 @@ export function codexLaunch(
     args.push('-c', `shell_environment_policy.exclude=[${hidden.map((k) => JSON.stringify(k)).join(',')}]`);
   // autonomy → Codex sandbox
   const mode = agent.autonomy || 'auto';
-  if (mode === 'full') args.push('--dangerously-bypass-approvals-and-sandbox');
+  // the Brain only reads files, whatever it may do with its own tools
+  if (agent.id === BRAIN_ID) args.push('-s', 'read-only');
+  else if (mode === 'full') args.push('--dangerously-bypass-approvals-and-sandbox');
   // --approve-for-me already means the workspace-write sandbox, and Codex refuses it alongside -s
   else if (mode === 'auto') args.push(...(interactive ? ['-s', 'workspace-write'] : ['--approve-for-me']));
   else args.push('-s', 'read-only');

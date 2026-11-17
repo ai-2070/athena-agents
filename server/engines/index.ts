@@ -1,5 +1,6 @@
 // Runs agents. One run = one user message answered by an agent (with any tool calls in between).
 // Engines stream events; this file turns them into chat history and live updates for the browser.
+import { createHash } from 'node:crypto';
 import {
   agents as agentStore,
   chats,
@@ -74,6 +75,7 @@ import type {
 } from '../../shared/types.ts';
 import type { LoopRequest } from '../../shared/commands.ts';
 import { queuedEdit, reorderQueued } from '../../shared/queue.ts';
+import { BRAIN_ID } from '../brainmcp.ts';
 
 /** A run was stopped (by its caller or directly, e.g. its Stop button) before it answered. */
 export class RunStopped extends Error {
@@ -517,8 +519,11 @@ const steering = new Set<string>();
 /** Whether this run is going now (in this dashboard). */
 export const runActive = (runId: string): boolean => active.has(runId);
 
+// (the Brain's own turns show in the Brain chat, not as an agent at work)
+const agentRuns = () => [...active.entries()].filter(([, r]) => r.agentId !== BRAIN_ID);
+
 export function activeRuns(): ActiveRun[] {
-  return [...active.entries()].map(([id, r]) => ({
+  return agentRuns().map(([id, r]) => ({
     id,
     agentId: r.agentId,
     chatId: r.chatId,
@@ -551,7 +556,7 @@ export function turnActivity(items: ChatItem[]): Pick<LiveActivity, 'task' | 'fr
 // What every running agent is doing right now (for the Brain's overview): in one project, when it is given (a clone's
 // agents have the same ids as the original's, so a run is matched to an agent only within its own project).
 export function liveActivity(projectId?: string): LiveActivity[] {
-  return [...active.entries()]
+  return agentRuns()
     .filter(([, r]) => !projectId || r.projectId === projectId)
     .map(([id, r]) => ({
       runId: id,
@@ -640,6 +645,7 @@ function finishMemoryReset(chat: Chat, runId: string): void {
 
 function clearMemory(chat: Chat): void {
   chat.sessionId = null;
+  delete chat.instructions;
   delete chat.reseed;
   delete chat.context;
 }
@@ -649,7 +655,12 @@ const COMPUTER = process.platform === 'win32' ? 'Windows PC' : process.platform 
 export const LIBRARY_ROLE_LINE =
   "Your role is where you are strongest, not a limit: take on nearby work you can do well with the tools you have, and when the work needs a tool you don't have, ask for it with request_tool.";
 
+/** A short fingerprint of an agent's instructions, to tell when they changed. */
+const promptStamp = (text: string): string => createHash('sha256').update(text).digest('hex').slice(0, 16);
+
 export function buildSystemPrompt(agent: Agent): string {
+  // the Brain's instructions are its own, made for each turn (overseer.ts)
+  if (agent.id === BRAIN_ID) return agent.systemPrompt;
   // the day only: the instructions stay the same all day, so the provider's prompt cache can reuse them
   // and the chat after them (with the time in here, every message started a new cache)
   const date = new Date().toLocaleDateString('en-US', { dateStyle: 'full' });
@@ -664,7 +675,9 @@ export function buildSystemPrompt(agent: Agent): string {
     worldPrompt(tools),
     skillsPrompt(agent),
     // (what each tool does is in its own description: only what no description says goes here)
-    'Before guessing about earlier work, look it up with search_conversations and read_conversation.',
+    tools.includes('search_sessions')
+      ? "Before guessing about earlier work, look it up with search_conversations and read_conversation. search_sessions and read_session also reach every other agent's, team's and the Brain's sessions in this project."
+      : 'Before guessing about earlier work, look it up with search_conversations and read_conversation.',
     "Plan work with several steps in the dashboard's task tools (TaskCreate, TaskList, TaskUpdate), not a task list of your own, so the user and your team see the same records. Read TaskList at the start of each turn.",
     "When the user's message asks for real work, call set_goal once at the start (in a team chat, the lead does).",
     accountsPrompt(agent.mcpServers || []),
@@ -820,10 +833,11 @@ export function startRun(
   const send = (event: RunEvent) =>
     emit('run', { runId, agentId: agent.id, chatId: chat.id, projectId: entry.projectId, event });
   send({ kind: 'start', text, from, ...(attachments.length ? { attachments } : {}) });
-  log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, {
-    agentId: agent.id,
-    chatId: chat.id,
-  });
+  if (agent.id !== BRAIN_ID)
+    log('run', `${agent.name} started: ${(text || attachmentNames(attachments)).slice(0, 120)}`, {
+      agentId: agent.id,
+      chatId: chat.id,
+    });
 
   let current: ChatItemOf<'assistant'> | null = null; // assistant item being streamed
   // the engine has started on the message (written or called a tool): its own session has it
@@ -926,6 +940,14 @@ export function startRun(
       // Codex, Hermes and OpenClaw get the instructions only when their session starts: a session that is
       // already going is told when MEMORY.md changed since its last run (by you, or in another chat)
       const memoryAt = hasMemory(agent) ? memoryStamp(agent.id) : 0;
+      // the Brain's instructions are made for each turn (its access, MCP servers, memory, skills): a session that
+      // heard others is given the new ones
+      const toldOnce = agent.engine === 'codex' || agent.engine === 'hermes' || agent.engine === 'openclaw';
+      const instructions = agent.id === BRAIN_ID && toldOnce ? promptStamp(systemPrompt) : '';
+      const instructionsNote =
+        instructions && !chat.reseed && chat.sessionId && chat.instructions && chat.instructions !== instructions
+          ? `<instructions-update>\nYour instructions changed since your last message here. From now on they are:\n${systemPrompt}\n</instructions-update>\n\n`
+          : '';
       const memoryNote =
         !chat.reseed &&
         chat.sessionId &&
@@ -948,7 +970,8 @@ export function startRun(
         const window = await contextInfo.contextWindow(agent, chat);
         const input = chat.reseed
           ? contextInfo.seedPrompt(chat.items, prompt, window, systemPrompt)
-          : memoryNote +
+          : instructionsNote +
+            memoryNote +
             (cut ? STOP_NOTE[cut] : '') +
             (added.length ? `${added.map((m) => m.text).join('\n\n')}\n\n` : '') +
             prompt;
@@ -984,6 +1007,7 @@ export function startRun(
       if (cli && chat.sessionId) delete chat.reseed;
       // (what it wrote to its own memory meanwhile, it knows)
       if (memoryAt) chat.memoryAt = memoryStamp(agent.id);
+      if (instructions) chat.instructions = instructions;
       if (result?.context)
         chat.context = {
           tokens: result.context,
@@ -1025,10 +1049,11 @@ export function startRun(
             : { cost: result.cost }),
         seconds: Math.round((Date.now() - started) / 1000),
       });
-      log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, {
-        agentId: agent.id,
-        chatId: chat.id,
-      });
+      if (agent.id !== BRAIN_ID)
+        log('run', `${agent.name} finished (${Math.round((Date.now() - started) / 1000)}s)`, {
+          agentId: agent.id,
+          chatId: chat.id,
+        });
       answer = result?.text || lastAssistantText(chat);
       updateExecution(runId, { status: 'completed', answer, endedAt: Date.now() });
       return answer;

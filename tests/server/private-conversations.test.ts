@@ -34,6 +34,10 @@ const captured = vi.hoisted(() => ({
   hold: false,
   waiting: [] as ((answer: string) => void)[],
 }));
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (original) => ({
   ...(await original<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),

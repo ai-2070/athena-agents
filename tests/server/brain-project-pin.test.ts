@@ -7,10 +7,15 @@ const gate = vi.hoisted(() => ({ hold: null as Promise<void> | null, reached: fa
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
-  think: async (_system: string, user: string) => {
-    asked.push(user);
+  think: async (system: string, user: string) => {
+    asked.push(`${system}\n${user}`);
     return 'Noted.';
   },
+}));
+// (the Brain's run on its engine, played by the tests' stand-in: it asks think() above)
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
 }));
 vi.mock('../../server/projects.ts', async (orig) => {
   const real = await orig<typeof import('../../server/projects.ts')>();

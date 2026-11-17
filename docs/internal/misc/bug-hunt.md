@@ -443,7 +443,7 @@ Completed reviews:
 - Trigger/evidence: set Off while `listTools()` awaits. The initial Off guard has passed; afterward only `ask` is special, so current `off` falls through. Settings do not cancel the turn.
 - Impact/expected: mutations can dispatch after access is disabled. Recheck mode before dispatch.
 - Limits: proceed checks conversation/project/Stop, not mode; disabled-server guards still work. Timing untested.
-- Fixed: a Brain MCP call reads the tools setting again after the tools are listed and after an approval, and runs nothing once it is Off. Test in `tests/server/brain-mcp-tools.test.ts`.
+- Fixed: a Brain MCP call reads the access setting again after the tools are listed and after an approval, and runs nothing that changes things once it is Read only (main replaced the old Off with Full, Ask first and Read only). Test in `tests/server/brain-mcp-tools.test.ts`.
 
 ### BH-046 — Stale run-bound bridges silently become unbound
 

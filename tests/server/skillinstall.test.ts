@@ -19,6 +19,10 @@ import { newAgent } from '../../server/library.ts';
 
 // the "model" gives the answers queued here
 const answers: string[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
@@ -376,18 +380,19 @@ describe('review fixes', () => {
     holdDownloads = null;
     const r = await turn;
     setActiveProject(home.id);
-    expect(skills.findSkill('Mid switch')).toBeNull();
-    expect(r.done).toEqual([
-      expect.objectContaining({ kind: 'error', text: expect.stringContaining('switched projects') }),
-    ]);
+    // (the turn keeps working in the project it was asked in; the library is everyone's)
+    expect(skills.findSkill('Mid switch')).not.toBeNull();
+    expect(r.done.map((d) => d.kind)).toEqual(['skill']);
   });
 
-  it('runs no install past the actions an answer may take', async () => {
-    repos['late/repo'] = { main: { 'SKILL.md': '---\nname: Too late\ndescription: Use it.\n---\n\nLate.' } };
+  it('installs from at most 3 GitHub links in one answer', async () => {
+    for (const r of ['one', 'two', 'three', 'four'])
+      repos[`many/${r}`] = { main: { 'SKILL.md': `---\nname: Many ${r}\ndescription: Use it.\n---\n\n${r}.` } };
     clearHistory();
-    const filler = Array.from({ length: 12 }, () => '{"do":"hire","members":[]}').join(',');
-    answers.push(`\`\`\`actions\n[${filler},{"do":"install_skill","url":"https://github.com/late/repo"}]\n\`\`\``);
-    await ask('install https://github.com/late/repo');
-    expect(skills.findSkill('Too late')).toBeNull();
+    const links = ['one', 'two', 'three', 'four'].map((r) => `https://github.com/many/${r}`);
+    answers.push(`\`\`\`actions\n${JSON.stringify(links.map((url) => ({ do: 'install_skill', url })))}\n\`\`\``);
+    await ask(`install ${links.join(' ')}`);
+    expect(skills.findSkill('Many three')).not.toBeNull();
+    expect(skills.findSkill('Many four')).toBeNull();
   });
 });

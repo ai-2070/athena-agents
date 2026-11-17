@@ -16,6 +16,10 @@ import type { Team } from '../../shared/types.ts';
 const answers: string[] = [];
 // what the Brain was told last (its instructions)
 let lastSystem = '';
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', effort: '', fallback: false }),

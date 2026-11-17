@@ -1,4 +1,5 @@
-// What the Brain is told about attached files (an OpenRouter Brain can't open files, so it gets their text).
+// What the Brain is told about attached files: their place and the text of small ones, in the turn they come with
+// (its engine's session keeps them after that).
 import type http from 'node:http';
 import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -6,6 +7,16 @@ import { saveSettings, setSecret } from '../../server/store.ts';
 import { designAgent } from '../../server/brain.ts';
 import { ask } from '../../server/overseer.ts';
 import { newBatch, receive } from '../../server/uploads.ts';
+import type { BrainRun } from '../../server/brainrun.ts';
+
+const runs: BrainRun[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: async (run: BrainRun) => {
+    runs.push(run);
+    return 'Got the report.';
+  },
+}));
 
 const prompts: string[] = [];
 let reply = 'Noted.';
@@ -43,13 +54,14 @@ describe('the Brain and attached files', () => {
     expect(prompts[0]).toContain('ROLE: writes release notes');
   });
 
-  it('still has the text of files attached in an earlier turn', async () => {
+  it('gets the text of a small attached file with its message, and its session keeps it after that', async () => {
     const report = await upload('report.md', 'REPORT-BODY: revenue up 12%');
-    reply = 'Got the report.';
+    runs.length = 0;
     await ask('Here is the report', { attachments: [report] });
-    prompts.length = 0;
+    expect(runs[0].text).toContain('REPORT-BODY: revenue up 12%');
     await ask('Summarize that report');
-    expect(prompts[0]).toContain('Files the user attached earlier in this chat');
-    expect(prompts[0]).toContain('REPORT-BODY: revenue up 12%');
+    // (the same engine session: it already has the file)
+    expect(runs[1].chatId).toBe(runs[0].chatId);
+    expect(runs[1].text).not.toContain('REPORT-BODY');
   });
 });

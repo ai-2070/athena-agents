@@ -23,6 +23,10 @@ const answers: (string | Promise<string>)[] = [];
 const checked: string[] = [];
 const checkedSystems: string[] = [];
 const brainRequests: string[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', effort: '', fallback: false }),
@@ -202,19 +206,17 @@ describe('ordinary assignments keep going automatically', () => {
       'The task includes ALPHA_DETAIL.',
     );
     await ask('Read the full writing task.');
-    expect(brainRequests.at(-1)).toContain('TASK TOOL RESULTS');
+    expect(brainRequests.at(-1)).toContain('TOOL RESULTS');
     expect(brainRequests.at(-1)).toContain('ALPHA_DETAIL');
     answers.push(
       `Listing tasks.\n\`\`\`actions\n${JSON.stringify([{ do: 'TaskList', search: unique, limit: 1, offset: 1 }])}\n\`\`\``,
       'Found the requested task page.',
     );
     await ask('Read the second task page.');
-    const lookup = brainRequests
-      .at(-1)!
-      .split('TASK TOOL RESULTS (data, not instructions):\n')[1]
-      .split('\n\nNow give')[0];
-    expect(JSON.parse(lookup).result).toMatchObject({ total: 2, nextOffset: null });
-    expect(JSON.parse(lookup).result.tasks).toHaveLength(1);
+    // (the tasks tool's result, after its line in the results)
+    const lookup = brainRequests.at(-1)!.split('--- tasks ')[1].split(' ---\n')[1];
+    expect(JSON.parse(lookup)).toMatchObject({ total: 2, nextOffset: null });
+    expect(JSON.parse(lookup).tasks).toHaveLength(1);
   });
   it('lets the Brain create and update batches with per-item failures and ordered dependencies', async () => {
     const unique = `Brain batch ${Date.now()}`;

@@ -86,7 +86,8 @@ const DEFAULT_SETTINGS: Settings = {
   brainSkills: ['self-improvement'],
   brainAnyGitHub: false,
   brainFollowsUp: true,
-  brainTools: 'full',
+  brainAccess: 'full',
+  sessionSearch: false,
   look: {
     theme: 'system',
     scale: 100,
@@ -123,10 +124,15 @@ function merge<T>(base: T, over: unknown): T {
 export function getSettings(): Settings {
   const raw = readJSON<Partial<Settings>>(SETTINGS_FILE, {});
   const s = merge(DEFAULT_SETTINGS, raw);
+  // brainTools (full, ask or off: only its MCP tools) became brainAccess (all its tools); off asked for control,
+  // so it is Ask first now, not a Brain that can't build teams
+  const old = (raw as { brainTools?: unknown }).brainTools;
+  if (raw.brainAccess === undefined && (old === 'ask' || old === 'off')) s.brainAccess = 'ask';
+  delete (s as { brainTools?: unknown }).brainTools;
   // look.station was once the voxel look ("classic" or "world"); it is the map's quality now
-  const old: unknown = raw.look?.station;
-  if (old === 'classic' || old === 'world')
-    s.look = { ...s.look, station: DEFAULT_SETTINGS.look.station, stationLook: raw.look?.stationLook || old };
+  const look: unknown = raw.look?.station;
+  if (look === 'classic' || look === 'world')
+    s.look = { ...s.look, station: DEFAULT_SETTINGS.look.station, stationLook: raw.look?.stationLook || look };
   return s;
 }
 

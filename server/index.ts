@@ -53,6 +53,7 @@ import { devPage, pageCsp, viteFromArgs } from './devpage.ts';
 import { saveToolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
 import type { Agent, Project } from '../shared/types.ts';
+import { BRAIN_ID } from './brainmcp.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of [
@@ -340,6 +341,8 @@ const inRunProject = <T>(
 // The agent as its run has it: what a team gave it for this work (tools, MCP servers, skills) counts too.
 // Its saved settings (autonomy, "always allow") are read fresh.
 const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined): Agent | ExternalAgent => {
+  // the Brain isn't a saved agent: its run carries it (its access level and instructions for this turn)
+  if (run && id === BRAIN_ID && run.agentId === BRAIN_ID) return run.agent;
   const agent = agentFor(id);
   if (!run || !id || run.agentId !== id || agent === EXTERNAL) return agent;
   return {

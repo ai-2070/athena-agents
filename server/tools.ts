@@ -47,7 +47,7 @@ import type { ApprovalDecision, ApprovalRequest } from './approvals.ts';
 import { readPage, pagePart, PAGE_CHARS, PAGE_MAX_CHARS } from './webread.ts';
 import * as files from './filetools.ts';
 import { readDocumentPart } from './documents.ts';
-import { accountOf } from './mcp.ts';
+import { accountOf, allowForBrain } from './mcp.ts';
 import { knownPrograms, launchProgram, launchTarget, programExe, startMenuApps } from './programs.ts';
 import * as comfy from './comfyui.ts';
 import { MODEL_MAX_BYTES, imageType } from './toolimages.ts';
@@ -65,6 +65,8 @@ import * as voxel from './voxel/tools.ts';
 import { taskTools } from './tasktools.ts';
 import { goalTool } from './goaltool.ts';
 import { isBoardConversation, isGatewayConversation } from './private-conversations.ts';
+import { sessionSearchFor } from './sessionaccess.ts';
+import { BRAIN_ID, brainToolOffered, brainTools, brainTurn, sawSkill } from './braintools.ts';
 import type { Agent, ToolGroup, ToolListing } from '../shared/types.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
@@ -312,6 +314,8 @@ const obj = (properties: Record<string, JSONSchema>, required: string[] = []): J
 const TOOLS: ToolDef[] = [
   ...taskTools(),
   goalTool(),
+  // the Brain's own (braintools.ts): only the Brain gets them
+  ...brainTools(),
   // ---------- skills (every agent; the list it has is in its instructions) ----------
   {
     name: 'read_skill',
@@ -333,7 +337,7 @@ const TOOLS: ToolDef[] = [
       },
       ['name'],
     ),
-    run: async ({ name, file, find, from }: { name: string; file?: string; find?: string; from?: number }) => {
+    run: async ({ name, file, find, from }: { name: string; file?: string; find?: string; from?: number }, ctx) => {
       const s = skills.findSkill(name);
       if (!s) {
         // the words of an unknown name search the whole library: how an agent finds a skill it wasn't given
@@ -360,6 +364,8 @@ const TOOLS: ToolDef[] = [
       const files = s.files.length
         ? `\n\n---\nFiles with this skill, in its folder ${dir} (read with read_skill name="${s.slug}" file="...", or search them with find="..."; with a shell, run its scripts from that folder): ${s.files.map((f) => f.path).join(', ')}\nEvery project shares that folder, so keep what its scripts make (pages, pictures, builds, downloads) out of it: give them an output path in the project's folder, and don't run one there that can only write next to itself.`
         : '';
+      // (the Brain may rewrite a skill only once it has read it whole)
+      sawSkill(ctx.runId, s.slug);
       return { text: `# Skill: ${s.name}\n${s.description}\n\n${body}${files}` };
     },
   },
@@ -493,6 +499,56 @@ const TOOLS: ToolDef[] = [
         ),
       }));
     },
+  },
+  // ---------- session search (Settings › Session search: off by default, then every agent and team has it) ----------
+  {
+    name: 'search_sessions',
+    group: 'core',
+    risk: 'none',
+    when: (scope) => sessionSearchFor(scope.conversationId),
+    description:
+      "Search every saved session in this project, not only your own: every agent's chats (messages and tool results), every team's current and past threads, and the Brain's conversations. All search words must match the same message, ignoring case. Narrow it with source (agent, team or brain) and owner (an agent id or team id). Returns excerpts and references; use read_session for the original text.",
+    parameters: obj(
+      {
+        query: str('Words to find'),
+        source: {
+          type: 'string',
+          enum: ['agent', 'team', 'brain'],
+          description: 'Optional: only this kind of session',
+        },
+        owner: str('Optional: only the sessions of this agent id or team id'),
+        offset: { type: 'number', description: 'Next result offset from a previous page' },
+        limit: { type: 'number', description: 'Results per page, up to 20; default 10' },
+      },
+      ['query'],
+    ),
+    run: (args, ctx) =>
+      inRunProject(ctx, (sessions, conversationId) =>
+        sessions.searchSessions(args as unknown as import('../shared/types.ts').SessionSearch, conversationId),
+      ),
+  },
+  {
+    name: 'read_session',
+    group: 'core',
+    risk: 'none',
+    when: (scope) => sessionSearchFor(scope.conversationId),
+    description:
+      'Read an original message found by search_sessions. Pass its source, owner, sessionId and messageId. A long message has explicit character pages: keep reading with nextOffset until it is null.',
+    parameters: obj(
+      {
+        source: { type: 'string', enum: ['agent', 'team', 'brain'] },
+        owner: str('Owner from a search hit: agent id, team id or brain'),
+        sessionId: str('Session id from a search hit'),
+        messageId: str('Message id from a search hit'),
+        offset: { type: 'number', description: 'Character offset, default 0' },
+        limit: { type: 'number', description: 'Characters to read, default 8000, maximum 16000' },
+      },
+      ['source', 'owner', 'sessionId', 'messageId'],
+    ),
+    run: (args, ctx) =>
+      inRunProject(ctx, (sessions, conversationId) =>
+        sessions.readSession(args as unknown as import('../shared/types.ts').SessionRead, conversationId),
+      ),
   },
   {
     name: 'save_artifact',
@@ -2422,6 +2478,8 @@ const hasOwnFileTools = (engine: string | undefined): boolean => !!engine && eng
 
 /** May this agent use the tool at all. Cheap: the knowledge folders are only looked at for knowledge tools. */
 function mayUse(agent: ToolAgent, tool: ToolDef): boolean {
+  if (agent.id === BRAIN_ID) return brainMayUse(tool);
+  if (tool.group === 'brain') return false;
   if (tool.group === 'core' || (agent.toolGroups || []).includes(tool.group)) return true;
   // a memory of its own: real agents only (not stand-ins like workflows or outside MCP clients)
   if (tool.group === 'memory') return memory.hasMemory(agent);
@@ -2429,8 +2487,23 @@ function mayUse(agent: ToolAgent, tool: ToolDef): boolean {
   return false;
 }
 
+// The Brain gets its own tools, the look-ups it shares with agents, and file tools that only read (engines with
+// their own file tools read with those). Everything else it hands to an agent or team.
+const BRAIN_SHARED = new Set(['read_skill', 'search_sessions', 'read_session']);
+const BRAIN_FILES = new Set(['list_files', 'read_file', 'read_document', 'find_files', 'search_files', 'view_image']);
+function brainMayUse(tool: ToolDef): boolean {
+  if (tool.group === 'brain') return brainToolOffered(tool.name);
+  return BRAIN_SHARED.has(tool.name) || BRAIN_FILES.has(tool.name);
+}
+
 export function toolsForAgent(agent: ToolAgent, scope: ToolScope = {}): ToolDef[] {
   const own = hasOwnFileTools(scope.engine);
+  // (the Brain on Hermes has none of Hermes's file tools, which also write: it reads with the dashboard's)
+  if (agent.id === BRAIN_ID)
+    return TOOLS.filter(
+      (t) =>
+        brainMayUse(t) && !(own && scope.engine !== 'hermes' && BRAIN_FILES.has(t.name)) && (!t.when || t.when(scope)),
+    );
   let knowledge: boolean | undefined;
   return TOOLS.filter((t) => {
     if (own && OWN_TOOL_GROUPS.has(t.group)) return false;
@@ -2445,8 +2518,9 @@ export function toolDefs(agent: ToolAgent, scope: ToolScope = {}): ToolSpec[] {
   return toolsForAgent(agent, scope).map(({ name, description, parameters }) => ({ name, description, parameters }));
 }
 
+// (the Brain's own tools aren't agents' to pick)
 export const allTools = (): ToolListing[] =>
-  TOOLS.map(({ name, group, risk, description }) => ({
+  TOOLS.filter((t) => t.group !== 'brain').map(({ name, group, risk, description }) => ({
     name,
     group,
     risk: typeof risk === 'function' ? 'varies' : risk,
@@ -2530,7 +2604,9 @@ export async function gate(
   if (d.always && agent.id && !agent.id.startsWith('_')) {
     // the run asking keeps going with this same agent: the yes counts for the rest of it too
     agent.alwaysAllow = [...new Set([...(agent.alwaysAllow || []), grant])];
-    rememberAlwaysAllow(agent.id, [grant]);
+    // (the Brain's are kept with its MCP grants: its own tools under no server)
+    if (agent.id === BRAIN_ID) allowForBrain('', grant);
+    else rememberAlwaysAllow(agent.id, [grant]);
   }
   return null;
 }
@@ -2590,7 +2666,11 @@ export async function callTool(
   if (!tool) throw new Error(`Unknown tool ${calledAs}`);
   const name = tool.name;
   if (!mayUse(agent, tool))
-    throw new Error(`${agent.name} isn't allowed to use ${name}. Turn on the "${tool.group}" tools for it.`);
+    throw new Error(
+      tool.group === 'brain'
+        ? `${name} is the Brain's own tool.`
+        : `${agent.name} isn't allowed to use ${name}. Turn on the "${tool.group}" tools for it.`,
+    );
   const args = resolved.args && typeof resolved.args === 'object' ? resolved.args : {};
   const risk = riskOf(tool, args);
   // For tools whose risk depends on arguments, "Always allow" only skips the low-risk form.
@@ -2626,6 +2706,7 @@ const PAGED = new Set([
   'read_document',
   'fetch_url',
   'read_conversation',
+  'read_session',
   'read_skill',
   'knowledge_read',
   'TaskCreate',
@@ -2687,6 +2768,26 @@ function describeCall(name: string, args: ToolArgs): string | undefined {
 }
 
 // ---------- helpers ----------
+// A session look-up in the project the run started in (another agent's run id is refused), given the run's conversation.
+async function inRunProject(
+  ctx: ToolContext,
+  look: (sessions: typeof import('./sessions.ts'), conversationId: string | undefined) => unknown,
+): Promise<ToolResult> {
+  const sessions = await import('./sessions.ts');
+  const { runInfo } = await import('./engines/index.ts');
+  const { activeProject, withProject } = await import('./store.ts');
+  // the Brain, in one of its turns: that turn's project and conversation
+  const turn = ctx.agent.id === BRAIN_ID ? brainTurn(ctx.runId) : undefined;
+  if (turn) return { text: JSON.stringify(withProject(turn.project, () => look(sessions, turn.conversationId))) };
+  const run = runInfo(ctx.runId);
+  if (ctx.runId && (!run || run.agentId !== ctx.agent.id))
+    return { text: 'That run is not available to you.', isError: true };
+  if (!agentStore.get(ctx.agent.id)) return { text: 'Only saved dashboard agents can search sessions.', isError: true };
+  return {
+    text: JSON.stringify(withProject(run?.project || activeProject(), () => look(sessions, run?.conversationId))),
+  };
+}
+
 // Run a Python script with a program's own Python (mayapy, hython) and return what it printed.
 async function runPython(exe: string, script: string, ctx: ToolContext): Promise<ToolResult> {
   if (!exists(exe)) throw new Error(`${path.basename(exe)} was not found next to the program.`);

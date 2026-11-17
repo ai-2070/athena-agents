@@ -9,6 +9,10 @@ import type { BrainChatMessage } from '../../shared/types.ts';
 
 // the Brain's model: each answer waits until the test lets it go
 const waiting: ((answer: string) => void)[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', effort: '', fallback: false }),

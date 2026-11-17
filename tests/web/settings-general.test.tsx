@@ -12,7 +12,7 @@ const settle = () => act(() => new Promise((r) => setTimeout(r, 30)));
 const settings = {
   brainApproves: true,
   brainFollowsUp: true,
-  brainTools: 'full',
+  brainAccess: 'full',
   brainAnyGitHub: false,
   brain: { provider: 'claude', model: 'haiku' },
   defaults: { engine: 'claude-code', claudeModel: 'sonnet', openrouterModel: 'x/y', autonomy: 'ask' },
@@ -195,16 +195,36 @@ describe('General & keys', () => {
     expect(document.getElementById('toasts')!.textContent).toContain('nope');
   });
 
-  it("the Brain's tool access starts on Full and saves at once", async () => {
+  it('session search starts off and saves at once', async () => {
     await open();
-    const seg = el.querySelector('[aria-label="Tool access"]')!;
+    const row = switchFor('Search all sessions');
+    expect(row.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('false');
+    await act(async () => row.querySelector<HTMLElement>('.toggle-text')!.click());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => r.body)).toEqual([{ sessionSearch: true }]);
+    expect(row.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('what the Brain may do starts on Full and saves at once', async () => {
+    await open();
+    expect(el.textContent).toContain('What the Brain may do');
+    const seg = el.querySelector('[aria-label="Access"]')!;
     const choice = (text: string) =>
       [...seg.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === text)!;
     expect(choice('Full').className).toContain('on');
     await act(async () => choice('Ask first').click());
     await settle();
-    expect(requests.filter((r) => r.method === 'PUT').map((r) => r.body)).toEqual([{ brainTools: 'ask' }]);
-    expect(el.textContent).toContain('Anything else waits for you in Needs you');
+    expect(requests.filter((r) => r.method === 'PUT').map((r) => r.body)).toEqual([{ brainAccess: 'ask' }]);
+    expect(el.textContent).toContain('Anything that changes something waits for you in Needs you');
+    await act(async () => choice('Read only').click());
+    await settle();
+    expect(
+      requests
+        .filter((r) => r.method === 'PUT')
+        .map((r) => r.body)
+        .at(-1),
+    ).toEqual({ brainAccess: 'read' });
+    expect(el.textContent).toContain('changes nothing');
   });
 
   it('shows the tools the Brain may use without asking, and takes one back', async () => {
@@ -214,10 +234,13 @@ describe('General & keys', () => {
     grants = [
       { server: 'composio', tool: 'GMAIL_SEND_EMAIL' },
       { server: 'oomol', tool: 'DRIVE_UPLOAD' },
+      { server: '', tool: 'team:high' },
     ];
     await open();
     const list = el.querySelector('.brain-grants')!;
     expect(list.textContent).toContain('composio · GMAIL_SEND_EMAIL');
+    // (the Brain's own tools, kept under no server)
+    expect(list.textContent).toContain('The Brain · team');
     await act(async () =>
       list.querySelector<HTMLButtonElement>('[aria-label="Take back GMAIL_SEND_EMAIL on composio"]')!.click(),
     );
@@ -284,7 +307,7 @@ describe('General & keys', () => {
     const sections = [...el.querySelectorAll('.settings-section h2')];
     const folderIndex = sections.findIndex((heading) => heading.textContent === 'Allowed folders');
     expect(sections[folderIndex - 2].textContent).toBe("The Brain's model");
-    expect(sections[folderIndex - 1].textContent).toBe("The Brain's tools");
+    expect(sections[folderIndex - 1].textContent).toBe('What the Brain may do');
     expect(sections[folderIndex].querySelector('svg')).not.toBeNull();
     const labels = [...el.querySelectorAll('label.field')].map((field) => field.querySelector('span')?.textContent);
     expect(labels.indexOf('ComfyUI path')).toBe(labels.indexOf('Extra ComfyUI workflow folders') + 1);

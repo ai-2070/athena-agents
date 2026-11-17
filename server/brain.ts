@@ -11,6 +11,7 @@ import { effortFor, isEffort } from '../shared/effort.ts';
 import { apiModelInfo, apiRequestOptions, resolveApiProvider } from './apiproviders.ts';
 import { apiErrorMessage } from './apiresponse.ts';
 import { ask as askOpencode, status as opencodeStatus } from './engines/opencode.ts';
+import { BRAIN_HERMES_TOOLSETS } from './engines/hermes.ts';
 import type { FetchError } from './util.ts';
 import type {
   Agent,
@@ -82,6 +83,16 @@ export interface ThinkOptions {
 
 const GROUP_IDS = TOOL_GROUPS.map((g) => g.id);
 
+/** The engine the Brain runs on for each of its providers. */
+export const BRAIN_ENGINES = {
+  claude: 'claude-code',
+  openrouter: 'eve',
+  venice: 'eve',
+  hermes: 'hermes',
+  codex: 'codex',
+  opencode: 'opencode',
+} as const satisfies Record<BrainSetting['provider'], EngineId>;
+
 // Which model the Brain uses (Settings > General > The Brain's model, or the chip in the Brain chat).
 // Claude Code, OpenRouter, Venice, Hermes, Codex or opencode. Falls back to whatever is available.
 export function brainModel(): BrainModel {
@@ -109,16 +120,7 @@ export function brainModel(): BrainModel {
     codex: '',
     opencode: '',
   }[p];
-  const engine = (
-    {
-      claude: 'claude-code',
-      openrouter: 'eve',
-      venice: 'eve',
-      hermes: 'hermes',
-      codex: 'codex',
-      opencode: 'opencode',
-    } as const satisfies Record<BrainSetting['provider'], EngineId>
-  )[p];
+  const engine = BRAIN_ENGINES[p];
   const effort =
     p === b.provider ? (p === 'venice' && isEffort(b.effort) ? b.effort : effortFor(engine, b.effort, p)) : '';
   return { provider: p, model: model || dflt, effort, fallback: p !== (b.provider || 'claude') };
@@ -389,6 +391,9 @@ export async function think(
         'stream-json',
         ...(bm.model ? ['-m', bm.model] : []),
         ...(bm.effort ? ['--reasoning', bm.effort] : []),
+        // (it only answers: none of Hermes's terminal, file or code tools)
+        '-t',
+        BRAIN_HERMES_TOOLSETS,
       ],
       { input: `${system}\n\n---\n\n${user}`, timeout, cwd, env: { PYTHONIOENCODING: 'utf-8' }, onLine },
     );

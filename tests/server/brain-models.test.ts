@@ -31,6 +31,10 @@ vi.mock('../../server/engines/hermes.ts', async (orig) => ({
 
 const answers: string[] = [];
 const asked: { system: string; user: string }[] = [];
+vi.mock('../../server/brainrun.ts', async (orig) => ({
+  ...(await orig<typeof import('../../server/brainrun.ts')>()),
+  runBrain: (await import('./brain-fake.ts')).thinkingBrain,
+}));
 vi.mock('../../server/brain.ts', async (orig) => ({
   ...(await orig<typeof import('../../server/brain.ts')>()),
   brainModel: () => ({ provider: 'openrouter', model: 'mock', fallback: false }),
@@ -404,7 +408,7 @@ describe('in the Brain chat', () => {
     expect(asked).toHaveLength(2);
     expect(asked[0].system).toContain('"do":"set_model"');
     expect(asked[0].user).toContain('provider: openrouter | model: anthropic/claude-opus-5.5 | effort: default');
-    const looked = asked[1].user.split('MODELS YOU LOOKED UP')[1] || '';
+    const looked = asked[1].user.split('TOOL RESULTS')[1] || '';
     expect(looked).toContain('google/gemini-3-flash');
     expect(looked).not.toContain('google/gemini-3-pro');
     expect(r.answer).toBe('Switched.');
@@ -412,7 +416,7 @@ describe('in the Brain chat', () => {
     expect(agents.get(a.id)).toMatchObject({ model: 'google/gemini-3-flash', effort: 'low' });
   });
 
-  it('a new conversation started while model lists are fetched changes nothing and keeps nothing', async () => {
+  it('clearing the chat while model lists are fetched stops it: nothing changes, nothing is kept', async () => {
     const a = newAgent({ name: 'Cleared one', engine: 'eve', provider: 'openrouter', model: 'google/gemini-3-pro' });
     clearHistory();
     let fetched!: () => void;
@@ -437,9 +441,7 @@ describe('in the Brain chat', () => {
     clearHistory();
     fetched();
     const r = await going;
-    expect(r.done).toEqual([
-      expect.objectContaining({ kind: 'error', text: expect.stringContaining('You started a new conversation') }),
-    ]);
+    expect(r.done).toEqual([]);
     expect(agents.get(a.id)?.model).toBe('google/gemini-3-pro');
     expect(history()).toEqual([]);
   });

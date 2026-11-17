@@ -16,6 +16,7 @@ import type { Agent, Chat, EngineStatus } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 import { SessionGone, openInputs } from './cli.ts';
 import { splitContent } from '../toolimages.ts';
+import { BRAIN_ID } from '../brainmcp.ts';
 
 /** The per-run files Claude Code reads (prepareFiles). */
 export interface ClaudeFiles {
@@ -218,6 +219,8 @@ export function claudeArgs(
     'mcp__dashboard',
     ...(mode !== 'ask' ? (agent.mcpServers || []).map((s) => `mcp__${s}`) : []),
   );
+  // the Brain only reads files: changes go through its own tools, and work goes to agents
+  if (agent.id === BRAIN_ID) args.push('--tools', 'Read,Glob,Grep');
   const dirs = knowledgeRoots(agent);
   if (dirs.length) args.push('--add-dir', ...dirs);
   return args;
