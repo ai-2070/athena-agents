@@ -1389,6 +1389,7 @@ Completed reviews:
 - Trigger/evidence: streaming names two outputs, only one exists. One preview makes box visible; expiry only retries wholly hidden boxes, so redraw reuses it forever.
 - Impact/expected: second output never gets a lookup after it appears. Track unresolved paths independently.
 - Limits: existing retry test covers wholly missing boxes; no file generation executed.
+- Fixed: a preview box that found only some of the files it names is looked up again after the same 15 s as one that found none, until all are there. Test in `tests/web/filepreview.test.ts`.
 
 ### BH-153 — Model-preview fallbacks promise download without a download link
 

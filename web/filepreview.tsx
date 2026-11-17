@@ -340,7 +340,7 @@ function Previews({
   paths: readonly string[];
   compact: boolean;
   project?: string;
-  onReady: () => void;
+  onReady: (all: boolean) => void;
 }) {
   const [files, setFiles] = useState<OkFile[]>([]);
   useEffect(() => {
@@ -350,7 +350,7 @@ function Previews({
       const ok = infos.filter((i): i is OkFile => i.ok);
       if (!ok.length) return;
       setFiles(ok);
-      onReady();
+      onReady(ok.length === infos.length);
     });
     return () => {
       live = false;
@@ -377,14 +377,23 @@ export function filePreviews(
   const list = [...new Set(paths)].filter(Boolean);
   if (!list.length) return box;
   createAppRoot(box).render(
-    <Previews paths={list} compact={compact} project={project} onReady={() => box.classList.remove('hidden')} />,
+    <Previews
+      paths={list}
+      compact={compact}
+      project={project}
+      onReady={(all) => {
+        box.classList.remove('hidden');
+        // (some aren't there yet: mentionPreviews looks again after a while)
+        box.dataset.missing = all ? '' : '1';
+      }}
+    />,
   );
   return box;
 }
 
 // Views that redraw on every streamed word get the same box back for the same message (by key), so
-// its images and videos don't load again each time. A box that found nothing to show is looked up again
-// after a while (the file may have been written since).
+// its images and videos don't load again each time. A box that found nothing to show, or not all it names, is looked
+// up again after a while (the file may have been written since).
 const boxes = new Map<string, { box: HTMLDivElement; at: number }>();
 
 /** Previews for the files a message's text mentions (and the files sent with it). key: the message,
@@ -400,7 +409,8 @@ export function mentionPreviews(
   if (!key) return filePreviews(paths, { compact, project });
   const id = `${key}\n${compact}\n${project || ''}\n${paths.join('\n')}`;
   const hit = boxes.get(id);
-  if (hit && !(hit.box.classList.contains('hidden') && Date.now() - hit.at > MISSING_FOR)) return hit.box;
+  const incomplete = (b: HTMLDivElement) => b.classList.contains('hidden') || b.dataset.missing === '1';
+  if (hit && !(incomplete(hit.box) && Date.now() - hit.at > MISSING_FOR)) return hit.box;
   const box = filePreviews(paths, { compact, project });
   boxes.set(id, { box, at: Date.now() });
   // (the oldest go once there are many)

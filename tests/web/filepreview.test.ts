@@ -176,6 +176,28 @@ describe('keyboard and later files', () => {
     now.mockRestore();
     delete FILES['/w/later.png'];
   });
+
+  it('a message with one of its two files there looks again later for the other (BH-152)', async () => {
+    const t0 = Date.now();
+    const now = vi.spyOn(Date, 'now').mockReturnValue(t0);
+    const text = 'Saved /w/shot.png and /w/second.png';
+    const first = mentionPreviews(text, [], { key: 'dock:m10' })!;
+    await expect.poll(() => first.classList.contains('hidden')).toBe(false);
+    expect(first.querySelectorAll('.fp-kind-image')).toHaveLength(1);
+    // the second is written a moment later
+    FILES['/w/second.png'] = { kind: 'image', size: 1 };
+    now.mockReturnValue(t0 + 5_000);
+    expect(mentionPreviews(text, [], { key: 'dock:m10' })).toBe(first);
+    now.mockReturnValue(t0 + 16_000);
+    const again = mentionPreviews(text, [], { key: 'dock:m10' })!;
+    expect(again).not.toBe(first);
+    await expect.poll(() => again.querySelectorAll('.fp-kind-image').length).toBe(2);
+    // all found: kept from now on
+    now.mockReturnValue(t0 + 60_000);
+    expect(mentionPreviews(text, [], { key: 'dock:m10' })).toBe(again);
+    now.mockRestore();
+    delete FILES['/w/second.png'];
+  });
 });
 
 describe('revealLabel()', () => {
