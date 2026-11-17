@@ -1398,6 +1398,7 @@ Completed reviews:
 - Trigger/evidence: ordinary chat previews unsupported/oversized/unparseable model. Model branch bypasses FileCard; toolbar has server-side Reveal only, while fallback tells user to download.
 - Impact/expected: browser user cannot follow recovery instruction. Expose the file URL/download alongside model fallback.
 - Limits: artifact cards have separate Open links; no model/browser run.
+- Fixed: every message a model preview gives instead of the model (too big, no 3D in this browser, can't be read) comes with a Download link to the file. Test in `tests/web/filepreview.test.ts` (the too-big case; the others use the same code).
 
 ### BH-154 — Removed model previews lack observer/model disposal
 

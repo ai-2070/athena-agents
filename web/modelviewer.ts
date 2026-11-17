@@ -2,6 +2,7 @@
 // three.js and the loaders come in only when a model is first shown. Each viewer draws only while it is on screen and
 // gives its graphics context back when it leaves, so a long chat of models doesn't run out of them.
 import { h } from './core.ts';
+import { domButtonLink } from './ui/dom.ts';
 import { fetchFile } from './client/http.ts';
 import type { Group, Object3D, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -74,9 +75,21 @@ export function modelViewer(url: string, name: string, bytes = 0): HTMLElement {
   const ext = (/\.([a-z]+)$/i.exec(name)?.[1] || '').toLowerCase();
   const note = h(
     'div.fp-model-note',
-    { class: 'absolute inset-0 grid place-items-center p-4 text-center text-[12.5px] leading-[normal] text-dim' },
+    {
+      class:
+        'absolute inset-0 flex flex-col items-center justify-center gap-2.5 p-4 text-center text-[12.5px] leading-[normal] text-dim',
+    },
     'Loading the model…',
   );
+  // what it can't show is said, with a link to download the file (the page itself can't open it otherwise)
+  const say = (why: string) =>
+    note.replaceChildren(
+      h('span', {}, why),
+      domButtonLink(
+        { variant: 'ghost', size: 'tiny', class: 'fp-model-download', href: url, download: name },
+        'Download',
+      ),
+    );
   const box = h(
     'div.fp-model',
     {
@@ -87,7 +100,7 @@ export function modelViewer(url: string, name: string, bytes = 0): HTMLElement {
     note,
   );
   if (bytes > MODEL_MAX_BYTES) {
-    note.textContent = `This model is ${(bytes / 1048576).toFixed(0)} MB, too big to show here. Download it to open it.`;
+    say(`This model is ${(bytes / 1048576).toFixed(0)} MB, too big to show here. Download it to open it.`);
     return box;
   }
 
@@ -105,7 +118,7 @@ export function modelViewer(url: string, name: string, bytes = 0): HTMLElement {
   const fail = (why: string) => {
     failed = true;
     stop();
-    note.textContent = why;
+    say(why);
     note.classList.remove('hidden');
   };
 

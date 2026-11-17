@@ -102,6 +102,10 @@ describe('filePreviews()', () => {
     expect(cards[0].querySelector('.fp-reveal')).not.toBeNull();
     // 80 MB: not loaded at all, said in words
     expect(cards[1].querySelector('.fp-model-note')!.textContent).toMatch(/80 MB, too big to show here/);
+    // and it can be downloaded right there (BH-153)
+    const link = cards[1].querySelector<HTMLAnchorElement>('.fp-model-download')!;
+    expect(link.getAttribute('href')).toBe('/api/file?path=%2Fw%2Fhuge.glb');
+    expect(link.getAttribute('download')).toBe('huge.glb');
     expect(cards[1].querySelector('canvas')).toBeNull();
   });
 
