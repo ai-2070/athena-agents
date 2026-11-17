@@ -1152,7 +1152,7 @@ Completed reviews:
 - Trigger/evidence: sampler receives ConditioningCombine with two encoders. Traversal follows first matching input; both encoders are excluded as independent starts, so second branch is never updated.
 - Impact/expected: replacement prompt mixes with saved text if top-level override should replace all conditioning branches.
 - Limits: whether only first branch is intentional needs confirmation; tests cover linear helpers, no branching run.
-- Fixed: kept as it was by choice: a new prompt replaces the first text branch of a combined conditioning, and the others stay as saved (often a style the workflow means to keep). That is now said: `findPromptNodes()` reports the other branches' text inputs (`promptAlso`, `negativeAlso`, also in comfyui_describe_workflow), and a run that sets the prompt warns which text was kept and how to set it by key. Test in `tests/server/comfyui-run.test.ts`.
+- Fixed: kept as it was by choice: a new prompt replaces the first text branch of a combined conditioning, and the others stay as saved (often a style the workflow means to keep). That is now said: `findPromptNodes()` reports the other branches' text inputs (`promptAlso`, `negativeAlso`, shown by comfyui_describe_workflow; its description stays as it was, within the tool size budget), and a run that sets the prompt warns which text was kept and how to set it by key. Test in `tests/server/comfyui-run.test.ts`.
 
 ### BH-125 — Linked seed inputs bypass randomization and reporting
 

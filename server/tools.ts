@@ -895,7 +895,7 @@ const TOOLS: ToolDef[] = [
     group: 'comfyui',
     risk: 'none',
     description:
-      'Show a workflow\'s inputs (keyed "nodeId.input") and its prompt text nodes: the inputs prompt and negative replace (promptInputs, negativeInputs), and text mixed in beside them that they leave as saved (promptAlso, negativeAlso; set it by its key to change it).',
+      'Show a workflow\'s inputs (keyed "nodeId.input") and its prompt text nodes: the inputs prompt and negative replace (promptInputs, negativeInputs).',
     parameters: obj({ workflow: str('Workflow name') }, ['workflow']),
     run: async ({ workflow }: { workflow: string }) => ({
       text: JSON.stringify(await comfy.describeWorkflow(workflow)),
