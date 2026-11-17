@@ -1195,6 +1195,7 @@ Completed reviews:
 - Trigger/evidence: local member finishes while its other-team request is outstanding, then /queue or a held message is eligible. Queue idle/release checks only local running/queued/pending work, unlike isTeamBusy and relay completion.
 - Impact/expected: later instructions overlap incomplete work despite “whole team is done” ordering. Include relay/delegate work in queue eligibility.
 - Limits: no team/delegate execution.
+- Fixed: a team's `/queue` message, the next held one and its `/loop` wait until the team is done including members' background work and their questions to other teams still unanswered (as `isTeamBusy()` counts them); when those finish the team settles again and the queue goes on. Test in `tests/server/crossteam.test.ts`.
 
 ### BH-131 — Team reconnect merges obsolete sessions over the refreshed conversation
 

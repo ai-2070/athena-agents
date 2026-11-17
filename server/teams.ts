@@ -1434,6 +1434,12 @@ async function steerNow(team: Team, text: string | null | undefined, opts: PostO
 
 // ---------- /queue: your messages that wait until the team is done ----------
 const idle = (r: Runtime) => !r.running.size && !r.queue.length && !r.pending?.length && !r.releasing && !r.steering;
+// "the whole team is done" also waits for what its members still have going: work in the background, and questions
+// to other teams not yet answered (their answer comes back as a turn, which settles the team again)
+const waitsOnOthers = (teamId: string) =>
+  Object.values(loadChat(teamId).sessions).some((id) => hasBackgroundWork(id)) ||
+  relays.some((x) => x.pid === activeProject().id && x.from === teamId);
+const teamDone = (teamId: string) => idle(runtime(teamId)) && !waitsOnOthers(teamId);
 
 /** Post now if nobody is working, else once the whole team is done (one held message at a time). */
 export async function queueUserMessage(
@@ -1451,7 +1457,7 @@ export async function queueUserMessage(
   text = String(text || '').trim();
   if (!text && !attachments.length) throw new Error('Write the message after /queue.');
   const r = runtime(team.id);
-  if (idle(r) && !r.held.length)
+  if (teamDone(team.id) && !r.held.length)
     return { message: await postUserMessage(team.id, text, { replyTo, route, attachments }) };
   const queued: QueuedMessage = {
     id: uid('q'),
@@ -1502,7 +1508,7 @@ export function orderQueuedTeam(teamId: string, ids: unknown): QueuedMessage[] {
 // Nobody is working any more: post the next held message.
 function releaseHeld(teamId: string) {
   const r = runtime(teamId);
-  if (!r.held.length || !idle(r) || r.stopped || r.recovered) return;
+  if (!r.held.length || !teamDone(teamId) || r.stopped || r.recovered) return;
   const team = getTeam(teamId);
   // The queue belongs to the project where it was typed.
   if (!team || r.heldIn !== activeProject().id) {
@@ -1650,7 +1656,7 @@ export function stopTeamLoop(teamId: string, why: string | null): boolean {
 function fireLoop(teamId: string) {
   const r = runtime(teamId);
   const l = r.loop;
-  if (!l || !l.due || !idle(r) || r.held.length) return;
+  if (!l || !l.due || !teamDone(teamId) || r.held.length) return;
   const team = getTeam(teamId);
   // (another project is open now: its threads are the ones in view)
   if (!team || l.project !== openProject().id) return void stopTeamLoop(teamId, null);
