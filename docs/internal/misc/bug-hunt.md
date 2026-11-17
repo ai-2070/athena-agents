@@ -865,7 +865,7 @@ Completed reviews:
 - Trigger/evidence: terminal produces output faster than a viewer receives. Scrollback is capped, but every chunk is sent without checking queued bytes/backpressure; the socket writable queue has no application cap.
 - Impact/expected: shared-server memory can grow independently of `MAX_BUFFER`. Bound or backpressure slow-client output.
 - Limits: no throughput test or observed memory exhaustion.
-- Fixed: a viewer more than 4 MB behind is let go (4008) instead of queuing without limit; it connects again and gets the current screen. No test of its own.
+- Fixed: a viewer more than 4 MB behind is let go (4008) instead of queuing without limit; it connects again and gets the current screen. Test in `tests/server/terminal-command.test.ts`.
 
 ### BH-094 — Closing an unready Windows terminal can defer killing indefinitely
 

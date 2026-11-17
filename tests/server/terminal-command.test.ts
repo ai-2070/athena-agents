@@ -32,3 +32,23 @@ describe.runIf(process.platform === 'win32')('a terminal for a .cmd on Windows',
     }
   });
 });
+
+describe('a terminal viewer that falls behind', () => {
+  it('is let go (it connects again and gets the screen) instead of piling up output', async () => {
+    const { send } = await import('../../server/terminals.ts');
+    const viewer = (bufferedAmount: number) => {
+      const v = { readyState: 1, bufferedAmount, sent: [] as string[], closed: 0 as number | null };
+      return Object.assign(v, {
+        send: (d: string) => void v.sent.push(d),
+        close: (code?: number) => void (v.closed = code ?? null),
+      });
+    };
+    const quick = viewer(10);
+    send(quick as never, 'hello');
+    expect(quick.sent).toEqual(['hello']);
+    const slow = viewer(5_000_000);
+    send(slow as never, 'hello');
+    expect(slow.sent).toEqual([]);
+    expect(slow.closed).toBe(4008);
+  });
+});

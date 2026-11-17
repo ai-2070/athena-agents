@@ -43,7 +43,7 @@ const MAX_BUFFER = 400_000;
 // A viewer this far behind (a slow connection) is let go rather than kept in memory: it connects again and gets the
 // screen as it is then (the last MAX_BUFFER of output).
 const MAX_BEHIND = 4_000_000;
-function send(ws: WebSocket, d: string): void {
+export function send(ws: Pick<WebSocket, 'readyState' | 'bufferedAmount' | 'close' | 'send'>, d: string): void {
   if (ws.readyState !== 1) return;
   if (ws.bufferedAmount > MAX_BEHIND) return void ws.close(4008, 'fell behind');
   ws.send(d);
