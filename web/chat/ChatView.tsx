@@ -942,7 +942,13 @@ export function ChatView(p: ChatViewProps) {
       onLeave={() => input.current?.focus()}
       onLost={(_q, text) => keepEdit(text)}
       // (sent into the turn going on: it leaves the list once read, or goes next if the turn ends first)
-      hint={(q) => (q.reading ? 'Sent. It reads this at its next step' : null)}
+      hint={(q) =>
+        q.reading
+          ? 'Sent. It reads this at its next step'
+          : q.unsent
+            ? 'May not have reached the agent before the restart: send it again, or take it back'
+            : null
+      }
     />
   );
 

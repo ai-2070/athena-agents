@@ -835,6 +835,8 @@ export interface QueuedMessage {
   from?: string;
   /** sent into this run's turn, which hasn't read it yet: it leaves the queue once read, else goes next */
   reading?: string;
+  /** sent into a turn just before a restart, and not known to have reached the agent: it waits for you */
+  unsent?: boolean;
   ts: number;
 }
 

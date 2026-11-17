@@ -492,6 +492,17 @@ describe('the agent chat (AI SDK)', () => {
     expect(told).toEqual([]);
   });
 
+  it('a message handed back after a restart says it may not have reached the agent (BH-063)', async () => {
+    const el = await open();
+    await wsEvent({
+      type: 'queue',
+      agentId: 'a1',
+      chatId: 'c1',
+      queued: [{ id: 's1', text: 'Use PostgreSQL instead.', unsent: true, ts: 0 }],
+    });
+    expect(el.querySelector('.queued-msg')!.textContent).toContain('May not have reached the agent before the restart');
+  });
+
   it('/queue when nothing is working just sends it', async () => {
     const el = await open();
     await type(el, '/queue hello there');

@@ -375,7 +375,7 @@ The dashboard no longer shortens conversations, writes summaries or lets you edi
 
 The context meter uses the engine's last measurement when available, otherwise an estimate. Under **Settings → General & keys → Context**, set **Context window** if a model's reported size is wrong.
 
-Eve turns survive an app restart, including saved approvals and questions. Stop ends the native session. Queued messages remain saved. Private runtime files stay on this computer and are excluded from project copies, backups and exports.
+Eve turns survive an app restart, including saved approvals and questions. Stop ends the native session. Queued messages remain saved. A message you sent while it worked that the app was still sending when it stopped is checked against what Eve received: one Eve has stays in the turn, one it hasn't got is sent again, and when its turn didn't survive the restart it comes back first in the queue, held, saying it may not have reached the agent. Private runtime files stay on this computer and are excluded from project copies, backups and exports.
 
 An API-model agent's instructions stay the same for a whole turn, so the model provider can reuse them from its cache at every step. A note the agent adds to MEMORY.md or WORLD.md during a turn is in its instructions from the next message; the tool's result already tells the agent what changed.
 
