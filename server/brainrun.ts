@@ -3,7 +3,8 @@
 // (overseer.ts); the engine's session lives in an agent chat of its own (chats/brain/), one per conversation.
 // Kept apart so tests can stand in for the run (a model that calls the tools as scripted).
 import { askAgent } from './engines/index.ts';
-import { bus } from './store.ts';
+import { activeProject, bus } from './store.ts';
+import { holdLiveAgent } from './liveagents.ts';
 import { BRAIN_ENGINES, brainModel } from './brain.ts';
 import { brainGrants } from './mcp.ts';
 import { BRAIN_ID, brainAccess } from './braintools.ts';
@@ -61,6 +62,8 @@ export async function runBrain(run: BrainRun): Promise<string> {
     if (ev.type === 'run' && ev.runId === run.runId && ev.event) run.onEvent(ev.event as RunEvent);
   };
   bus.on('event', listen);
+  // (it is never saved with the other agents: an engine that looks it up by id, like Eve, finds it here meanwhile)
+  const release = holdLiveAgent(activeProject().id, run.agent);
   try {
     return await askAgent(run.agent, run.text, {
       chatId: run.chatId,
@@ -70,6 +73,7 @@ export async function runBrain(run: BrainRun): Promise<string> {
       from: run.from,
     });
   } finally {
+    release();
     bus.off('event', listen);
   }
 }

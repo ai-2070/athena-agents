@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { agents, chats, withProject } from '../store.ts';
+import { chats, withProject } from '../store.ts';
+import { findAgent } from '../liveagents.ts';
 import { readExecution } from '../execution.ts';
 import { cleanAttachments, safeUploadsRoot, withAttachmentsReadWhole } from '../uploads.ts';
 import { isDocumentName } from '../documents.ts';
@@ -204,7 +205,7 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     throw new Error('This input is no longer active in its project.');
   if (existing) return existing;
   return withProject(project, async () => {
-    const agent = agents.get(receipt.agentId);
+    const agent = findAgent(receipt.agentId);
     const chat = chats.get(receipt.agentId, receipt.chatId);
     if (!agent || !chat) throw new Error('This conversation no longer exists.');
     const selection = await selectEveModel(agent, chat);

@@ -3327,6 +3327,7 @@ async function answerNow(
   // the answer is what it says after its last tool call (what it said before one shows while it works)
   let said = '';
   let afterTool = false;
+  let runError = '';
   const onEvent = (ev: RunEvent) => {
     if (ev.kind === 'text') {
       if (afterTool) {
@@ -3347,6 +3348,8 @@ async function answerNow(
       tell({ kind: 'tool', id: ev.id, name: ev.name, args: ev.args });
     } else if (ev.kind === 'tool_result')
       tell({ kind: 'tool_result', id: ev.id, text: String(ev.text ?? ''), isError: ev.isError });
+    // (a run that fails ends without an answer, not with an exception: what went wrong is said instead)
+    else if (ev.kind === 'error') runError = String(ev.text ?? '') || 'the run failed';
   };
   // a new conversation meanwhile: this turn belongs to the old one
   const cleared = () => generation(key) !== gen;
@@ -3404,6 +3407,7 @@ async function answerNow(
       onEvent,
     });
     if (!cleared()) markHeard(p.id, conversationId, engine.chat.id, heardAt);
+    if (runError && !said.trim()) throw new Error(runError);
     answer = said.trim() || result;
   } catch (e) {
     if (!(e instanceof RunStopped) && !stopper.signal.aborted) failure = e;
