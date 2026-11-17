@@ -489,6 +489,7 @@ Completed reviews:
 - Trigger/evidence: A's question is removed through an accepted unscoped request with B open. Dismissal enters A, returns, then collection removal resolves in B.
 - Impact/expected: success is reported but A retains the dismissed record. Keep ownership through deletion.
 - Limits: stale A headers are rejected; this is current-project/no-header path. Answer/dismissal themselves preserve ownership; not reproduced.
+- Fixed: removing a question runs in its own project throughout (dismissal and removal), so one removed from another project's Overview pane is gone from that project. Test in `tests/server/questions.test.ts`.
 
 ### BH-051 — In-flight answers overwrite question closure/deletion
 

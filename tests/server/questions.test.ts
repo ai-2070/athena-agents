@@ -227,5 +227,9 @@ describe('ask_user', () => {
     expect(queued.at(-1)).toMatchObject({ agentId: asker.id, chatId: chat.id });
     expect(q.dismissQuestion(second.id).status).toBe('dismissed');
     expect(questions.get(first.id)).toBeNull();
+    // removed from there too: it is gone from its own project, not looked for in the open one (BH-050)
+    const third = withProject(away, () => q.addQuestion({ question: 'Logo?', agentId: asker.id, chatId: chat.id }));
+    q.removeQuestion(third.id);
+    expect(withProject(away, () => questions.get(third.id))).toBeNull();
   });
 });
