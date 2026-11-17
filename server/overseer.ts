@@ -515,7 +515,7 @@ export async function snapshot({
   const all = agents.list();
   const byId = new Map(all.map((a) => [a.id, a]));
   // (liveActivity leaves out the Brain's own turn: it isn't work going on in the project)
-  const live = liveActivity().filter((run) => {
+  const live = liveActivity(p.id).filter((run) => {
     if (!conversationId) return true;
     const owner = runInfo(run.runId);
     return owner?.projectId === p.id && owner.conversationId === conversationId;
@@ -3182,6 +3182,8 @@ export interface BrainAskOptions {
   from?: string;
   operationId?: string;
   proceed?: () => boolean;
+  /** The user's own words, when text holds others' too (see BrainChatMessage.ownWords). */
+  ownWords?: string;
 }
 export async function ask(text: string, opts: BrainAskOptions = {}): Promise<BrainAnswer> {
   // (the turn stays in the project it was asked in: its run, its engine chat and what it changes, even when another
@@ -3198,6 +3200,7 @@ async function askNow(text: string, opts: BrainAskOptions): Promise<BrainAnswer>
     text,
     ...(opts.operationId ? { operationId: opts.operationId } : {}),
     ...(opts.from ? { from: opts.from } : {}),
+    ...(opts.ownWords !== undefined ? { ownWords: opts.ownWords } : {}),
     ts: Date.now(),
     ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
   };
@@ -3353,7 +3356,11 @@ async function answerNow(
   const signals = stopSignals.get(key) || new Set<AbortController>();
   stopSignals.set(key, signals.add(stopper));
   // the user's own words in this chat: GitHub links and MCP server settings are checked against them
-  const userWords = [text, ...past.filter((m) => m.role === 'user').map((m) => m.text)].join('\n');
+  // (only what they wrote: an agent's comment on a board task is in the task's message, but isn't the user's word)
+  const userWords = [
+    me.question.ownWords ?? text,
+    ...past.filter((m) => m.role === 'user').map((m) => m.ownWords ?? m.text),
+  ].join('\n');
   const runId = uid('r');
   const turn: BrainTurn = {
     project: p,
@@ -3573,7 +3580,7 @@ export async function reviewApproval(item: Approval): Promise<BrainVerdict> {
 
 // Small overview numbers for the UI.
 export function pulse(): BrainPulse {
-  const live = liveActivity();
+  const live = liveActivity(activeProject().id);
   const teams = listTeams();
   return {
     project: activeProject().name,

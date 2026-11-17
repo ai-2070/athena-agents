@@ -20,6 +20,7 @@ import {
   asOpened,
   runnable,
   commandShell,
+  uid,
 } from './util.ts';
 import * as assetLib from './assets.ts';
 import type { AssetSource, AssetKind } from './assets.ts';
@@ -30,6 +31,7 @@ import {
   sbsrenderArgs,
   openscadArgs,
   prusaSlicerArgs,
+  runsAfterSlicing,
   nvttArgs,
   handbrakeArgs,
   GPU_FIELDS,
@@ -40,7 +42,7 @@ import { startHandoff, awaitHandoff, awaitHandoffs, listHandoffs, DEFAULT_WAIT_S
 
 /** Hermes' own MCP tool timeout is 300 s: await_agent answers it well within that. */
 const HERMES_WAIT_S = 240;
-import { requestApproval } from './approvals.ts';
+import { requestApproval, withdrawApprovals } from './approvals.ts';
 import type { ApprovalDecision, ApprovalRequest } from './approvals.ts';
 import { readPage, pagePart, PAGE_CHARS, PAGE_MAX_CHARS } from './webread.ts';
 import * as files from './filetools.ts';
@@ -104,6 +106,8 @@ export interface ToolRunInfo {
   progress?: (text: string) => void;
   /** The MCP server an API-model agent's tool call goes to: its approval names the account. */
   mcpServer?: string;
+  /** What "Always allow" remembers for this call when it isn't the tool's name (an MCP tool: mcpGrant()). */
+  grantName?: string;
   /** Stable, server-issued identity for one durable tool operation. */
   operationId?: string;
   /** The input originally shown for an operation whose approval edited the arguments. */
@@ -234,22 +238,25 @@ function allowedRoots(agent: ToolAgent, write = false): string[] {
 
 // read_document: what read_file may read, for an agent that reads files (the Files tools, or an engine's own); for
 // one that doesn't, only what it was handed: its knowledge, and the files attached to messages in its own chats
-// (not everything attached anywhere in the project).
-function documentRoots(agent: ToolAgent): string[] {
+// (not everything attached anywhere in the project). A private conversation (a gateway's, a board task's) is handed
+// only its own attachments, and ordinary chats none of theirs.
+function documentRoots(agent: ToolAgent, conversationId: string | null): string[] {
   // (a stand-in, like a workflow, may carry no engine: its saved agent's counts)
   if (hasOwnFileTools(agent.engine ?? agentStore.get(agent.id)?.engine) || (agent.toolGroups || []).includes('files'))
     return allowedRoots(agent);
-  return [...kb.knowledgeRoots(agent), ...handedFiles(agent)];
+  return [...kb.knowledgeRoots(agent), ...handedFiles(agent, conversationId)];
 }
 
-// The files and folders attached to messages in an agent's chats in this project, while they are still in uploads/.
-function handedFiles(agent: ToolAgent): string[] {
+// The files and folders attached to messages in an agent's chats of one conversation in this project, while they
+// are still in uploads/.
+function handedFiles(agent: ToolAgent, conversationId: string | null): string[] {
   const uploads = safeUploadsRoot();
   if (!uploads) return [];
   let all: string[];
   try {
     all = chats
       .all(agent.id)
+      .filter((chat) => (chat.conversationId || null) === conversationId)
       .flatMap((chat) =>
         chat.items.flatMap((item) => ((item.type === 'user' || item.type === 'steer') && item.attachments) || []),
       );
@@ -272,9 +279,20 @@ function resolveInside(
   return { abs, real: real || abs, ok: !!real };
 }
 
-// Programs that run whatever they are given.
-const INTERPRETERS =
-  /^(cmd|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python\d*|py|node|bun|deno|ruby|perl|php|java|javaw|osascript|bash|sh|zsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget)(\.exe)?$/i;
+// Programs that run whatever they are given: by name, whatever version or windowless variant it is
+// (python3.12, pythonw.exe, node22, javaw, perl5.36).
+const INTERPRETER_NAMES =
+  /^(cmd|command|powershell|pwsh|wscript|cscript|mshta|rundll32|regsvr32|python|py|node|nodejs|bun|bunx|npx|deno|tsx|ts-node|ruby|perl|php|php-cgi|java|jshell|osascript|bash|sh|zsh|fish|ksh|dash|csh|tcsh|wsl|msiexec|reg|schtasks|certutil|bitsadmin|curl|wget|lua|luajit|rscript|julia|tclsh|wish|dotnet|electron|forfiles|wmic|msbuild|installutil|regasm|regsvcs|cmstp)$/;
+const INTERPRETERS = {
+  test(name: string): boolean {
+    const bare = name
+      .trim()
+      .toLowerCase()
+      .replace(/\.(exe|com|bat|cmd)$/, '');
+    const plain = bare.replace(/[-_.]?\d+([._]\d+)*w?$/, (v) => (v.endsWith('w') ? 'w' : ''));
+    return [bare, plain, plain.replace(/w$/, '')].some((n) => INTERPRETER_NAMES.test(n));
+  },
+};
 
 // board_tags: deleting a tag deletes; renaming one changes how every task with it reads
 const boardTagsRiskOf = (args: ToolArgs): Risk =>
@@ -955,7 +973,8 @@ const TOOLS: ToolDef[] = [
         : '';
       return {
         text: [
-          `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})`).join('\n') || '(none)'}`,
+          // (pictures come back as pictures; a video, GIF, sound or 3D model gets its link, to open or download)
+          `Done in ${r.seconds}s. Files:\n${r.files.map((f) => `- ${f.filename} (${f.kind}, ${f.type}${f.subfolder ? `/${f.subfolder}` : ''})${f.kind === 'images' ? '' : `: [download](${f.url})`}`).join('\n') || '(none)'}`,
           seeds,
           sent.length ? `Sent to ComfyUI:\n${sent.join('\n')}` : '',
           left.length ? `Left out by ComfyUI (the rest ran):\n${left.join('\n')}` : '',
@@ -991,13 +1010,14 @@ const TOOLS: ToolDef[] = [
         ? `\nimport bpy as __b\n__b.ops.wm.save_as_mainfile(filepath=${JSON.stringify(save_as)})\nprint("Saved", ${JSON.stringify(save_as)})\n`
         : '';
       fs.writeFileSync(script, `${code}\n${footer}`);
+      // (Blender reads its arguments in order: the exit code for a failing script is set before the script runs)
       const args = [
         '-b',
         ...(blend_file ? [blend_file] : ['--factory-startup']),
-        '--python',
-        script,
         '--python-exit-code',
         '1',
+        '--python',
+        script,
       ];
       const r = await run(exe, args, { timeout: 15 * 60_000, signal: ctx.signal });
       const out = (r.stdout + '\n' + r.stderr)
@@ -1228,6 +1248,8 @@ const TOOLS: ToolDef[] = [
         src = tmpFile('model.scad');
         fs.writeFileSync(src, code);
       } else src = readablePath(ctx, input);
+      // the files the model reads in (include, use, import, surface) are held to the same folders as the model
+      scadFilesInside(ctx, src, code ? workspaceOf(ctx.agent) : path.dirname(src));
       const out = writablePath(ctx, output);
       const r = await run(exe, openscadArgs({ input: src, output: out, defines }), {
         timeout: 15 * 60_000,
@@ -1273,12 +1295,15 @@ const TOOLS: ToolDef[] = [
         (main && [sibling(main, 'prusa-slicer-console.exe')].find(exists)) || which('prusa-slicer-console') || main;
       if (!exe) throw new Error('PrusaSlicer was not found. Install it or set its path in Settings.');
       const out = writablePath(ctx, output);
-      const args = prusaSlicerArgs({
-        input: readablePath(ctx, input),
-        output: out,
-        profiles: (profiles || []).map((p) => readablePath(ctx, p)),
-        settings,
-      });
+      const model = readablePath(ctx, input);
+      const loads = (profiles || []).map((p) => readablePath(ctx, p));
+      // post_process can't be set here, and can't come in through a profile or a project either: it runs programs
+      const runs = [model, ...loads].find(runsAfterSlicing);
+      if (runs)
+        throw new Error(
+          `${path.basename(runs)} runs a program after slicing (its post_process setting). Remove that from it, or slice it in PrusaSlicer yourself.`,
+        );
+      const args = prusaSlicerArgs({ input: model, output: out, profiles: loads, settings });
       const r = await run(exe, args, { timeout: 30 * 60_000, signal: ctx.signal });
       const ok = r.code === 0 && exists(out);
       return {
@@ -1949,7 +1974,7 @@ const TOOLS: ToolDef[] = [
       );
       if (wait < 1)
         return { text: `${sent} They are working on it now. Get the answer with await_agent and handle "${h.id}".` };
-      const r = await awaitHandoff(h.id, ctx.agent.id, wait, ctx.signal);
+      const r = await awaitHandoff(h.id, ctx.agent.id, wait, ctx.signal, h.conversationId || null);
       return { ...r, text: `${sent}\n${r.text}` };
     },
   },
@@ -1974,13 +1999,15 @@ const TOOLS: ToolDef[] = [
       ctx,
     ) => {
       const ids = Array.isArray(handles) && handles.length ? handles.map(String) : handle ? [handle] : [];
-      if (!ids.length) return { text: listHandoffs(ctx.agent.id) };
+      // (a private conversation sees only what it handed out, and ordinary chats none of that)
+      const conversationId = (await import('./engines/index.ts')).conversationOfRun(ctx.runId) || null;
+      if (!ids.length) return { text: listHandoffs(ctx.agent.id, conversationId) };
       // Hermes gives up on an MCP call after 5 minutes: wait less, and it calls again
       const hermes = agentStore.get(ctx.agent.id)?.engine === 'hermes';
       const wait = hermes ? Math.min(HERMES_WAIT_S, Number(wait_seconds) || HERMES_WAIT_S) : wait_seconds;
       return ids.length === 1
-        ? awaitHandoff(ids[0]!, ctx.agent.id, wait, ctx.signal)
-        : awaitHandoffs(ids, ctx.agent.id, { all: !!all, waitS: wait, signal: ctx.signal });
+        ? awaitHandoff(ids[0]!, ctx.agent.id, wait, ctx.signal, conversationId)
+        : awaitHandoffs(ids, ctx.agent.id, { all: !!all, waitS: wait, signal: ctx.signal, conversationId });
     },
   },
   {
@@ -2104,10 +2131,12 @@ const TOOLS: ToolDef[] = [
       const list = Array.isArray(paths) && paths.length ? paths.slice(0, 10).map(String) : p ? [String(p)] : [];
       if (!list.length) throw new Error('Give path (or paths).');
       const read = async (file: string, chars?: number) => {
+        // (Stop ends a PDF's reading, and the files after it aren't read)
+        ctx.signal?.throwIfAborted();
         const { abs, real, ok } = resolveInside(ctx.agent, file);
         if (!ok) throw new Error(`${abs} is outside the folders this agent may use.`);
         return (
-          (await readDocumentPart(real, abs, { offset, limit, chars })) ??
+          (await readDocumentPart(real, abs, { offset, limit, chars, signal: ctx.signal })) ??
           files.readText(real, abs, { offset, limit, chars })
         );
       };
@@ -2137,10 +2166,11 @@ const TOOLS: ToolDef[] = [
     parameters: obj({ path: str('File path'), offset: { type: 'number', description: 'First line' } }, ['path']),
     run: async ({ path: p, offset }: { path: string; offset?: number }, ctx) => {
       const abs = path.resolve(workspaceOf(ctx.agent), String(p || '.'));
-      const real = insideRoots(abs, documentRoots(ctx.agent));
+      const run = ctx.runId ? (await import('./engines/index.ts')).runInfo(ctx.runId) : null;
+      const real = insideRoots(abs, documentRoots(ctx.agent, run?.conversationId || null));
       if (!real) throw new Error(`${abs} is outside the folders this agent may use.`);
       if (fs.statSync(real).isDirectory()) throw new Error(`${abs} is a folder, not a document.`);
-      const text = await readDocumentPart(real, abs, { offset });
+      const text = await readDocumentPart(real, abs, { offset, signal: ctx.signal });
       if (text === null)
         throw new Error(
           `${abs} is not a PDF, Word, Excel or PowerPoint file.${hasOwnFileTools(ctx.agent.engine ?? agentStore.get(ctx.agent.id)?.engine) ? ' Open it with your own file tools.' : ''}`,
@@ -2506,6 +2536,22 @@ export function needsApproval(agent: ToolAgent, risk: Risk, toolName: string): b
   return risk === 'low' || risk === 'high';
 }
 
+/** Asks in Needs you until the call is stopped or given up (an MCP client that cancelled it): then the question is
+ *  taken back, so a yes given later runs nothing. */
+async function askWhileWanted(request: ApprovalRequest, signal?: AbortSignal): Promise<ApprovalDecision> {
+  if (!signal) return requestApproval(request);
+  if (signal.aborted) return { approved: false, message: 'Stopped.' };
+  const ref = uid('call');
+  const asked = requestApproval({ ...request, data: { ...request.data, callRef: ref } });
+  const stop = () => withdrawApprovals((it) => it.data?.callRef === ref, 'The request was stopped.');
+  signal.addEventListener('abort', stop, { once: true });
+  try {
+    return await asked;
+  } finally {
+    signal.removeEventListener('abort', stop);
+  }
+}
+
 // Eve's policy and executor use the same request and original arguments.
 export function toolApprovalRequest(
   agent: ToolAgent,
@@ -2541,9 +2587,14 @@ export async function gate(
   ctx: ToolRunInfo = {},
   detail: string | null | undefined = null,
 ): Promise<ToolResult | null> {
-  if (!needsApproval(agent, risk, name)) return null;
+  const grant = ctx.grantName || name;
+  if (!needsApproval(agent, risk, grant)) return null;
   if (!ctx.approvalDecision) recordAsked(name);
-  const d = await (ctx.approvalDecision || requestApproval)(toolApprovalRequest(agent, name, args, ctx, detail));
+  const d = await (ctx.approvalDecision ? ctx.approvalDecision : (r: ApprovalRequest) => askWhileWanted(r, ctx.signal))(
+    toolApprovalRequest(agent, name, args, ctx, detail),
+  );
+  // (the call was stopped or given up while it waited: nothing runs, whatever the answer)
+  if (ctx.signal?.aborted) return { text: 'Stopped.', isError: true, denied: true };
   if (!d.approved)
     return {
       text: `The user said no${d.message ? `: ${d.message}` : ''}. Don't retry the same thing; ask what they want instead.`,
@@ -2552,10 +2603,10 @@ export async function gate(
     };
   if (d.always && agent.id && !agent.id.startsWith('_')) {
     // the run asking keeps going with this same agent: the yes counts for the rest of it too
-    agent.alwaysAllow = [...new Set([...(agent.alwaysAllow || []), name])];
+    agent.alwaysAllow = [...new Set([...(agent.alwaysAllow || []), grant])];
     // (the Brain's are kept with its MCP grants: its own tools under no server)
-    if (agent.id === BRAIN_ID) allowForBrain('', name);
-    else rememberAlwaysAllow(agent.id, [name]);
+    if (agent.id === BRAIN_ID) allowForBrain('', grant);
+    else rememberAlwaysAllow(agent.id, [grant]);
   }
   return null;
 }
@@ -2750,6 +2801,34 @@ async function runPython(exe: string, script: string, ctx: ToolContext): Promise
 }
 
 // A file an agent may read, as its real path.
+/** The files an OpenSCAD model reads in, and theirs in turn: each must be in the folders the agent may read. A name
+ *  that isn't a file next to the model (an installed library, <MCAD/...>) is OpenSCAD's own library's. */
+function scadFilesInside(ctx: ToolContext, file: string, base: string, seen = new Set<string>()): void {
+  if (seen.has(file) || seen.size > 200) return;
+  seen.add(file);
+  let text = '';
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    return;
+  }
+  const named = [
+    ...[...text.matchAll(/\b(?:include|use)\s*<([^>\n]+)>/g)].map((m) => ({ name: m[1]!, scad: true })),
+    ...[...text.matchAll(/\b(?:import|surface)\s*\(\s*(?:file\s*=\s*)?"([^"\n]+)"/g)].map((m) => ({
+      name: m[1]!,
+      scad: false,
+    })),
+  ];
+  for (const { name, scad } of named) {
+    const abs = path.resolve(base, name);
+    const pointed = path.isAbsolute(name) || name.split(/[\\/]/).includes('..');
+    if (!pointed && !exists(abs)) continue;
+    const r = resolveInside(ctx.agent, abs);
+    if (!r.ok) throw new Error(`The model reads ${name}, which is outside the folders this agent may read.`);
+    if (scad) scadFilesInside(ctx, r.real, path.dirname(r.real), seen);
+  }
+}
+
 function readablePath(ctx: ToolContext, p: string | undefined): string {
   const r = resolveInside(ctx.agent, p);
   if (!r.ok) throw new Error(`${r.abs} is outside the folders this agent may read.`);

@@ -180,3 +180,42 @@ describe('rpcError', () => {
     logged.mockRestore();
   });
 });
+
+describe('a change for one project, sent while another opens', () => {
+  // a POST whose body comes in two parts, with something done in between
+  const slowPost = (pathname: string, headers: Record<string, string>, between: () => Promise<unknown>) =>
+    new Promise<number>((resolve, reject) => {
+      const body = JSON.stringify({ name: 'slow' });
+      const r = http.request(
+        `${base}${pathname}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'content-length': `${body.length}`, ...headers },
+        },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode || 0);
+        },
+      );
+      r.on('error', reject);
+      r.write(body.slice(0, 5));
+      void between().then(() => r.end(body.slice(5)));
+    });
+
+  it('is refused when the other project opened while its body was still coming in', async () => {
+    const { activeProject, setActiveProject } = await import('../../server/store.ts');
+    const { createProject } = await import('../../server/projects.ts');
+    const a = activeProject();
+    const b = await createProject({ name: 'Opened meanwhile', mode: 'new' });
+    setActiveProject(a.id);
+    const pause = () => new Promise((r) => setTimeout(r, 50));
+    expect(await slowPost('/api/things', { 'x-dash-project': a.id }, pause)).toBe(200);
+    expect(
+      await slowPost('/api/things', { 'x-dash-project': a.id }, async () => {
+        await pause();
+        setActiveProject(b.id);
+      }),
+    ).toBe(409);
+    setActiveProject(a.id);
+  });
+});

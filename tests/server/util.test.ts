@@ -7,6 +7,7 @@ import {
   parseFrontmatter,
   readJSON,
   renderTemplate,
+  run,
   slugify,
   truncate,
   uid,
@@ -59,4 +60,90 @@ describe('util', () => {
     expect(r.body.trim()).toBe('Body text');
     expect(parseFrontmatter('no frontmatter').body).toBe('no frontmatter');
   });
+});
+
+// Stop and the time limit end what a command started too, not only the shell (Windows: taskkill /t does).
+describe.skipIf(process.platform === 'win32')('run() stopping a command', () => {
+  const gone = (pid: number) => {
+    try {
+      process.kill(pid, 0);
+      return false;
+    } catch {
+      return true;
+    }
+  };
+
+  it('ends what it started when the time is up, and does not wait on it', async () => {
+    const started = Date.now();
+    const r = await run('sh', ['-c', 'sleep 30 & echo $!; wait'], { timeout: 500 });
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(r.stderr).toContain('timed out');
+    const pid = Number(r.stdout.trim());
+    expect(pid).toBeGreaterThan(0);
+    for (const end = Date.now() + 5000; !gone(pid) && Date.now() < end;) await new Promise((r) => setTimeout(r, 50));
+    expect(gone(pid)).toBe(true);
+  });
+
+  it('ends what it started when stopped', async () => {
+    const stop = new AbortController();
+    const pending = run('sh', ['-c', 'sleep 30 & echo $!; wait'], { timeout: 60_000, signal: stop.signal });
+    await new Promise((r) => setTimeout(r, 300));
+    stop.abort();
+    const r = await pending;
+    expect(r.stderr).toContain('[stopped]');
+    const pid = Number(r.stdout.trim());
+    for (const end = Date.now() + 5000; !gone(pid) && Date.now() < end;) await new Promise((r) => setTimeout(r, 50));
+    expect(gone(pid)).toBe(true);
+  });
+});
+
+describe('run() with a lot of output', () => {
+  it('keeps the start and the real end, saying how much was left out', async () => {
+    const r = await run(process.execPath, ['-e', "process.stdout.write('start' + 'x'.repeat(5000) + 'the real end')"], {
+      maxBytes: 200,
+    });
+    expect(r.stdout.startsWith('start')).toBe(true);
+    expect(r.stdout.endsWith('the real end')).toBe(true);
+    expect(r.stdout).toMatch(/characters left out/);
+    expect(r.stdout.length).toBeLessThan(300);
+  });
+});
+
+describe('which()', () => {
+  it.runIf(process.platform === 'win32')('finds a name that already ends in .exe, as it is', async () => {
+    const { clearWhichCache, which } = await import('../../server/util.ts');
+    const dir = fs.mkdtempSync(path.join(DATA, 'which-'));
+    fs.writeFileSync(path.join(dir, 'tool-here.exe'), '');
+    const was = process.env.PATH;
+    process.env.PATH = `${dir};${was}`;
+    try {
+      clearWhichCache();
+      expect(which('tool-here.exe')).toBe(path.join(dir, 'tool-here.exe'));
+      expect(which('tool-here')).toBe(path.join(dir, 'tool-here.exe'));
+    } finally {
+      process.env.PATH = was;
+      clearWhichCache();
+    }
+  });
+
+  it('Scan again finds a program installed since it was last looked for', async () => {
+    const { clearWhichCache, which } = await import('../../server/util.ts');
+    const { discoverPrograms } = await import('../../server/programs.ts');
+    const dir = fs.mkdtempSync(path.join(DATA, 'which-later-'));
+    const name = `later-tool-${Date.now()}`;
+    const file = path.join(dir, process.platform === 'win32' ? `${name}.exe` : name);
+    const was = process.env.PATH;
+    process.env.PATH = `${dir}${path.delimiter}${was}`;
+    try {
+      clearWhichCache();
+      expect(which(name)).toBeNull();
+      fs.writeFileSync(file, '');
+      expect(which(name)).toBeNull();
+      await discoverPrograms(true);
+      expect(which(name)).toBe(file);
+    } finally {
+      process.env.PATH = was;
+      clearWhichCache();
+    }
+  }, 60_000);
 });

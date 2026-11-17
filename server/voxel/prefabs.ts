@@ -168,6 +168,9 @@ function savePrefabFromIn(w: VoxelWorld, req: SaveFrom): { prefab: VoxelPrefabMe
   if (!count(meta) && !instances.length) throw bad('Nothing of that object is inside the box.');
   if (count(meta) > WORLD_LIMITS.prefabVoxels)
     throw bad(`a prefab can hold ${fmt(WORLD_LIMITS.prefabVoxels)} voxels; that part has ${fmt(count(meta))}.`);
+  // (as long a side as a prefab built in any other way: one longer couldn't be changed afterwards)
+  if (meta.volumes.some((v) => v.min && v.max && v.max.some((n, a) => n - v.min![a] + 1 > WORLD_LIMITS.prefabSide)))
+    throw bad(`a prefab is at most ${WORLD_LIMITS.prefabSide} voxels on a side; take a smaller part of the object.`);
   // kept in the object too, the part's voxels count twice
   if (!req.replace && worldVoxels(w) + count(meta) > WORLD_LIMITS.voxels)
     throw bad(

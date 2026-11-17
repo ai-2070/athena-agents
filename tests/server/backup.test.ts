@@ -344,3 +344,32 @@ describe('workspace backups', () => {
     expect(backup.rebase('/home/me/Proj/a', '/home/me/proj', '/x')).toBeNull();
   });
 });
+
+describe("the Brain's own 3D model", () => {
+  it('goes into a backup and comes back with the restored project', async () => {
+    const { setModel } = await import('../../server/projects.ts');
+    const p = await createProject({ name: 'Model owner', mode: 'new' });
+    const ply = Buffer.from('ply\nformat ascii 1.0\nelement vertex 0\nend_header\n');
+    setModel(p.id, 'globe.ply', `data:application/octet-stream;base64,${ply.toString('base64')}`);
+    const packed = backup.packProject(p);
+    expect(packed.brainModel?.path).toBe('brain-model.ply');
+    const { project } = await backup.restoreBackup(backup.encodeBackup(packed), { name: 'Model copy' });
+    expect(fs.readFileSync(path.join(project.brainPath, '.dashboard', 'brain-model.ply')).equals(ply)).toBe(true);
+  });
+});
+
+describe('a backup bigger than its reader takes', () => {
+  it('is refused when made, saying so, rather than written unreadable', async () => {
+    const { encodeBackup, decodeBackup, packProject } = await import('../../server/backup.ts');
+    const p = await createProject({
+      name: 'Too big to back up',
+      mode: 'new',
+      folder: path.join(os.homedir(), 'projects', 'too-big'),
+    });
+    const b = packProject(p);
+    const size = Buffer.byteLength(JSON.stringify(b));
+    // (the reader's real limit is 512 MB: here one just under and just over this backup)
+    expect(decodeBackup(encodeBackup(b, size)).project.name).toBe('Too big to back up');
+    expect(() => encodeBackup(b, size - 1)).toThrow(/too big to back up whole/);
+  });
+});

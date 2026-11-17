@@ -33,8 +33,9 @@ export function chatTransport(
       accepted?.();
       return chunks(it);
     },
-    async reconnectToStream() {
-      const it = await rpcAt(at).agents.chats.reconnect(one());
+    // (a view that closes, or a steer, stops the request too: it isn't left waiting)
+    async reconnectToStream({ abortSignal }) {
+      const it = await rpcAt(at).agents.chats.reconnect(one(), abortSignal ? { signal: abortSignal } : {});
       return it ? chunks(it) : null;
     },
   };

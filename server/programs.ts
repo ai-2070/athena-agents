@@ -10,14 +10,29 @@ import {
   listFiles,
   walk,
   which,
+  clearWhichCache,
   run,
   ping,
-  launchDetached,
+  fetchJSON,
+  spawnCommand,
   openWithShell,
   readJSON,
 } from './util.ts';
 import { getSettings, emit } from './store.ts';
 import type { Program, StartMenuApp } from '../shared/types.ts';
+
+/** Whether a ComfyUI answers there: its /system_stats, with what ComfyUI puts in it (any server that answers 404 at
+ *  that port is not one). */
+async function isComfy(url: string): Promise<boolean> {
+  const stats = await fetchJSON<{ system?: unknown; devices?: unknown }>(`${url}/system_stats`, {
+    timeout: 1200,
+  }).catch(() => null);
+  return (
+    !!stats &&
+    typeof stats === 'object' &&
+    ((typeof stats.system === 'object' && !!stats.system) || Array.isArray(stats.devices))
+  );
+}
 
 export type { Program, StartMenuApp } from '../shared/types.ts';
 
@@ -328,7 +343,11 @@ const CATALOG: CatalogEntry[] = [
     id: 'orca',
     name: 'Orca',
     category: 'ai',
-    detect: () => ({ exe: localProgram('orca', 'Orca.exe'), cli: which('orca') }),
+    // (on Linux bare `orca` is usually the screen reader: the IDE's command there is orca-ide, as orcaInstalled says)
+    detect: () => ({
+      exe: localProgram('orca', 'Orca.exe'),
+      cli: which(process.platform === 'linux' ? 'orca-ide' : 'orca'),
+    }),
     actions: ['launch', 'terminal'],
   },
   {
@@ -352,18 +371,17 @@ const CATALOG: CatalogEntry[] = [
     },
     service: async () => {
       const s = getSettings();
-      // the address set in Settings, ComfyUI's and the Legacy Desktop's ports, then any port Comfy Desktop moved one to
-      const urls = [
-        s.comfyui.url,
-        'http://127.0.0.1:8188',
-        'http://127.0.0.1:8000',
-        ...comfyDesktopPorts().map((p) => `http://127.0.0.1:${p}`),
-      ]
-        .filter(Boolean)
-        .map((u) => u.replace(/\/$/, ''));
-      for (const url of new Set(urls)) {
-        if (await ping(`${url}/system_stats`, 1200)) return url;
-      }
+      // The address set in Settings, and only that one (it is the one you mean: another ComfyUI that answers has
+      // other models and files). Else ComfyUI's and the Legacy Desktop's ports, then any Comfy Desktop moved one to.
+      const set = String(s.comfyui.url || '').replace(/\/$/, '');
+      const urls = set
+        ? [set]
+        : [
+            'http://127.0.0.1:8188',
+            'http://127.0.0.1:8000',
+            ...comfyDesktopPorts().map((p) => `http://127.0.0.1:${p}`),
+          ];
+      for (const url of new Set(urls)) if (await isComfy(url)) return url;
       return null;
     },
     actions: ['launch', 'open-ui'],
@@ -1321,7 +1339,9 @@ async function runningExes(): Promise<Set<string>> {
   return set;
 }
 
-let cache: { at: number; list: Program[] } = { at: 0, list: [] };
+// list: what is shown; all: every program the catalog knows, so one found later (a service started since) shows up
+let cache: { at: number; list: Program[]; all: Program[] } = { at: 0, list: [], all: [] };
+const shown = (all: Program[]) => all.filter((p) => p.installed || !p.optional);
 // Finding the programs on this PC (process lists, service checks, folders) is slow, so it runs in the
 // background: once when the server starts, then at most once an hour. Nothing that thinks or works (the
 // Brain, agents' tools) waits for it; they read what the last scan found.
@@ -1340,7 +1360,11 @@ export function knownPrograms(): Program[] {
 
 /** For the page: the same list, but it waits for the very first scan; force (Rescan on the Programs page) scans now. */
 export async function discoverPrograms(force = false): Promise<Program[]> {
-  if (force) return scanNow();
+  // (Scan again looks for programs afresh: one installed or removed since is found, or gone, now)
+  if (force) {
+    clearWhichCache();
+    return scanNow();
+  }
   if (!cache.at) return scanNow();
   scanIfOld();
   return cache.list;
@@ -1382,7 +1406,7 @@ async function scanPrograms(): Promise<Program[]> {
       };
     }),
   );
-  cache = { at: Date.now(), list: list.filter((p) => p.installed || !p.optional) };
+  cache = { at: Date.now(), list: shown(list), all: list };
   return cache.list;
 }
 
@@ -1392,21 +1416,24 @@ let lastRunning: string | null = null;
 const isRunning = (p: Program, procs: Set<string>): boolean =>
   !!(p.serviceUrl || (p.exe && procs.has(path.basename(p.exe).toLowerCase())));
 export async function refreshRunning() {
-  if (!cache.list.length) return;
+  if (!cache.all.length) return;
   const procs = await runningExes();
-  // services (ComfyUI, LM Studio, Ollama...) are asked again, so starting or stopping one shows up
+  // services (ComfyUI, LM Studio, Ollama...) are asked again, so starting or stopping one shows up: one that answers
+  // now is there, even when the last scan didn't find it
   await Promise.all(
-    cache.list.map(async (p) => {
+    cache.all.map(async (p) => {
       const service = CATALOG.find((c) => c.id === p.id)?.service;
-      if (service) p.serviceUrl = await service().catch(() => null);
+      if (!service) return;
+      p.serviceUrl = await service().catch(() => null);
+      if (p.serviceUrl) p.installed = true;
     }),
   );
-  for (const p of cache.list) p.running = isRunning(p, procs);
-  const now = cache.list
-    .filter((p) => p.running)
-    .map((p) => p.id)
-    .join(',');
-  if (lastRunning !== null && now !== lastRunning) emit('programs', { running: now ? now.split(',') : [] });
+  for (const p of cache.all) p.running = isRunning(p, procs);
+  cache.list = shown(cache.all);
+  const running = cache.list.filter((p) => p.running);
+  // (where a service answers counts too: one that moved to another port is news for the page)
+  const now = running.map((p) => `${p.id}@${p.serviceUrl || ''}`).join(',');
+  if (lastRunning !== null && now !== lastRunning) emit('programs', { running: running.map((p) => p.id) });
   lastRunning = now;
 }
 export function startRunningWatch() {
@@ -1440,6 +1467,9 @@ export function launchTarget(nameOrId: unknown, withExtra: boolean): LaunchTarge
   const known =
     progs.find((p) => p.id === lower || p.name.toLowerCase() === lower) ||
     progs.find((p) => p.name.toLowerCase().includes(lower));
+  // (a path set in Settings counts at once, as it does for the 3D tools: the last scan may be from before it)
+  const set = known ? (getSettings().paths as Record<string, string | undefined>)?.[known.id] : '';
+  if (known && set && exists(set)) return { exe: set, name: known.name, onPath: false };
   if (known?.exe && !known.cli) return { exe: known.exe, name: known.name, onPath: false };
   if (known?.shortcut && !withExtra) return { shortcut: known.shortcut, name: known.name, startMenu: false };
   const lnk =
@@ -1462,11 +1492,30 @@ export async function launchProgram(
   const target = launchTarget(key, extra.length > 0);
   if (!target) throw new Error(`Couldn't find a program called "${key}". Use list_programs to see what's installed.`);
   if (target.exe !== undefined) {
-    launchDetached(target.exe, extra);
+    // (a .cmd or .bat goes the way the rest of the dashboard starts those; a program that can't start says so)
+    await new Promise<void>((resolve, reject) => {
+      let child: ReturnType<typeof spawnCommand>;
+      try {
+        child = spawnCommand(target.exe, extra, { detached: true, stdio: 'ignore', windowsHide: false });
+      } catch (e) {
+        // (Windows can refuse a file that isn't a program right away)
+        return reject(new Error(`${target.name} didn't start: ${(e as Error).message}`));
+      }
+      child.once('spawn', () => {
+        child.unref();
+        resolve();
+      });
+      child.once('error', (e) => reject(new Error(`${target.name} didn't start: ${e.message}`)));
+    });
     if (target.onPath) return `Started ${target.name}.`;
     checkSoon();
     return `Started ${target.name}${file ? ` with ${file}` : ''}.`;
   }
+  // a shortcut opens as it is: it can't be handed a file or options, so that is said rather than dropped
+  if (extra.length)
+    throw new Error(
+      `${target.name} is only a shortcut here, so it can't be given a file or options. Open the file with open_path, or set the program's path in Settings.`,
+    );
   openWithShell(target.shortcut);
   if (target.startMenu) return `Started ${target.name} (from the Start Menu).`;
   checkSoon();

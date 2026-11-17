@@ -60,18 +60,30 @@ const truncated = new Set(['big/repo']);
 const sizes: Record<string, number> = { 'skills/two/huge.bin': 3 * 1024 * 1024 };
 // a download that waits until the test lets it go
 let holdDownloads: Promise<void> | null = null;
+// commits a branch was at, as GitHub would keep them: what a commit holds never changes
+const commits: Record<string, Record<string, string>> = {};
+let pinCommits = false;
+const filesAt = (repo: string, ref: string) => commits[ref] || repos[repo]?.[ref];
 const fakeFetch = async (input: string | URL) => {
   const url = String(input);
   calls.push(url);
   const ok = (body: unknown) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status: 200 });
   const notFound = () => new Response('{"message":"Not Found"}', { status: 404 });
+  const c = /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)\/commits\/([^?]+)$/.exec(url);
+  if (c) {
+    const files = repos[`${c[1]}/${c[2]}`]?.[decodeURIComponent(c[3])];
+    if (!pinCommits || !files) return new Response('{"message":"Not Found"}', { status: 404 });
+    const sha = `c0ffee${Object.keys(commits).length}`;
+    commits[sha] = { ...files };
+    return new Response(JSON.stringify({ sha }), { status: 200 });
+  }
   let m = /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)$/.exec(url);
   if (m) return repos[`${m[1]}/${m[2]}`] ? ok({ default_branch: 'main' }) : notFound();
   m = /^https:\/\/api\.github\.com\/repos\/([^/]+)\/([^/]+)\/git\/trees\/([^?]+)\?recursive=1$/.exec(url);
   if (m) {
     const repo = `${m[1]}/${m[2]}`;
     const [ref, sub] = decodeURIComponent(m[3]).split(':');
-    const files = repos[repo]?.[ref];
+    const files = filesAt(repo, ref);
     if (!files) return notFound();
     // "ref:folder" is just that folder, with paths inside it, never cut short here
     const entries = Object.entries(files)
@@ -83,6 +95,7 @@ const fakeFetch = async (input: string | URL) => {
   if (m) {
     if (holdDownloads) await holdDownloads;
     const rest = m[3].split('/').map(decodeURIComponent);
+    if (commits[rest[0]!]) return ok(commits[rest[0]!]![rest.slice(1).join('/')] ?? '');
     for (const [ref, files] of Object.entries(repos[`${m[1]}/${m[2]}`] || {})) {
       const n = ref.split('/').length;
       if (rest.slice(0, n).join('/') === ref && rest.slice(n).join('/') in files)
@@ -166,6 +179,30 @@ describe('installing', () => {
     expect(historyOf('skill', writer.slug).versions[0].changes).toEqual(['instructions']);
   });
 
+  it('an update whose last step fails leaves the installed skill as it was', async () => {
+    const before = skills.findSkill('Writer')!;
+    const dir = skills.skillDir(before.slug);
+    const body = fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8');
+    repos['acme/skills'].main['skills/writer/SKILL.md'] =
+      '---\nname: Writer\ndescription: Use when writing.\n---\n\nA broken update.';
+    const real = fs.renameSync;
+    // (Windows holding a file open, as the new copy goes into place)
+    const rename = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      if (String(from).includes('install-') && path.resolve(String(to)) === path.resolve(dir))
+        throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' });
+      return real(from, to);
+    });
+    try {
+      const r = await installFromGitHub('https://github.com/acme/skills/blob/main/skills/writer/SKILL.md');
+      expect(r.installed).toEqual([]);
+      expect(r.skipped.join()).toContain('EBUSY');
+    } finally {
+      rename.mockRestore();
+    }
+    expect(fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8')).toBe(body);
+    expect(skills.findSkill('Writer')?.body).toBe(before.body);
+  });
+
   it('an update that changes only the extra files keeps the old ones, and restoring brings them back', async () => {
     const files = repos['acme/skills'].main;
     files['skills/writer/examples/one.md'] = 'example one';
@@ -181,6 +218,74 @@ describe('installing', () => {
     restoreVersion('skill', slug, h.versions[0].id);
     expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe('example one');
     expect(skills.getSkill(slug)?.origin?.repo).toBe('acme/skills');
+  });
+
+  it('an update right after an edit of the text still keeps the files from before it', async () => {
+    const files = repos['acme/skills'].main;
+    files['skills/writer/examples/one.md'] = 'files before';
+    await installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+    const s = skills.findSkill('Writer')!;
+    const dir = skills.skillDir(s.slug);
+    // you edit its text, then update it from GitHub a moment later, its files changed there
+    skills.saveSkill({ slug: s.slug, name: s.name, description: s.description, body: `${s.body}\nEdited by you.` });
+    files['skills/writer/examples/one.md'] = 'files after';
+    await installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+    expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe('files after');
+    // the update's own version is the skill as it was just before it, files and all
+    restoreVersion('skill', s.slug, historyOf('skill', s.slug).versions[0]!.id);
+    expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe('files before');
+  });
+
+  it('restores a version whose file is a folder now', async () => {
+    const files = repos['acme/skills'].main;
+    files['skills/writer/references/example'] = 'the old example file';
+    await installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+    const slug = skills.findSkill('Writer')!.slug;
+    const dir = skills.skillDir(slug);
+    delete files['skills/writer/references/example'];
+    files['skills/writer/references/example/detail.md'] = 'now a folder';
+    await withActor('you', () => installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer'));
+    expect(fs.statSync(path.join(dir, 'references', 'example')).isDirectory()).toBe(true);
+    restoreVersion('skill', slug, historyOf('skill', slug).versions[0].id);
+    expect(fs.readFileSync(path.join(dir, 'references', 'example'), 'utf8')).toBe('the old example file');
+    delete files['skills/writer/references/example/detail.md'];
+  });
+
+  it('writes where it came from so that the same link reads back, # and % in a folder name included', async () => {
+    const { parseGitHubUrl: parse } = await import('../../server/skillinstall.ts');
+    repos['acme/skills'].main['skills/c#-100%/SKILL.md'] = '---\nname: Sharp\ndescription: Use for C#.\n---\n\nSharp.';
+    try {
+      await installFromGitHub('https://github.com/acme/skills/tree/main/skills/c%23-100%25');
+      const origin = skills.findSkill('Sharp')!.origin!;
+      expect(origin.path).toBe('skills/c#-100%');
+      expect(parse(origin.url).rest).toEqual(['main', 'skills', 'c#-100%']);
+    } finally {
+      delete repos['acme/skills'].main['skills/c#-100%/SKILL.md'];
+    }
+  });
+
+  it('takes every file from one commit, even when the branch moves on while they come down', async () => {
+    pinCommits = true;
+    const files = repos['acme/skills'].main;
+    const before = files['skills/writer/examples/one.md'];
+    let release = () => {};
+    holdDownloads = new Promise<void>((r) => (release = r));
+    try {
+      const going = installFromGitHub('https://github.com/acme/skills/tree/main/skills/writer');
+      await new Promise((r) => setTimeout(r, 50));
+      // a push to main meanwhile
+      files['skills/writer/examples/one.md'] = 'pushed while it downloaded';
+      release();
+      await going;
+      const dir = skills.skillDir(skills.findSkill('Writer')!.slug);
+      expect(fs.readFileSync(path.join(dir, 'examples', 'one.md'), 'utf8')).toBe(before);
+      // the branch is what an update follows
+      expect(skills.findSkill('Writer')!.origin?.ref).toBe('main');
+    } finally {
+      holdDownloads = null;
+      pinCommits = false;
+      files['skills/writer/examples/one.md'] = before!;
+    }
   });
 
   it('finds a branch with a slash in its name, and says so when there is nothing to install', async () => {

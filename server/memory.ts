@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { agents, activeProject, emit } from './store.ts';
-import { dataPath, ensureDir } from './util.ts';
+import { dataPath, ensureDir, noLinksBelow } from './util.ts';
 import { keepVersion } from './versions.ts';
 import type { MemoryInfo } from '../shared/types.ts';
 
@@ -48,11 +48,12 @@ export function memoryName(owner: string): string {
 /** "Writer's MEMORY.md", "The Brain's MEMORY.md" */
 export const memoryTitle = (owner: string): string => `${memoryName(owner)}'s ${MEMORY_FILE}`;
 
-// A plain file only: a link could point at data/secrets.json or anywhere else on the PC.
+// A plain file only, with no link on the way to it from the data folder: a link (the file, its owner's folder or the
+// memory folder) could point at data/secrets.json or anywhere else on the PC.
 function plainFile(file: string): fs.Stats | null {
   try {
     const st = fs.lstatSync(file);
-    return st.isFile() ? st : null;
+    return st.isFile() && noLinksBelow(dataPath(), file) ? st : null;
   } catch {
     return null;
   }
@@ -106,11 +107,12 @@ export function writeMemory(owner: string, text: unknown, pid?: string): MemoryI
     );
   const before = readMemory(owner, pid);
   if (before === next) return memoryInfo(owner, pid);
-  const dir = ensureDir(path.dirname(file));
-  // never write through a link (see plainFile)
+  // never write through a link (see plainFile), checked before a folder is made through one too
+  const linked = () => new Error('MEMORY.md or a folder it is in is a link; not writing through it.');
+  if (!noLinksBelow(dataPath(), file)) throw linked();
+  ensureDir(path.dirname(file));
   try {
-    if (fs.lstatSync(dir).isSymbolicLink() || fs.lstatSync(file).isSymbolicLink())
-      throw new Error('MEMORY.md is a link; not writing through it.');
+    if (!noLinksBelow(dataPath(), file) || fs.lstatSync(file).isSymbolicLink()) throw linked();
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
   }
@@ -155,9 +157,15 @@ export function cleanMemoryVersion(item: Record<string, unknown>, owner: string)
 export function putMemory(pid: string, owner: string, text: string): boolean {
   if (!isMemoryOwner(owner) || text.length > MEMORY_MAX * 2) return false;
   const file = fileOf(owner, pid);
-  ensureDir(path.dirname(file));
-  if (fs.lstatSync(path.dirname(file)).isSymbolicLink()) return false;
-  fs.writeFileSync(file, tidy(text));
+  // (its folders must be no links; the file itself is replaced below, so a link there is never followed)
+  const dir = path.dirname(file);
+  if (!noLinksBelow(dataPath(), dir)) return false;
+  ensureDir(dir);
+  if (!noLinksBelow(dataPath(), dir)) return false;
+  // (a new file in its place, never written through one that is there: it may be a link out)
+  const tmp = `${file}.${process.pid}.${crypto.randomBytes(3).toString('hex')}.tmp`;
+  fs.writeFileSync(tmp, tidy(text), { flag: 'wx' });
+  fs.renameSync(tmp, file);
   return true;
 }
 

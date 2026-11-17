@@ -147,9 +147,9 @@ const PERMISSION_TOOL = 'mcp__dashboard__permission_prompt';
 
 // Files Claude Code reads for this agent: instructions and MCP servers.
 // One pair of files per run, so two chats with the same agent don't share a run id.
-export function prepareFiles(agent: Agent, systemPrompt: string, runId = ''): ClaudeFiles {
+export function prepareFiles(agent: Agent, systemPrompt: string, runId = '', terminalTag = 'terminal'): ClaudeFiles {
   const dir = ensureDir(dataPath('runtime', agent.id));
-  const tag = runId || 'terminal';
+  const tag = runId || terminalTag;
   const promptFile = path.join(dir, `${tag}-system-prompt.md`);
   const mcpFile = path.join(dir, `${tag}-mcp.json`);
   fs.writeFileSync(promptFile, systemPrompt);
@@ -300,6 +300,7 @@ async function runClaude({
   });
   const onAbort = () => killTree(child);
   signal.addEventListener('abort', onAbort);
+  if (signal.aborted) onAbort();
 
   let buf = '';
   let stderr = '';
@@ -342,9 +343,11 @@ async function runClaude({
       // it read a message sent while it worked: the chat shows it here. (One echo may carry several
       // messages that waited together: the others count as read too.)
       if (msg.uuid === first) return;
-      const said = echoedText(msg.message?.content);
+      // (the messages that waited together are joined by line breaks: one counts as read only when it is a whole
+      // part of the echo, so "summary" isn't read by "write a summary")
+      const said = `\n${echoedText(msg.message?.content)}\n`;
       for (const [uuid, m] of [...input.unread])
-        if (uuid === msg.uuid || (!!m.text && said.includes(m.text))) input.read(uuid);
+        if (uuid === msg.uuid || (!!m.text && said.includes(`\n${m.text}\n`))) input.read(uuid);
       return;
     }
     if (msg.type === 'stream_event') {

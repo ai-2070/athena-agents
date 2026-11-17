@@ -136,3 +136,41 @@ describe('running a workflow', () => {
     expect(sent.at(-1)?.['6'].inputs.text).toBe('a dog');
   });
 });
+
+describe('a seed that comes from another node', () => {
+  it('is changed there and reported, like one set on the sampler', async () => {
+    saveApiWorkflow('linked-seed', {
+      3: { class_type: 'KSampler', inputs: { seed: ['20', 0], positive: ['6', 0], negative: ['8', 0] } },
+      6: text('a cat'),
+      8: text('blurry'),
+      20: { class_type: 'PrimitiveInt', inputs: { value: 7 } },
+    });
+    const r = await runWorkflow({ workflow: 'linked-seed', randomizeSeed: true });
+    const used = sent.at(-1)!;
+    expect(used['3']!.inputs.seed).toEqual(['20', 0]);
+    expect(used['20']!.inputs.value).not.toBe(7);
+    expect(r.seeds).toEqual([expect.objectContaining({ node: '20', input: 'value', value: used['20']!.inputs.value })]);
+    const kept = await runWorkflow({ workflow: 'linked-seed', randomizeSeed: false });
+    expect(kept.seeds).toEqual([expect.objectContaining({ node: '20', input: 'value', value: 7 })]);
+  });
+});
+
+describe('finding ComfyUI', () => {
+  it('uses only the address set in Settings, and only when ComfyUI answers there', async () => {
+    const { comfyUrl } = await import('../../server/comfyui.ts');
+    const other = http.createServer((_req, res) => {
+      res.writeHead(404);
+      res.end('Not found');
+    });
+    await new Promise<void>((r) => other.listen(0, '127.0.0.1', () => r()));
+    const at = `http://127.0.0.1:${(other.address() as AddressInfo).port}`;
+    const was = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      saveSettings({ comfyui: { url: at, workflowDirs: [] } });
+      expect(await comfyUrl()).toBeNull();
+    } finally {
+      saveSettings({ comfyui: { url: was, workflowDirs: [] } });
+      await new Promise<void>((r) => other.close(() => r()));
+    }
+  });
+});

@@ -73,9 +73,10 @@ export function parseGitHubUrl(input: string): GitHubLink {
 
 // ---------- talking to GitHub ----------
 let tokenCache: { token: string | null; at: number } | null = null;
-async function token(): Promise<string | null> {
+export async function token(): Promise<string | null> {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
-  if (tokenCache && Date.now() - tokenCache.at < 10 * 60_000) return tokenCache.token;
+  // (a token is kept ten minutes; "not signed in" only a few seconds, so signing in with gh counts at once)
+  if (tokenCache && Date.now() - tokenCache.at < (tokenCache.token ? 10 * 60_000 : 15_000)) return tokenCache.token;
   let t: string | null = null;
   if (which('gh')) {
     const r = await run('gh', ['auth', 'token'], { timeout: 8000 }).catch(() => null);
@@ -150,6 +151,15 @@ async function resolve(link: GitHubLink): Promise<{ ref: string; path: string; t
   );
 }
 
+const segments = (p: string) => p.split('/').map(encodeURIComponent).join('/');
+
+/** The commit a branch or tag is at now, or null when GitHub doesn't say. */
+async function commitOf(link: GitHubLink, ref: string): Promise<string | null> {
+  const r = await api<{ sha?: unknown }>(`/repos/${link.owner}/${link.repo}/commits/${encodeURIComponent(ref)}`);
+  const sha = r.ok ? r.json?.sha : null;
+  return typeof sha === 'string' && /^[0-9a-f]{7,64}$/i.test(sha) ? sha : null;
+}
+
 // A path inside a skill that's safe to write: no "..", no absolute paths, no hidden parts.
 const safeRel = (rel: string) =>
   rel.length > 0 &&
@@ -195,7 +205,14 @@ export async function installFromGitHub(
   const link = parseGitHubUrl(url);
   const resolved = await resolve(link);
   const { ref, path: at } = resolved;
-  const tree = await wholeTree(link, ref, at, resolved.tree);
+  // One commit for every file: a branch that moves on while the files come down can't mix two of its versions.
+  // (the branch is what an update follows later; the commit is what this install is made of)
+  const commit = await commitOf(link, ref);
+  const pinned = commit
+    ? await api<Tree>(`/repos/${link.owner}/${link.repo}/git/trees/${encodeURIComponent(commit)}?recursive=1`)
+    : null;
+  const revision = commit && pinned?.ok && pinned.json ? commit : ref;
+  const tree = await wholeTree(link, revision, at, revision === ref ? resolved.tree : pinned!.json!);
   const under = (p: string) => !at || p === at || p.startsWith(`${at}/`);
   const blobs = tree.tree.filter((e) => e.type === 'blob' && under(e.path));
   const roots = blobs
@@ -229,15 +246,21 @@ export async function installFromGitHub(
       // download into a fresh folder first, so a failed download changes nothing
       const tmp = ensureDir(dataPath('tmp', `install-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`));
       try {
+        // (the sizes GitHub listed are checked above; what really comes down is counted too)
+        let got = 0;
         for (const f of files) {
           const out = path.join(tmp, ...f.rel.split('/'));
           fs.mkdirSync(path.dirname(out), { recursive: true });
-          fs.writeFileSync(out, await download(link, ref, f.path));
+          const bytes = await download(link, revision, f.path);
+          got += bytes.length;
+          if (got > MAX_SKILL) throw new Error(`its files are over ${MAX_SKILL / 1024 / 1024} MB`);
+          fs.writeFileSync(out, bytes);
         }
         const md = skillFromText(fs.readFileSync(path.join(tmp, 'SKILL.md'), 'utf8'), 'x');
         if (!md.body.trim() && !md.description) throw new Error('its SKILL.md is empty');
         const origin: SkillOrigin = {
-          url: `https://github.com/${link.owner}/${link.repo}/tree/${ref}${root ? `/${root}` : ''}`,
+          // (each part of the address encoded, as the link is read back: a # ? or % in a branch or folder stays it)
+          url: `https://github.com/${link.owner}/${link.repo}/tree/${segments(ref)}${root ? `/${segments(root)}` : ''}`,
           repo: `${link.owner}/${link.repo}`,
           ref,
           path: root,
@@ -268,11 +291,29 @@ export async function installFromGitHub(
             files: skillExtraFiles(dir),
             filesHash: skillFilesHash(dir),
           };
-          const v = keepVersion(skillVersionsDir(slug), was, after, { ignore: ['files'] });
+          // (a change to its files is a version of its own, with the files it had: one made just before for an edit
+          // of its text alone has none to bring back)
+          const v = keepVersion(skillVersionsDir(slug), was, after, {
+            ignore: ['files'],
+            apart: was.filesHash !== after.filesHash,
+          });
           if (v && was.files?.length) copySkillFiles(dir, versionFilesDir(skillVersionsDir(slug), v.id));
         }
-        fs.rmSync(skillDir(slug), { recursive: true, force: true });
-        fs.renameSync(tmp, skillDir(slug));
+        // The installed one is moved aside, not deleted, until the new one is in its place: a step that fails (a
+        // file Windows holds open) puts it back as it was
+        const live = skillDir(slug);
+        const old = fs.existsSync(live) ? path.join(ensureDir(dataPath('tmp')), `skill-old-${slug}-${Date.now()}`) : '';
+        if (old) fs.renameSync(live, old);
+        try {
+          fs.renameSync(tmp, live);
+        } catch (e) {
+          if (old) {
+            fs.rmSync(live, { recursive: true, force: true });
+            fs.renameSync(old, live);
+          }
+          throw e;
+        }
+        if (old) fs.rmSync(old, { recursive: true, force: true });
         forgetSkill(slug);
         const s = getSkill(slug)!;
         result.installed.push({ slug, name: s.name, updated: Boolean(before), files: files.length });

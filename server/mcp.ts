@@ -11,7 +11,7 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { ErrorCode, McpError, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { HOME, IS_WIN, BRIDGE_SCRIPT, PORT, dataPath, readJSON, writeJSON, which, exists } from './util.ts';
-import { emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
+import { activeProject, emit, log, internalToken, agents, workflows, listProjects, withProject } from './store.ts';
 import type {
   BrainToolGrant,
   BridgeServerConfig,
@@ -1364,19 +1364,41 @@ export function describeCopy(name: string, { label, useFor }: { label?: string; 
   return next;
 }
 
+/** How an API-model agent's "Always allow" names one MCP tool: by server and tool, never by the name the model
+ *  sees (that one is cut to 64 characters and numbered by listing order, so it can move to another tool). */
+export const mcpGrant = (server: string, tool: string): string => `mcp:${server}:${tool}`;
+
 // An always-allowed tool of a server, after the server is renamed (or null when it is removed). Claude Code
-// names a server's tools mcp__<server>__<tool>; API-model agents name them <server>__<tool>.
-export function renamedGrant(grant: string, from: string, to: string | null, engine: string): string {
-  const forms: [string, string][] = [[`mcp__${from}__`, `mcp__${to}__`]];
-  if (engine === 'eve') forms.push([`${from}__`, `${to}__`]);
-  if (grant === `mcp__${from}`) return to ? `mcp__${to}` : '';
-  for (const [was, now] of forms) if (grant.startsWith(was)) return to ? now + grant.slice(was.length) : '';
+// names a server's tools mcp__<server>__<tool>; API-model agents name them mcp:<server>:<tool> (older ones
+// <server>__<tool>). Server names may hold "__" themselves, so the longest server name a grant starts with owns it:
+// renaming "a" leaves "a__b"'s tools alone.
+export function renamedGrant(
+  grant: string,
+  from: string,
+  to: string | null,
+  engine: string,
+  names: string[] = [],
+): string {
+  const exact = `mcp:${from}:`;
+  if (grant.startsWith(exact)) return to ? `mcp:${to}:${grant.slice(exact.length)}` : '';
+  const forms = [`mcp__`];
+  if (engine === 'eve') forms.push('');
+  const all = [...new Set([from, ...names])];
+  for (const pre of forms) {
+    const owner = all
+      .filter((n) => grant === `${pre}${n}` || grant.startsWith(`${pre}${n}__`))
+      .sort((a, b) => b.length - a.length)[0];
+    if (owner === undefined) continue;
+    if (owner !== from) return grant;
+    if (pre === '' && grant === from) continue;
+    return to ? `${pre}${to}${grant.slice(pre.length + from.length)}` : '';
+  }
   return grant;
 }
 
 // Agents and teams name their servers, so a removed or renamed server changes on all of them, in every
 // project. Always-allowed tools go too: a new server with the old name mustn't inherit them.
-function renameOnEveryone(from: string, to: string | null) {
+function renameOnEveryone(from: string, to: string | null, names: string[]) {
   renameBrainGrants(from, to);
   const swap = (list: string[] | undefined): string[] | null =>
     (list || []).includes(from)
@@ -1387,7 +1409,7 @@ function renameOnEveryone(from: string, to: string | null) {
       for (const a of agents.list()) {
         const servers = swap(a.mcpServers);
         const had = a.alwaysAllow || [];
-        const grants = had.map((g) => renamedGrant(g, from, to, a.engine));
+        const grants = had.map((g) => renamedGrant(g, from, to, a.engine, names));
         const grantsChanged = grants.some((g, i) => g !== had[i]);
         if (servers || grantsChanged)
           agents.save({
@@ -1442,8 +1464,9 @@ function renameBrainGrants(from: string, to: string | null): void {
 
 /** Remove a server and take it off every agent and team that had it. */
 export function removeServerEverywhere(name: string) {
+  const names = Object.keys(listServers());
   removeServer(name);
-  renameOnEveryone(name, null);
+  renameOnEveryone(name, null, names);
   log('mcp', `Removed MCP server "${name}"`);
 }
 
@@ -1473,7 +1496,7 @@ export function renameServer(from: string, to: string, cfg?: McpServerInput): st
     for (const n of moved) now[n] = { ...now[n], kind: clean };
     if (moved.length) saveAll(now);
   }
-  renameOnEveryone(from, clean);
+  renameOnEveryone(from, clean, Object.keys(servers));
   log('mcp', `Renamed MCP server "${from}" to "${clean}"`);
   return clean;
 }
@@ -1624,7 +1647,8 @@ async function connect(name: string, { test = false } = {}): Promise<Client> {
   try {
     return await job;
   } catch (e) {
-    clients.delete(name);
+    // (only its own entry: settings may have started a new connection in its place meanwhile)
+    if (clients.get(name) === job) clients.delete(name);
     throw new Error(withOutput(name, `Couldn't start MCP server "${name}": ${errText(e)}`));
   }
 }
@@ -1662,6 +1686,7 @@ function requestError(name: string, what: string, e: unknown): Error {
 // Agents' tool lists are built on every model step and tool call; asking each server every time was slow.
 const toolLists = new Map<string, { client: Client; at: number; tools: Promise<McpTool[]> }>();
 const TOOL_LIST_MS = 5 * 60_000;
+const LIST_PAGES_MAX = 50;
 
 function forgetTools(name: string, client?: Client): void {
   if (!client || toolLists.get(name)?.client === client) toolLists.delete(name);
@@ -1672,20 +1697,30 @@ export async function listTools(name: string, { test = false } = {}): Promise<Mc
   const client = await connect(name, { test });
   const kept = toolLists.get(name);
   if (!test && kept && kept.client === client && Date.now() - kept.at < TOOL_LIST_MS) return kept.tools;
-  // (asking for progress is what makes a server send it; each report resets the quiet time)
-  const tools = client
-    .listTools(undefined, {
+  // (asking for progress is what makes a server send it; each report resets the quiet time). A long list comes in
+  // pages: each is asked for in turn, up to a limit, so a server can't keep it going for ever.
+  const page = (cursor?: string) =>
+    client.listTools(cursor ? { cursor } : undefined, {
       timeout: TIMEOUTS.list,
       maxTotalTimeout: TIMEOUTS.listMax,
       resetTimeoutOnProgress: true,
       onprogress: () => {},
-    })
-    .then(
-      (r) => r.tools || [],
-      (e: unknown) => {
-        throw requestError(name, `${name} listing its tools`, e);
-      },
-    );
+    });
+  const tools = (async () => {
+    const all: McpTool[] = [];
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    for (let n = 0; n < LIST_PAGES_MAX; n++) {
+      const r = await page(cursor);
+      all.push(...(r.tools || []));
+      cursor = typeof r.nextCursor === 'string' && r.nextCursor ? r.nextCursor : undefined;
+      if (!cursor || seen.has(cursor)) break;
+      seen.add(cursor);
+    }
+    return all;
+  })().catch((e: unknown) => {
+    throw requestError(name, `${name} listing its tools`, e);
+  });
   const entry = { client, at: Date.now(), tools };
   toolLists.set(name, entry);
   // (a failed answer isn't kept)
@@ -1816,6 +1851,8 @@ export function bridgeServerConfig(agentId: string | null | undefined, runId = '
       DASH_PORT: String(PORT),
       DASH_TOKEN: internalToken(),
       DASH_AGENT: agentId || '',
+      // (an outside client, with no agent, works in whichever project is open)
+      ...(agentId ? { DASH_PROJECT: activeProject().id } : {}),
       ...(runId ? { DASH_RUN: runId } : {}),
     },
   };

@@ -1,7 +1,7 @@
 // Chat with one agent: the agent and its chats on the left; the conversation itself is the AI SDK chat
 // (web/chat): streaming answers, tool calls you can open, images, file previews, COMPACTED marks.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { attempt, navigate, ago, confirmBox, promptBox, dayGroups, ENGINE_LABEL } from '../core.ts';
+import { attempt, navigate, ago, confirmBox, promptBox, dayGroups, ENGINE_LABEL, onState, state } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { openTerminal } from './agents.tsx';
 import { openMemory } from '../memory.tsx';
@@ -31,10 +31,21 @@ interface MemoryInfo {
 
 type Loaded = { kind: 'gone' } | { kind: 'ready'; agent: AgentDetail; chat: Chat; chats: ChatSummary[] };
 
+/** The project open now: what this page's requests go to. */
+function useOpenProject(): string {
+  const [id, setId] = useState(state.data?.project?.id || '');
+  useEffect(() => onState((d) => setId(d?.project?.id || '')), []);
+  return id;
+}
+
 function ChatPage({ agentId, chatId, view }: { agentId: string; chatId?: string; view: PageContext }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  // Another project opened: what it sends goes there, so its chat is loaded again (never the last one's left
+  // showing while messages go to the new one)
+  const project = useOpenProject();
   useEffect(() => {
     let live = true;
+    setLoaded(null);
     void (async () => {
       const agent = await rpc.agents.get({ id: agentId }).catch(() => null);
       if (!live) return;
@@ -54,7 +65,7 @@ function ChatPage({ agentId, chatId, view }: { agentId: string; chatId?: string;
       setLoaded({ kind: 'ready', agent, chat, chats });
     })();
     return () => void (live = false);
-  }, [agentId, chatId, view]);
+  }, [agentId, chatId, view, project]);
   if (!loaded) return null;
   if (loaded.kind === 'gone')
     return (
@@ -63,7 +74,7 @@ function ChatPage({ agentId, chatId, view }: { agentId: string; chatId?: string;
         <a href="#/agents">Back to agents</a>
       </div>
     );
-  return <ChatScreen agent={loaded.agent} first={loaded.chat} firstChats={loaded.chats} />;
+  return <ChatScreen key={project} agent={loaded.agent} first={loaded.chat} firstChats={loaded.chats} />;
 }
 
 function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: Chat; firstChats: ChatSummary[] }) {

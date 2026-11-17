@@ -236,6 +236,42 @@ describe('saved Stop commands', () => {
   });
 });
 
+describe('Clear memory pressed while a turn worked, then a restart', () => {
+  it('still clears the memory, so what came after it stays out of the next session', async () => {
+    const { memoryStart } = await import('../../shared/context.ts');
+    const { run, chat } = fixture();
+    admitExecution(run);
+    updateExecution(run.id, { clearMemoryOnEnd: true });
+    chat.items.push({ type: 'assistant', text: 'written after the reset' });
+    chat.sessionId = 'cli-session';
+    chats.save(chat);
+    recoverExecution();
+    const saved = chats.get(chat.agentId, chat.id)!;
+    expect(saved.items.some((i) => i.type === 'meta' && i.sourceId === `reset:${run.id}`)).toBe(true);
+    expect(memoryStart(saved.items)).toBe(saved.items.length);
+    expect(saved.sessionId).toBeNull();
+  });
+});
+
+describe('a message read just before a restart', () => {
+  it('is sent again only if the chat does not show it as read', () => {
+    const { project, chat, agent, queue } = fixture();
+    // the chat saved the message as read in the turn; the server ended before it left the queue
+    chat.items.push({ type: 'steer', steerId: 'read-one', text: 'Also do this', runId: 'gone-run' });
+    chats.save(chat);
+    saveExecutionQueue({
+      ...queue,
+      items: [
+        { id: 'read-one', text: 'Also do this', ts: Date.now(), reading: 'gone-run' },
+        { id: 'unread-one', text: 'And this', ts: Date.now(), reading: 'gone-run' },
+      ],
+    });
+    recoverExecution();
+    expect(queuedMessages(chat.id, project.id).map((q) => q.id)).toEqual(['unread-one']);
+    expect(agent.id).toBeTruthy();
+  });
+});
+
 describe('saved delegation handles', () => {
   it('collects a completed child after losing its callback, and never runs an interrupted task again', async () => {
     const { run } = fixture();

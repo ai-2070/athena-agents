@@ -214,6 +214,28 @@ describe('a message sent while the agent works (steer)', () => {
   });
 });
 
+describe("the Brain's view of who is working", () => {
+  it("shows only its own project's runs, even when a clone's agent has the same id", async () => {
+    const a = await createProject({ name: 'Busy A', mode: 'new', folder: folder('busy-a') });
+    const agent = apiAgent('Busy twin');
+    const chat = chats.create(agent.id);
+    const b = (await cloneProject(a.id, 'Busy B')).project;
+    setActiveProject(a.id);
+    const ra = startRun(agent, chat, 'distinctive-a-task');
+    await until(() => held.length > 0);
+    const { pulse, snapshot } = await import('../../server/overseer.ts');
+    expect(pulse().working).toBe(1);
+    expect(await snapshot({ fileBudget: 0 })).toMatch(/WORKING \d+s on "distinctive-a-task/);
+    setActiveProject(b.id);
+    expect(pulse().working).toBe(0);
+    // (its agent is idle here: A's run isn't put on B's agent of the same id)
+    expect(await snapshot({ fileBudget: 0 })).not.toMatch(/WORKING \d+s on "distinctive-a-task/);
+    setActiveProject(a.id);
+    await settled(chat.id);
+    await ra.promise.catch(() => {});
+  });
+});
+
 describe('handoffs', () => {
   it("are the project's: a clone's agent with the same id can't list or collect them", async () => {
     const a = await createProject({ name: 'Hand A', mode: 'new', folder: folder('hand-a') });
@@ -226,6 +248,30 @@ describe('handoffs', () => {
     await releaseUntil(() => !!h.endedAt);
     await h.done;
     withProject(a, () => expect(listHandoffs('boss-1')).toMatch(/done, answer ready/));
+  });
+
+  it("stay in the asker's private conversation: its helper's chat is in it, and only it can collect them", async () => {
+    await createProject({ name: 'Hand private', mode: 'new', folder: folder('hand-private') });
+    const boss = apiAgent('Private boss');
+    const helper = apiAgent('Private helper');
+    const privateChat = chats.create(boss.id, 'Gateway', null, 'gw-test-alice');
+    const parent = startRun(boss, privateChat, 'Delegate this');
+    await until(() => held.length > 0);
+    const h = await startHandoff(boss, helper, 'secret task', { depth: 1, parentRunId: parent.runId });
+    expect(chats.get(helper.id, h.chatId)?.conversationId).toBe('gw-test-alice');
+    expect(h.conversationId).toBe('gw-test-alice');
+    await releaseUntil(() => !!h.endedAt);
+    await h.done;
+    expect(h.error).toBeUndefined();
+    // an ordinary chat, or another private conversation, of the same agent can't list or collect it
+    expect(listHandoffs(boss.id)).toMatch(/no handoffs/);
+    expect(listHandoffs(boss.id, 'gw-test-bob')).toMatch(/no handoffs/);
+    expect((await awaitHandoff(h.id, boss.id, 1)).text).toMatch(/another conversation/);
+    expect((await awaitHandoff(h.id, boss.id, 1, undefined, 'gw-test-bob')).text).toMatch(/another conversation/);
+    expect(listHandoffs(boss.id, 'gw-test-alice')).toMatch(/done, answer ready/);
+    expect((await awaitHandoff(h.id, boss.id, 1, undefined, 'gw-test-alice')).isError).toBeFalsy();
+    await settled(privateChat.id);
+    await parent.promise.catch(() => {});
   });
 });
 

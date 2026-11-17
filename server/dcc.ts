@@ -1,6 +1,8 @@
 // Scripts and command lines for the 3D, texture, CAD, 3D printing and NVIDIA tools.
 // No side effects here, so tests can check them without the programs installed.
+import fs from 'node:fs';
 import path from 'node:path';
+import { readZip } from './unzip.ts';
 
 /** A Python string literal for a path or name (JSON strings are valid Python strings). */
 const pyStr = (s: string): string => JSON.stringify(s);
@@ -116,6 +118,27 @@ export function openscadArgs({
 // PrusaSlicer options that take files or folders, do something other than set a print setting, or run programs
 const NOT_A_SETTING =
   /^(no-)?(load|o|output|output-filename-format|save|datadir|loadconfig|config|post-process|export-.*|import-.*|info|help.*|gcodeviewer|single-instance.*|delete-after-load|threads|loglevel|sw-renderer|opengl-.*|app-updater|.*-file|.*-files|.*-path|.*-dir)$/;
+
+// A saved setting that runs programs once the G-code is written: "post_process = <command>" in an .ini profile, and
+// "; post_process = <command>" in the config a .3mf or .amf project carries.
+const POST_PROCESS = /post_process\s*=\s*[^\s"']/;
+
+/** Whether a profile or a model project would run a program after slicing (its post_process setting). A file that
+ *  can't be read is counted as one that might. */
+export function runsAfterSlicing(file: string): boolean {
+  try {
+    const ext = path.extname(file).toLowerCase();
+    const buf = fs.readFileSync(file);
+    if (ext === '.3mf' || (ext === '.amf' && buf.readUInt32LE(0) === 0x04034b50))
+      return readZip(buf).some(
+        (e) => /\.(config|ini|amf|xml)$/i.test(e.name) && POST_PROCESS.test(e.data.toString('utf8')),
+      );
+    if (ext === '.ini' || ext === '.amf') return POST_PROCESS.test(buf.toString('utf8'));
+    return false;
+  } catch {
+    return true;
+  }
+}
 
 /** prusa-slicer-console arguments: slice a model to G-code with saved profiles and a few settings. */
 export function prusaSlicerArgs({

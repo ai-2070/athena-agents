@@ -1807,6 +1807,91 @@ describe('agent runs and projects', () => {
     }
   });
 
+  it('a call its MCP client cancels while it waits in Needs you is taken back, and never runs', async () => {
+    const send = async (p: string, body: unknown) =>
+      (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();
+    const home = path.join(tmp, 'home');
+    const a = await send('/api/projects', { name: 'Cancel A', mode: 'new', folder: path.join(home, 'cancel-a') });
+    const agent = await send('/api/agents', {
+      name: 'Asker',
+      engine: 'claude-code',
+      toolGroups: ['files'],
+      autonomy: 'ask',
+    });
+    const internal = {
+      'content-type': 'application/json',
+      'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim(),
+    };
+    const stop = new AbortController();
+    const call = req('/api/internal/tools/call', {
+      method: 'POST',
+      headers: internal,
+      signal: stop.signal,
+      body: JSON.stringify({
+        agent: agent.id,
+        project: a.id,
+        name: 'write_file',
+        args: { path: 'cancelled.txt', content: 'should not be written' },
+      }),
+    }).catch(() => null);
+    const waiting = async () => ((await (await req('/api/approvals')).json()) as { title: string }[]).length;
+    for (let i = 0; i < 100 && !(await waiting()); i++) await new Promise((r) => setTimeout(r, 50));
+    expect(await waiting()).toBe(1);
+    stop.abort();
+    await call;
+    for (let i = 0; i < 100 && (await waiting()); i++) await new Promise((r) => setTimeout(r, 50));
+    expect(await waiting()).toBe(0);
+    expect(fs.existsSync(path.join(a.brainPath, 'cancelled.txt'))).toBe(false);
+  });
+
+  it("tool calls from an agent's terminal stay in the project it was opened in", async () => {
+    const send = async (p: string, body: unknown) =>
+      (await req(p, { method: 'POST', headers: json, body: JSON.stringify(body) })).json();
+    const home = path.join(tmp, 'home');
+    const a = await send('/api/projects', { name: 'Term A', mode: 'new', folder: path.join(home, 'term-a') });
+    const agent = await send('/api/agents', { name: 'Termed', engine: 'claude-code', toolGroups: ['files'] });
+    const b = await send('/api/projects', { name: 'Term B', mode: 'new', folder: path.join(home, 'term-b') });
+    expect((await (await req('/api/state')).json()).project.id).toBe(b.id);
+    const internal = {
+      'content-type': 'application/json',
+      'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim(),
+    };
+    const call = (project: string) =>
+      req('/api/internal/tools/call', {
+        method: 'POST',
+        headers: internal,
+        body: JSON.stringify({
+          agent: agent.id,
+          project,
+          name: 'write_file',
+          args: { path: 'terminal.txt', content: 'from-a' },
+        }),
+      });
+    const r = await (await call(a.id)).json();
+    expect(r.isError).toBe(false);
+    expect(fs.readFileSync(path.join(a.brainPath, 'terminal.txt'), 'utf8')).toBe('from-a');
+    expect(fs.existsSync(path.join(b.brainPath, 'terminal.txt'))).toBe(false);
+    // a project that is gone is refused, never swapped for the open one
+    expect((await call('no-such-project')).status).toBe(410);
+    expect(fs.existsSync(path.join(b.brainPath, 'terminal.txt'))).toBe(false);
+    // a bridge of a run that has ended works nowhere, not in the open project
+    const ended = await req('/api/internal/tools/call', {
+      method: 'POST',
+      headers: internal,
+      body: JSON.stringify({
+        agent: agent.id,
+        run: 'r-long-gone',
+        name: 'write_file',
+        args: { path: 'late.txt', content: 'late' },
+      }),
+    });
+    expect(ended.status).toBe(410);
+    expect(fs.existsSync(path.join(b.brainPath, 'late.txt'))).toBe(false);
+    expect((await req(`/api/internal/tools?agent=${agent.id}&run=r-long-gone`, { headers: internal })).status).toBe(
+      410,
+    );
+  });
+
   it('the MCP bridge gives an agent the tools its team gave it for the work', async () => {
     let release = () => {};
     const model = http.createServer((rq, rs) => {

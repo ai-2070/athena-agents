@@ -57,7 +57,7 @@ vi.mock('../../server/util.ts', async (orig) => {
 
 const { newAgent } = await import('../../server/library.ts');
 const { chats } = await import('../../server/store.ts');
-const { activeRuns, joinChatTurn, missedMessages, queuedMessages, startRun, steerChat, stopRun } =
+const { activeRuns, joinChatTurn, liveChat, missedMessages, queuedMessages, startRun, steerChat, stopChat, stopRun } =
   await import('../../server/engines/index.ts');
 const claude = await import('../../server/engines/claude.ts');
 
@@ -204,6 +204,29 @@ describe('steering a Claude Code agent', () => {
     ]);
     expect(queuedMessages(chat.id)).toEqual([]);
     expect(fake.procs).toHaveLength(1);
+  });
+
+  it('a message is read only when the echo holds it whole, not as part of another', async () => {
+    const { a, chat, p } = await start('Parts');
+    p.out({
+      type: 'assistant',
+      message: { id: 'm1', content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'sleep 8' } }] },
+    });
+    await steerChat(a, chat, 'write a summary');
+    await steerChat(a, chat, 'summary');
+    await until(() => p.inputs.length === 3);
+    // it read the first only
+    p.out({
+      type: 'user',
+      isReplay: true,
+      uuid: p.inputs[1]!.uuid,
+      message: { role: 'user', content: 'write a summary' },
+    });
+    await until(() => said(liveChat(chat.id) || chat).includes('steer: write a summary'));
+    expect(said(liveChat(chat.id) || chat)).not.toContain('steer: summary');
+    expect(queuedMessages(chat.id).map((q) => q.text)).toContain('summary');
+    stopChat(chat.id);
+    await until(() => idle(chat));
   });
 
   it('one it never says it read: its input closes once it is quiet, and the message goes next as its own turn', async () => {

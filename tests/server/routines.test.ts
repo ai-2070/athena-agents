@@ -14,6 +14,7 @@ import {
   routineTargets,
   saveRoutine,
   startRoutine,
+  routineStatus,
 } from '../../server/routines.ts';
 import { due } from '../../server/workflows.ts';
 import {
@@ -258,6 +259,25 @@ describe('a routine', () => {
     await expect(startRoutine(r.id)).rejects.toThrow(/Mention at least one agent or team/);
   });
 
+  it("runs a project's schedule while another project is open", async () => {
+    const { activeProject, setActiveProject, withProject } = await import('../../server/store.ts');
+    const { createProject } = await import('../../server/projects.ts');
+    const home = activeProject();
+    const r = saveRoutine({
+      name: 'Elsewhere',
+      text: 'Do it.',
+      schedule: { type: 'interval', minutes: 5 },
+      enabled: true,
+    });
+    await createProject({ name: 'Open meanwhile', mode: 'new' });
+    try {
+      checkRoutineSchedules(Date.now() + 3_600_000);
+      expect(withProject(home, () => getRoutine(r.id)?.lastScheduledAt)).toBeGreaterThan(0);
+    } finally {
+      setActiveProject(home.id);
+    }
+  });
+
   it('will not run without an agent or a team', async () => {
     const r = saveRoutine({ name: 'Nobody', text: 'Do something.' });
     await expect(startRoutine(r.id)).rejects.toThrow(/Mention at least one agent or team/);
@@ -350,5 +370,18 @@ describe("a routine's skills in a team", () => {
     await postUserMessage(team.id, '@Helper one more thing.');
     await waitFor(() => helperAsks().length > before);
     expect(helperAsks().at(-1)!.system).not.toContain('Handoff guide');
+  });
+});
+
+describe('how a routine run ended', () => {
+  const t = (...s: RoutineRun['targets'][number]['status'][]) => s.map((status) => ({ status }));
+  it('is done only when something finished', () => {
+    expect(routineStatus(t('done', 'failed'), false)).toBe('done');
+    expect(routineStatus(t('sent', 'stopped'), false)).toBe('done');
+    // one stopped and one failed: nothing finished
+    expect(routineStatus(t('stopped', 'failed'), false)).toBe('failed');
+    expect(routineStatus(t('failed', 'failed'), false)).toBe('failed');
+    expect(routineStatus(t('stopped', 'stopped'), false)).toBe('stopped');
+    expect(routineStatus(t('done'), true)).toBe('stopped');
   });
 });

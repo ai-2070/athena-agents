@@ -5510,7 +5510,8 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       });
     return;
   }
-  if (isEvent(ev, 'workflow-run') && ev.run) {
+  // (a run of another project with the same workflow id, a copied one, is not this map's)
+  if (isEvent(ev, 'workflow-run') && ev.run && (!ev.projectId || ev.projectId === state.data?.project?.id)) {
     const r = ev.run;
     const prev = S.active.get(r.workflowId);
     const prevIdx = prev ? prev.steps.findIndex((s) => s.status === 'running' || s.status === 'needs-you') : -1;

@@ -1,9 +1,12 @@
 // Live terminals in the browser (like Agent Office's desks): PowerShell, Claude Code, Hermes, Orca or an agent.
+import { spawn } from 'node:child_process';
 import pty from '@lydell/node-pty';
 import type { IPty } from '@lydell/node-pty';
 import type { WebSocket } from 'ws';
 import type { Agent, Terminal } from '../shared/types.ts';
-import { which, uid, IS_WIN, HOME } from './util.ts';
+import fs from 'node:fs';
+import path from 'node:path';
+import { which, uid, IS_WIN, HOME, shimTarget, dataPath } from './util.ts';
 import { activeProject, emit, log } from './store.ts';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.ts';
 import { hermesArgs } from './engines/hermes.ts';
@@ -20,6 +23,8 @@ export interface TerminalSession extends Terminal {
   pty: IPty;
   buffer: string;
   clients: Set<WebSocket>;
+  /** what the names of its own files in runtime/<agent id> have in them (an agent's terminal) */
+  fileTag?: string;
 }
 
 export interface CreateTerminalOptions {
@@ -35,6 +40,17 @@ export interface CreateTerminalOptions {
 
 const sessions = new Map<string, TerminalSession>();
 const MAX_BUFFER = 400_000;
+// A viewer this far behind (a slow connection) is let go rather than kept in memory: it connects again and gets the
+// screen as it is then (the last MAX_BUFFER of output).
+const MAX_BEHIND = 4_000_000;
+export function send(ws: Pick<WebSocket, 'readyState' | 'bufferedAmount' | 'close' | 'send'>, d: string): void {
+  if (ws.readyState !== 1) return;
+  if (ws.bufferedAmount > MAX_BEHIND) return void ws.close(4008, 'fell behind');
+  ws.send(d);
+}
+
+/** A terminal's process id (for checks that it really ended). */
+export const terminalPid = (id: string): number | null => sessions.get(id)?.pty.pid ?? null;
 
 export function listTerminals(): Terminal[] {
   return [...sessions.values()].map(({ id, title, agentId, createdAt, exited, exitCode, command, projectId }) => ({
@@ -49,6 +65,31 @@ export function listTerminals(): Terminal[] {
   }));
 }
 
+/** What a terminal starts for a command: the program and its arguments (see the .cmd note below). */
+export function ptyCommand(command: string, args: string[]): { file: string; argv: string[] } {
+  let file = which(command) || command;
+  let argv = args;
+  if (IS_WIN && /\.(cmd|bat)$/i.test(file)) {
+    // An npm-installed CLI (codex.cmd, claude.cmd) only starts node with its script: that starts directly, so its
+    // arguments reach it as they are. Anything else goes through cmd.exe, which reads & | < > ^ % ! " as its own:
+    // an argument with one is refused rather than split into another command.
+    const direct = shimTarget(file);
+    if (direct) {
+      argv = [...direct.args, ...args];
+      file = direct.command;
+    } else {
+      const bad = args.find((a) => /["%!^&|<>\r\n]/.test(String(a)));
+      if (bad !== undefined)
+        throw new Error(
+          `This argument has characters that can't be passed safely to ${file}: ${String(bad).slice(0, 80)}`,
+        );
+      argv = ['/d', '/c', file, ...args];
+      file = process.env.ComSpec || 'cmd.exe';
+    }
+  }
+  return { file, argv };
+}
+
 function spawnPty(
   command: string,
   args: string[],
@@ -59,12 +100,7 @@ function spawnPty(
     rows = 32,
   }: { cwd?: string | null; env?: NodeJS.ProcessEnv | null; cols?: number; rows?: number },
 ): IPty {
-  let file = which(command) || command;
-  let argv = args;
-  if (IS_WIN && /\.(cmd|bat)$/i.test(file)) {
-    argv = ['/d', '/c', file, ...args];
-    file = process.env.ComSpec || 'cmd.exe';
-  }
+  const { file, argv } = ptyCommand(command, args);
   return pty.spawn(file, argv, {
     name: 'xterm-256color',
     cols,
@@ -89,10 +125,13 @@ export function createTerminal({
   let env = process.env;
   let dir = cwd || HOME;
   let name = title;
+  // the files an agent's terminal reads its brief and settings from are its own (another project's copy of the
+  // agent, or a terminal opened later, writes its own), and go when it is closed
+  const fileTag = `terminal-${uid()}`;
   if (kind === 'agent' && agent) {
     dir = workspaceOf(agent);
     if (agent.engine === 'claude-code') {
-      const files = prepareFiles(agent, buildSystemPrompt(agent));
+      const files = prepareFiles(agent, buildSystemPrompt(agent), '', fileTag);
       cmd = 'claude';
       argv = claudeArgs(agent, { ...files, interactive: true });
       env = claudeEnv(agent);
@@ -103,20 +142,20 @@ export function createTerminal({
       cmd = 'codex';
       const launch = codexLaunch(agent, {
         interactive: true,
-        promptFile: terminalPromptFile(agent, buildSystemPrompt(agent)),
+        promptFile: terminalPromptFile(agent, buildSystemPrompt(agent), fileTag),
       });
       argv = launch.args;
       env = { ...process.env, ...launch.env };
     } else if (agent.engine === 'pi' || agent.engine === 'omp') {
       cmd = agent.engine;
-      argv = piTerminalArgs(agent.engine, agent, buildSystemPrompt(agent));
+      argv = piTerminalArgs(agent.engine, agent, buildSystemPrompt(agent), fileTag);
       env = { ...process.env, ...bridgeEnv(agent.id) };
     } else if (agent.engine === 'openclaw') {
       cmd = 'openclaw';
       argv = openclawTerminalArgs(agent);
     } else if (agent.engine === 'opencode') {
       cmd = 'opencode';
-      const launch = opencodeTerminal(agent, buildSystemPrompt(agent));
+      const launch = opencodeTerminal(agent, buildSystemPrompt(agent), fileTag);
       argv = launch.args;
       env = launch.env;
     } else
@@ -148,11 +187,12 @@ export function createTerminal({
     exited: false,
     exitCode: null,
     projectId: activeProject().id,
+    ...(kind === 'agent' && agent ? { fileTag } : {}),
   };
   p.onData((d) => {
     s.buffer += d;
     if (s.buffer.length > MAX_BUFFER) s.buffer = s.buffer.slice(-MAX_BUFFER);
-    for (const ws of s.clients) if (ws.readyState === 1) ws.send(d);
+    for (const ws of s.clients) send(ws, d);
   });
   p.onExit(({ exitCode }) => {
     s.exited = true;
@@ -204,7 +244,26 @@ export function closeTerminal(id: string): boolean {
   } catch {
     /* gone */
   }
+  // (on Windows the terminal's own kill waits until it has printed something. ConPTY prints its own setup at once,
+  // so that comes; it and what it started are ended by its process id as well, in case)
+  if (IS_WIN && !s.exited && s.pty.pid)
+    try {
+      spawn('taskkill', ['/pid', String(s.pty.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore' }).on(
+        'error',
+        () => {},
+      );
+    } catch {
+      /* gone */
+    }
   for (const ws of s.clients) ws.close();
+  if (s.agentId && s.fileTag) {
+    const dir = dataPath('runtime', s.agentId);
+    try {
+      for (const n of fs.readdirSync(dir)) if (n.includes(s.fileTag)) fs.rmSync(path.join(dir, n), { force: true });
+    } catch {
+      /* none left */
+    }
+  }
   sessions.delete(id);
   emit('terminals');
   return true;

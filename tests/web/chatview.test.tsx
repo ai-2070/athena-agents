@@ -101,6 +101,8 @@ beforeEach(() => {
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/agents/a1/chats/c1' && method === 'GET') return json(chat);
+    // (the page's own refresh when live events connect)
+    if (url === '/api/state') return json(state.data);
     if (url === '/api/agents/a1/chats/c1/stream' && method === 'POST') {
       const s = (sendStream = uiStream());
       init.signal?.addEventListener('abort', () => s.abort());
@@ -342,6 +344,19 @@ describe('the agent chat (AI SDK)', () => {
     expect([...el.querySelectorAll('.tname')].map((n) => n.textContent)).toContain('read_file');
   });
 
+  it('when live events come back after they dropped, it loads what was said meanwhile', async () => {
+    const el = await open();
+    // (the first connection: after it, an open is a reconnect)
+    await act(async () => FakeSocket.last!.onopen!());
+    await settle();
+    // said while the page heard nothing
+    chat.items.push({ type: 'user', text: 'asked while away' }, { type: 'assistant', text: 'answered while away' });
+    expect(el.textContent).not.toContain('answered while away');
+    await act(async () => FakeSocket.last!.onopen!());
+    await settle();
+    expect(el.textContent).toContain('answered while away');
+  });
+
   it('/queue while it works: the server holds it, it shows, × takes it back', async () => {
     const el = await open();
     await type(el, 'go');
@@ -406,6 +421,75 @@ describe('the agent chat (AI SDK)', () => {
     });
     await settle();
     expect(el.textContent).toContain('On the next one');
+  });
+
+  it("a /loop's next turn starts as the turn before it ends, nothing queued: that turn streams in too", async () => {
+    const el = await open();
+    await wsEvent({
+      type: 'loop',
+      agentId: 'a1',
+      chatId: 'c1',
+      loop: { text: 'check CI', every: 60_000, times: 3, done: 0, next: null },
+    });
+    await type(el, 'go');
+    await settle();
+    await wsEvent({
+      type: 'run',
+      runId: 'r2',
+      agentId: 'a1',
+      chatId: 'c1',
+      event: { kind: 'start', text: 'check CI' },
+    });
+    chat.items.push(
+      { type: 'user', text: 'go' },
+      { type: 'assistant', text: 'Went.' },
+      { type: 'user', text: 'check CI' },
+    );
+    resumeStream = uiStream();
+    const s = sendStream!;
+    await act(async () => {
+      s.push({ type: 'start', messageId: 'run-r1' });
+      s.push({ type: 'finish' });
+      s.end();
+    });
+    await settle();
+    await settle();
+    expect(requests.some((r) => r.method === 'GET' && r.url.endsWith('/stream'))).toBe(true);
+    await act(async () => {
+      resumeStream!.push({ type: 'start', messageId: 'run-r2' });
+      resumeStream!.push({ type: 'text-start', id: 'b' });
+      resumeStream!.push({ type: 'text-delta', id: 'b', delta: 'CI is green' });
+    });
+    await settle();
+    expect(el.textContent).toContain('CI is green');
+  });
+
+  it('a load that answers after the view closed tells the page nothing', async () => {
+    const real = globalThis.fetch;
+    let release = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url === '/api/agents/a1/chats/c1' && (init?.method || 'GET') === 'GET') await held;
+      return real(url, init);
+    });
+    const told: string[] = [];
+    const el = document.createElement('div');
+    document.body.append(el);
+    let view: MountedChat | null = null;
+    await act(async () => {
+      view = mountChat(el, {
+        agent: { id: 'a1', name: 'Renderer' },
+        chatId: 'c1',
+        tray: attachTray(),
+        onChat: (c) => void told.push(c.id),
+      });
+    });
+    await settle();
+    // another chat opened meanwhile: this view is gone before its load answers
+    act(() => view!.destroy());
+    release();
+    await settle();
+    expect(told).toEqual([]);
   });
 
   it('/queue when nothing is working just sends it', async () => {

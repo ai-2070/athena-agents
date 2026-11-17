@@ -431,22 +431,45 @@ fn full_path() -> Option<std::ffi::OsString> {
 
 #[cfg(unix)]
 fn login_shell_path() -> Option<String> {
+    use std::io::Read;
+    use std::os::unix::process::CommandExt;
     let shell = std::env::var("SHELL")
         .ok()
         .filter(|s| std::path::Path::new(s).is_absolute())
         .unwrap_or_else(|| "/bin/sh".into());
+    // its own process group: a profile that hangs is ended with everything it started, not left behind
+    let mut child = Command::new(shell)
+        .args(["-ilc", "printf '\\n__DASH_PATH__%s\\n' \"$PATH\""])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .ok()?;
+    let mut stdout = child.stdout.take()?;
     let (tx, rx) = std::sync::mpsc::channel();
     thread::spawn(move || {
-        let out = Command::new(shell)
-            .args(["-ilc", "printf '\\n__DASH_PATH__%s\\n' \"$PATH\""])
-            .stdin(Stdio::null())
-            .stderr(Stdio::null())
-            .output();
-        let _ = tx.send(out);
+        let mut buf = Vec::new();
+        let _ = stdout.read_to_end(&mut buf);
+        let _ = tx.send(buf);
     });
-    // a shell profile that waits for input must not hold up the app
-    let out = rx.recv_timeout(Duration::from_secs(5)).ok()?.ok()?;
-    String::from_utf8_lossy(&out.stdout)
+    // a shell profile that waits for input must not hold up the app: past five seconds it is ended
+    let out = match rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(out) => {
+            let _ = child.wait();
+            out
+        }
+        Err(_) => {
+            let _ = Command::new("kill")
+                .args(["-KILL", &format!("-{}", child.id())])
+                .stderr(Stdio::null())
+                .status();
+            let _ = child.kill();
+            let _ = child.wait();
+            return None;
+        }
+    };
+    String::from_utf8_lossy(&out)
         .lines()
         .find_map(|l| l.strip_prefix("__DASH_PATH__"))
         .map(str::to_owned)

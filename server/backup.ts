@@ -11,7 +11,6 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import {
   HOME,
-  IS_WIN,
   dataPath,
   ensureDir,
   exists,
@@ -19,12 +18,21 @@ import {
   isPlainDir,
   readJSON,
   readPlain,
-  realTarget,
+  sameFolder,
   slugify,
   writeJSON,
 } from './util.ts';
 import { listProjects, emit, log } from './store.ts';
-import { createProject, projectsRoot, removeProject, setBackground, setLogo, updateProject } from './projects.ts';
+import {
+  MODEL_EXT,
+  createProject,
+  projectsRoot,
+  removeProject,
+  setBackground,
+  setLogo,
+  setModel,
+  updateProject,
+} from './projects.ts';
 import { forgetSkill, isSkillSlug, skillsLibrary, skillDir, skillVersionsDir, skillVersionItem } from './skills.ts';
 import {
   checkVersion,
@@ -101,6 +109,7 @@ const BRAIN_FILES = ['PROJECT.md', 'BRAIN.md'];
 const BRAIN_DIRS = ['notes'];
 const LOGO_RE = /^logo\.(png|jpg|webp|gif)$/;
 const BACKGROUND_RE = /^background\.(png|jpg|webp|gif)$/;
+const BRAIN_MODEL_RE = /^brain-model\.(glb|gltf|obj|stl|ply|fbx)$/;
 const ID_RE = /^[\w.-]+$/;
 const CHAT_ID_RE = /^[\w-]+$/;
 const PRESET_RE = /^p[at][\w-]+$/;
@@ -165,6 +174,8 @@ export interface BackupData {
   logo: PackedFile | null;
   /** The picture behind the Station's map. Older backups: missing. */
   background?: PackedFile | null;
+  /** The 3D model in the Brain's globe (brain-model.<ext>). Older backups: missing. */
+  brainModel?: PackedFile | null;
   skills: { slug: string; files: PackedFile[] }[];
   /** Kept versions (see VERSION_FILE). Older backups: empty. */
   versions: PackedFile[];
@@ -349,6 +360,19 @@ export function packProject(p: Project): BackupData {
   };
   const logo = packImage('logo');
   const background = packImage('background');
+  // (the Brain's own 3D model, kept beside the logo)
+  let brainModel: PackedFile | null = null;
+  for (const ext of MODEL_EXT) {
+    const f = path.join(p.brainPath, '.dashboard', `brain-model.${ext}`);
+    try {
+      if (fs.lstatSync(f).isFile()) {
+        brainModel = { path: `brain-model.${ext}`, data: fs.readFileSync(f).toString('base64') };
+        break;
+      }
+    } catch {
+      /* none */
+    }
+  }
   const skillBudget = budget(CAP.skills);
   const skills: BackupData['skills'] = [];
   for (const e of fs.readdirSync(skillsLibrary(), { withFileTypes: true })) {
@@ -434,6 +458,7 @@ export function packProject(p: Project): BackupData {
     brain,
     logo,
     background,
+    brainModel,
     skills,
     versions,
     presets,
@@ -475,10 +500,16 @@ export function packProject(p: Project): BackupData {
   return data;
 }
 
-/** The bytes of a backup file. */
-export function encodeBackup(b: BackupData): Buffer {
+/** The bytes of a backup file. (max: what its reader takes; smaller only in tests) */
+export function encodeBackup(b: BackupData, max = UNPACKED_MAX): Buffer {
   const head = `${MAGIC} ${FORMAT}\n${JSON.stringify(summarize(b))}\n`;
-  return Buffer.concat([Buffer.from(head, 'utf8'), zlib.gzipSync(JSON.stringify(b))]);
+  const body = JSON.stringify(b);
+  // (each kind fits its own limit, but all of them together may not: a backup that couldn't be read back isn't made)
+  if (Buffer.byteLength(body) > max)
+    throw new Error(
+      `This project is too big to back up whole (${Math.round(Buffer.byteLength(body) / 1024 / 1024)} MB unpacked; a backup holds ${Math.round(max / 1024 / 1024)} MB). Make its world, team pictures or knowledge smaller first.`,
+    );
+  return Buffer.concat([Buffer.from(head, 'utf8'), zlib.gzipSync(body)]);
 }
 
 const stamp = (t: number) => {
@@ -697,6 +728,13 @@ export function decodeBackup(buf: Buffer): BackupData {
       typeof b.background.data === 'string'
         ? b.background
         : null,
+    brainModel:
+      b.brainModel &&
+      typeof b.brainModel.path === 'string' &&
+      BRAIN_MODEL_RE.test(b.brainModel.path) &&
+      typeof b.brainModel.data === 'string'
+        ? b.brainModel
+        : null,
     skills: arr<BackupData['skills'][number]>(b.skills)
       .filter((s) => s && isSkillSlug(s.slug))
       .map((s) => ({ slug: s.slug, files: files(s.files) }))
@@ -846,14 +884,6 @@ export function sameFiles(dir: string, files: PackedFile[]): boolean {
       return false;
     }
   });
-}
-
-// Two paths are the same folder: links followed, and case ignored only on Windows
-function sameFolder(a: string, b: string): boolean {
-  const ra = realTarget(a);
-  const rb = realTarget(b);
-  const fold = (x: string) => (IS_WIN ? x.toLowerCase() : x);
-  return !!ra && !!rb && fold(ra) === fold(rb);
 }
 
 function restoreSkills(list: BackupData['skills']): {
@@ -1053,6 +1083,12 @@ export async function restoreBackup(
       /* not a picture after all: no background */
     }
   }
+  if (b.brainModel)
+    try {
+      setModel(id, b.brainModel.path, `data:application/octet-stream;base64,${b.brainModel.data}`);
+    } catch {
+      /* not a model after all: the globe keeps its own */
+    }
 
   // saved presets: added when not there yet (their ids are unique, so the same id is the same preset)
   let presetsAdded = 0;

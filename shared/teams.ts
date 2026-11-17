@@ -1,9 +1,10 @@
 // Team helpers the server and the page share.
 import type { Team, TeamStep } from './types.ts';
 
-// An old step list with tools, approvals, posts or notices runs as a workflow, not as a team chat.
+// A step list runs as a workflow, not as a team chat: one with tools, approvals, posts or notices, or an agent step
+// written for it (its own prompt, like "Prompt to image"). A team's own steps are bare: one per member.
 export function isStepList(team: Pick<Team, 'steps'> | null | undefined): boolean {
-  return (team?.steps || []).some((s) => s.type !== 'agent');
+  return (team?.steps || []).some((s) => s.type !== 'agent' || (typeof s.prompt === 'string' && !!s.prompt.trim()));
 }
 
 // The steps a team keeps when its members change: one per member, or, for a step list,
@@ -42,7 +43,8 @@ export function parseTeamRefs(
   // longest names first, each match taken out, so "#Design Ops" doesn't also count as "#Design"
   for (const t of [...teams].filter((x) => x.name.trim()).sort((a, b) => b.name.length - a.name.length)) {
     // (not in a link's #anchor or an &#39; entity, and not part of a longer word)
-    const re = new RegExp(`(^|[^\\w#&/])#${escape(t.name.trim())}(?![\\w-])`, 'gi');
+    // (a letter, mark or digit of any script counts as part of a word: "#Café" isn't in "#Caféé")
+    const re = new RegExp(`(^|[^\\p{L}\\p{M}\\p{N}_#&/])#${escape(t.name.trim())}(?![\\p{L}\\p{M}\\p{N}_-])`, 'giu');
     if (!re.test(rest)) continue;
     rest = rest.replace(re, '$1');
     if (t.id !== self && !found.includes(t.id)) found.push(t.id);

@@ -154,6 +154,17 @@ export function routineMessage(
 
 const summary = (text: string) => (text.length > MAX_OUTPUT ? `${text.slice(0, MAX_OUTPUT)}…` : text);
 
+/** How a routine run ended, from its targets: done when one finished; else failed when one failed (the rest
+ *  stopped); else stopped. Stopping the whole routine is stopped. */
+export function routineStatus(
+  targets: readonly { status: RoutineRun['targets'][number]['status'] }[],
+  stopped: boolean,
+): RoutineRun['status'] {
+  if (stopped) return 'stopped';
+  if (targets.some((t) => t.status === 'done' || t.status === 'sent')) return 'done';
+  return targets.some((t) => t.status === 'failed') ? 'failed' : 'stopped';
+}
+
 export async function startRoutine(
   id: string,
   { trigger = 'manual', input = '' }: { trigger?: string; input?: string } = {},
@@ -229,12 +240,7 @@ export async function startRoutine(
   void withProject(project, () =>
     Promise.all(jobs).then(() => {
       active.delete(run.id);
-      run.status =
-        ac.signal.aborted || targets.every((t) => t.status === 'stopped')
-          ? 'stopped'
-          : targets.every((t) => t.status === 'failed')
-            ? 'failed'
-            : 'done';
+      run.status = routineStatus(targets, ac.signal.aborted);
       const failed = targets.filter((t) => t.status === 'failed');
       run.error = failed.length ? failed.map((t) => `${t.name}: ${t.output}`).join('\n') : null;
       run.finishedAt = Date.now();
@@ -284,15 +290,19 @@ export function markInterruptedRoutines() {
   }
 }
 
+// Every project's schedules, not only the open one's: each routine runs in its own project.
 export function checkRoutineSchedules(now = Date.now()) {
-  for (const r of routines.list()) {
-    if (!due(r, now)) continue;
-    r.lastScheduledAt = now;
-    routines.save(r);
-    startRoutine(r.id, { trigger: 'schedule', input: r.schedule?.input || '' }).catch((e: unknown) =>
-      log('error', `Scheduled routine "${r.name}": ${(e as Error).message}`),
-    );
-  }
+  for (const p of listProjects())
+    withProject(p, () => {
+      for (const r of routines.list()) {
+        if (!due(r, now)) continue;
+        r.lastScheduledAt = now;
+        routines.save(r);
+        startRoutine(r.id, { trigger: 'schedule', input: r.schedule?.input || '' }).catch((e: unknown) =>
+          log('error', `Scheduled routine "${r.name}": ${(e as Error).message}`),
+        );
+      }
+    });
 }
 
 export function startRoutineScheduler() {

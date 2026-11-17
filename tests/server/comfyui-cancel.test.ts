@@ -1,10 +1,12 @@
 // Stopping a ComfyUI job takes only that job off: a job of someone else's that is running goes on.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cancelPrompt } from '../../server/comfyui.ts';
 
 let running = 'theirs';
+// a ComfyUI that takes in the request and never answers
+let hang = false;
 const calls: { url: string; body: string }[] = [];
 let server: http.Server;
 let base = '';
@@ -13,6 +15,7 @@ beforeAll(async () => {
     let body = '';
     for await (const c of req) body += c;
     calls.push({ url: `${req.method} ${req.url}`, body });
+    if (hang) return;
     if (req.method === 'GET' && req.url === '/queue')
       return res.end(JSON.stringify({ queue_running: [[1, running, {}, {}, []]], queue_pending: [] }));
     res.end('{}');
@@ -37,4 +40,20 @@ describe('stopping a ComfyUI job', () => {
     await cancelPrompt(base, 'mine');
     expect(calls.at(-1)).toEqual({ url: 'POST /interrupt', body: JSON.stringify({ prompt_id: 'mine' }) });
   });
+});
+
+describe('stopping a job on a ComfyUI that hangs', () => {
+  it("doesn't keep Stop waiting", async () => {
+    const real = AbortSignal.timeout.bind(AbortSignal);
+    // (each request's own time limit, made short here)
+    const limits = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => real(100));
+    hang = true;
+    try {
+      await cancelPrompt(base, 'mine');
+      expect(limits).toHaveBeenCalled();
+    } finally {
+      hang = false;
+      limits.mockRestore();
+    }
+  }, 5_000);
 });

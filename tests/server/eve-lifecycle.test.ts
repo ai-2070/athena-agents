@@ -67,6 +67,20 @@ describe('native session retirement', () => {
     }
   });
 
+  it('stops a run whose Stop was saved before the server ended, instead of resuming it', () => {
+    const f = fixture('saved-stop');
+    // (the journal has the Stop; the native run never heard of it)
+    updateExecution(f.run.id, { stopRequested: true });
+    expect(readRun(f.run.id)?.status).toBe('running');
+    prepareEveRecovery();
+    expect(readRun(f.run.id)?.status).toBe('stopped');
+    expect(readBinding(f.binding.id)?.retired).toBe(true);
+    // and one without a saved Stop goes on
+    const other = fixture('no-saved-stop');
+    prepareEveRecovery();
+    expect(readRun(other.run.id)?.status).toBe('running');
+  });
+
   it('retires deleted owners and changed engines before the worker starts', () => {
     const deleted = fixture('deleted-session');
     chats.remove(deleted.agent.id, deleted.chat.id);

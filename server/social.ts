@@ -276,8 +276,13 @@ async function xToken(accountId: string): Promise<string> {
     }).catch((e: FetchError) => {
       throw new Error(`Couldn't refresh @${acc.username}'s sign-in (${e.message}). Reconnect it in Connections.`);
     });
+    if (!tok?.access_token) throw new Error(`X gave no new sign-in for @${acc.username}. Reconnect it in Connections.`);
     const fresh = loadAccounts();
-    Object.assign(fresh.x[accountId], {
+    const now = fresh.x?.[accountId];
+    // disconnected, or signed in again, while this refresh went: the new sign-in is kept, never this older one
+    if (!now) throw new Error('That X account is not connected.');
+    if (now.refreshToken !== acc.refreshToken || now.accessToken !== acc.accessToken) return now.accessToken;
+    Object.assign(now, {
       accessToken: tok.access_token,
       refreshToken: tok.refresh_token || acc.refreshToken,
       expiresAt: Date.now() + (tok.expires_in || 7200) * 1000,
@@ -659,40 +664,79 @@ export async function draftPost({
   return item;
 }
 
-// posts being published, by project and id
+// posts being published or sent back, by project and id: nothing else changes them meanwhile
 const publishing = new Set<string>();
+const postKey = (id: string, projectId = activeProject().id) => `${projectId}\n${id}`;
+
+/** A post that is being published or sent back can't be changed, sent back, removed or approved again until then. */
+function assertNotBusy(item: OutboxItem): void {
+  if (publishing.has(postKey(item.id))) throw new Error('This post is being sent right now. Wait until it is done.');
+}
+
+/** "Posting" with nothing sending it: the dashboard stopped while it posted. It is a failed post now, saying how far
+ *  it got (an X thread goes on after the parts it has a receipt for; others may have gone out without one). */
+function settleInterrupted(item: OutboxItem): OutboxItem {
+  if (item.status !== 'posting' || publishing.has(postKey(item.id))) return item;
+  const done = item.postIds?.length || 0;
+  const where =
+    item.platform === 'x'
+      ? ` ${done} of ${item.parts.length} parts are on X; approving again continues from there.`
+      : ` It may have been posted: check ${item.accountLabel || item.platform} before approving again.`;
+  return outbox.save(
+    Object.assign(item, { status: 'failed', error: `The dashboard stopped while this was posting.${where}` }),
+  );
+}
+
+/** Parts edited after some of a thread went out: those stay as they were posted, the edit changes only the rest. */
+function editedParts(item: OutboxItem, parts: unknown[]): string[] {
+  const posted = item.postIds?.length || 0;
+  return [
+    ...item.parts.slice(0, posted),
+    ...parts
+      .slice(posted)
+      .map((p) => String(p).trim())
+      .filter(Boolean),
+  ];
+}
+
+/** A Reddit link post's text is its link: an edit of it changes the link that is posted. */
+function syncRedditLink(item: OutboxItem): void {
+  if (item.platform !== 'reddit' || item.reddit?.kind !== 'post' || !item.reddit.link) return;
+  const url = item.parts.join('\n').trim();
+  if (!/^https?:\/\/\S+$/i.test(url)) throw new Error('A link post is one web address (https://…).');
+  item.reddit.link = url;
+}
 
 // Publishing takes a while: the post is saved in the project it is in, whichever project is open by then.
 export function approvePost(id: string, edits: ApproveEdits | null = null): Promise<OutboxItem> {
   const project = activeProject();
-  return withProject(project, () =>
-    approveIn(
-      `${project.id}
-${id}`,
-      id,
-      edits,
-    ),
-  );
+  return withProject(project, () => approveIn(postKey(id, project.id), id, edits));
 }
 
 async function approveIn(key: string, id: string, edits: ApproveEdits | null): Promise<OutboxItem> {
-  const item = outbox.get(id);
-  if (!item) throw new Error('No such post.');
-  if (gatewayPost(item)) return approveGatewayPost(item, edits);
-  if (item.status === 'posted') return item;
+  const found = outbox.get(id);
+  if (!found) throw new Error('No such post.');
+  if (gatewayPost(found)) return approveGatewayPost(found, edits);
   if (publishing.has(key)) throw new Error('This post is already being published.');
-  publishing.add(key);
+  const item = settleInterrupted(found);
+  if (item.status === 'posted') return item;
+  // (one you rejected or sent back stays that way, whatever an older tab still shows)
+  if (item.status !== 'pending' && item.status !== 'failed')
+    throw new Error(`This post was ${item.status === 'returned' ? 'sent back' : item.status}, so it isn't posted.`);
   const posted = item.postIds?.length || 0;
   // Parts already on X can't be edited any more.
+  const parts = edits?.parts ? editedParts(item, edits.parts) : item.parts;
+  if ((item.platform === 'x' || item.platform === 'x_dm') && !parts.some((p) => p.trim()))
+    throw new Error('There is nothing to post: write something first.');
+  publishing.add(key);
   if (edits?.images && item.images) item.images = item.images.filter((p) => edits.images!.includes(p));
-  if (edits?.parts)
-    item.parts = [
-      ...item.parts.slice(0, posted),
-      ...edits.parts
-        .slice(posted)
-        .map((p) => String(p).trim())
-        .filter(Boolean),
-    ];
+  item.parts = parts;
+  try {
+    if (edits?.parts) syncRedditLink(item);
+  } catch (e) {
+    publishing.delete(key);
+    throw e;
+  }
   item.status = 'posting';
   outbox.save(item);
   try {
@@ -759,13 +803,30 @@ async function returnIn(
   feedback: string,
   send: (teamId: string, text: string) => Promise<unknown>,
 ): Promise<OutboxItem> {
-  const item = outbox.get(id);
-  if (!item) throw new Error('No such post.');
-  assertGatewayDraftMutable(item);
+  const found = outbox.get(id);
+  if (!found) throw new Error('No such post.');
+  assertGatewayDraftMutable(found);
+  assertNotBusy(found);
+  const item = settleInterrupted(found);
   if (item.status !== 'pending' && item.status !== 'failed')
     throw new Error('Only a post that is waiting can be sent back.');
   const note = String(feedback || '').trim();
   if (!note) throw new Error('Say what should change first.');
+  // (claimed while the team is told: it can't be approved, changed or sent back twice meanwhile)
+  const key = postKey(item.id);
+  publishing.add(key);
+  try {
+    return await sendBack(item, note, send);
+  } finally {
+    publishing.delete(key);
+  }
+}
+
+async function sendBack(
+  item: OutboxItem,
+  note: string,
+  send: (teamId: string, text: string) => Promise<unknown>,
+): Promise<OutboxItem> {
   const team = item.teamId
     ? { id: item.teamId, name: item.teamName || 'the team' }
     : item.agentId
@@ -790,9 +851,12 @@ async function returnIn(
 }
 
 export function rejectPost(id: string, reason = '') {
-  const item = outbox.get(id);
-  if (!item) throw new Error('No such post.');
-  assertGatewayDraftMutable(item);
+  const found = outbox.get(id);
+  if (!found) throw new Error('No such post.');
+  assertGatewayDraftMutable(found);
+  assertNotBusy(found);
+  const item = settleInterrupted(found);
+  if (item.status === 'posted') throw new Error('This post is already posted.');
   Object.assign(item, { status: 'rejected', reason });
   return outbox.save(item);
 }
@@ -801,7 +865,7 @@ export function listPosts(): OutboxItem[] {
   const cache: GatewayOutboxReadCache = new Map();
   return outbox
     .list()
-    .map((item) => projectGatewayPost(item, cache))
+    .map((item) => projectGatewayPost(gatewayPost(item) ? item : settleInterrupted(item), cache))
     .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 }
 
@@ -826,7 +890,13 @@ export function editPost(
     });
     return projectGatewayPost(outbox.get(id)!);
   }
-  if (body.parts) item.parts = body.parts;
+  assertNotBusy(item);
+  if (item.status === 'posted') throw new Error('This post is already posted.');
+  // (what is already posted of a thread stays as it was posted)
+  if (body.parts) {
+    item.parts = editedParts(item, body.parts);
+    syncRedditLink(item);
+  }
   if (body.images && item.images) item.images = item.images.filter((p) => body.images!.includes(p));
   if (body.title != null && item.reddit) item.reddit.title = String(body.title).trim();
   return outbox.save(item);
@@ -834,7 +904,10 @@ export function editPost(
 
 export function removePost(id: string): void {
   const item = outbox.get(id);
-  if (item) assertGatewayDraftMutable(item);
+  if (item) {
+    assertGatewayDraftMutable(item);
+    assertNotBusy(item);
+  }
   outbox.remove(id);
 }
 

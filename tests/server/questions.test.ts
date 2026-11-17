@@ -136,6 +136,24 @@ describe('ask_user', () => {
     expect(teamPosts[0].text.startsWith('@Trend Scout: ')).toBe(true);
   });
 
+  it('an answer still on its way when the question is closed or removed sends nothing and brings nothing back', async () => {
+    const a = agent('Late Replier');
+    const team = workflows.save({ name: 'Latecomers', members: [a.id], steps: [] } as Partial<Team> as Team);
+    const c = chats.create(a.id, 'Team turn', team.id);
+    const closed = q.addQuestion({ question: 'Go on?', agentId: a.id, chatId: c.id });
+    const answering = q.answerQuestion(closed.id, { text: 'Yes' });
+    // its run is stopped meanwhile
+    q.closeQuestion(closed.id, 'The run was stopped.');
+    await expect(answering).rejects.toThrow(/closed or removed/);
+    expect(questions.get(closed.id)?.status).toBe('closed');
+    const removed = q.addQuestion({ question: 'Still there?', agentId: a.id, chatId: c.id });
+    const going = q.answerQuestion(removed.id, { text: 'Yes' });
+    q.removeQuestion(removed.id);
+    await going.catch(() => {});
+    expect(questions.get(removed.id)).toBeNull();
+    expect(teamPosts).toHaveLength(0);
+  });
+
   it('a late team answer names the agent as it is called now', async () => {
     const a = agent('Old Name');
     const team = workflows.save({ name: 'Renamers', members: [a.id], steps: [] } as Partial<Team> as Team);

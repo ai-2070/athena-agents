@@ -143,6 +143,24 @@ export function realTarget(p: string): string | null {
   }
 }
 
+/** Whether p is really where it says under root: no link on the way from root to it (root itself may be one). */
+export function noLinksBelow(root: string, p: string): boolean {
+  const r = realTarget(root);
+  const q = realTarget(p);
+  if (!r || !q) return false;
+  const fold = (x: string) => (IS_WIN ? x.toLowerCase() : x);
+  return fold(q) === fold(path.join(r, path.relative(path.resolve(root), path.resolve(p))));
+}
+
+/** Two paths are the same folder: links followed, and case ignored only on Windows. A folder that isn't there is no
+ *  other folder. */
+export function sameFolder(a: string, b: string): boolean {
+  const ra = realTarget(a);
+  const rb = realTarget(b);
+  const fold = (x: string) => (IS_WIN ? x.toLowerCase() : x);
+  return !!ra && !!rb && fold(ra) === fold(rb);
+}
+
 // The real location of p when it lies inside one of roots (links followed on both sides), else null.
 // Case is ignored only on Windows. Elsewhere a folder may have a sibling that differs only in case
 // (Linux), and real paths already come back in the folder's own case where the disk ignores it (macOS).
@@ -226,7 +244,9 @@ export function which(cmd: string): string | null {
       path.join(HOME, '.bun', 'bin'),
     );
     outer: for (const d of dirs) {
-      for (const ext of IS_WIN ? ['.exe', '.cmd', '.bat', ...exts] : ['']) {
+      // (a name that already ends in one, like notepad.exe, is looked for as it is first)
+      const suffixed = IS_WIN && /\.(exe|cmd|bat|com)$/i.test(cmd);
+      for (const ext of IS_WIN ? [...(suffixed ? [''] : []), '.exe', '.cmd', '.bat', ...exts] : ['']) {
         const p = path.join(d, cmd + ext);
         if (exists(p)) {
           found = p;
@@ -341,6 +361,30 @@ export interface RunResult {
   stderr: string;
 }
 
+/** Text collected up to max characters: past that, its first and last halves, saying how much was left out. */
+function kept(max: number): { add: (d: string) => void; text: () => string } {
+  const half = Math.max(1, Math.floor(max / 2));
+  let head = '';
+  let tail = '';
+  let dropped = 0;
+  return {
+    add(d: string) {
+      if (head.length < half) {
+        const take = d.slice(0, half - head.length);
+        head += take;
+        d = d.slice(take.length);
+      }
+      if (!d) return;
+      tail += d;
+      if (tail.length > half) {
+        dropped += tail.length - half;
+        tail = tail.slice(-half);
+      }
+    },
+    text: () => (dropped ? `${head}\n[… ${dropped} characters left out …]\n${tail}` : head + tail),
+  };
+}
+
 // Run a command and collect its output.
 export function run(
   cmd: string,
@@ -348,7 +392,8 @@ export function run(
   { timeout = 60000, input, cwd, env, maxBytes = 2_000_000, signal, onLine }: RunOptions = {},
 ): Promise<RunResult> {
   return new Promise<RunResult>((resolve) => {
-    let out = '';
+    // (over maxBytes, the start and the end are kept: the end is where a build's errors and a summary are)
+    const out = kept(maxBytes);
     let partial = '';
     // a line longer than maxBytes is dropped (up to its end), so the buffer never grows past it
     let skipping = false;
@@ -385,60 +430,103 @@ export function run(
         }
       }
     };
-    let err = '';
+    const err = kept(maxBytes);
     let done = false;
     let child: ChildProcess;
     try {
-      child = spawnCommand(cmd, args, { cwd, env: env ? { ...process.env, ...env } : process.env });
+      // (its own process group off Windows, so Stop and the time limit reach what it starts too: see killTree)
+      child = spawnCommand(cmd, args, {
+        cwd,
+        env: env ? { ...process.env, ...env } : process.env,
+        ...(IS_WIN ? {} : { detached: true }),
+      });
+      if (!IS_WIN) groups.add(child);
     } catch (e) {
       resolve({ code: -1, stdout: '', stderr: String((e as Error).message || e) });
       return;
     }
+    let giveUp: ReturnType<typeof setTimeout> | undefined;
+    const finish = (code: number | null) => {
+      if (done) return;
+      lines('', true);
+      done = true;
+      clearTimeout(timer);
+      clearTimeout(giveUp);
+      signal?.removeEventListener('abort', onAbort);
+      resolve({ code, stdout: out.text(), stderr: err.text() });
+    };
+    // Something it started that got away (into a group of its own) can keep the output open: don't wait for ever.
+    const end = () => {
+      killTree(child);
+      giveUp ??= setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        finish(child.exitCode);
+      }, SETTLE_MS);
+    };
     const timer = setTimeout(() => {
       if (!done) {
-        err += `\n[timed out after ${Math.round(timeout / 1000)}s]`;
-        killTree(child);
+        err.add(`\n[timed out after ${Math.round(timeout / 1000)}s]`);
+        end();
       }
     }, timeout);
     const onAbort = () => {
-      err += '\n[stopped]';
-      killTree(child);
+      err.add('\n[stopped]');
+      end();
     };
     if (signal?.aborted) onAbort();
     signal?.addEventListener('abort', onAbort);
     child.stdout?.setEncoding('utf8');
     child.stderr?.setEncoding('utf8');
     child.stdout?.on('data', (d: string) => {
-      if (out.length < maxBytes) out += d;
+      out.add(d);
       lines(d);
     });
     child.stderr?.on('data', (d: string) => {
-      if (err.length < maxBytes) err += d;
+      err.add(d);
     });
     child.stdin?.on('error', () => {});
     child.on('error', (e) => {
-      err += String(e.message || e);
+      err.add(String(e.message || e));
     });
-    child.on('close', (code: number | null) => {
-      lines('', true);
-      done = true;
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
-      resolve({ code, stdout: out, stderr: err });
-    });
+    child.on('close', (code: number | null) => finish(code));
     if (input != null) child.stdin?.end(input);
     else child.stdin?.end();
   });
 }
 
+/** How long a stopped command gets to end before it is killed outright, and before run() stops waiting on it. */
+const KILL_GRACE_MS = 3000;
+const SETTLE_MS = 5000;
+// Processes started as their own group (run() off Windows): killTree ends the whole group, not just the first.
+const groups = new WeakSet<ChildProcess>();
+
 export function killTree(child: ChildProcess | null | undefined) {
-  if (!child || child.exitCode != null) return;
-  try {
-    if (IS_WIN && child.pid) spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true });
-    else child.kill('SIGTERM');
-  } catch {
-    /* already gone */
+  if (!child) return;
+  const group = groups.has(child) && child.pid ? child.pid : 0;
+  // (the first process may have ended while what it started goes on)
+  if (child.exitCode != null && !group) return;
+  if (IS_WIN && child.pid) {
+    try {
+      spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true }).on('error', () => {});
+    } catch {
+      /* already gone */
+    }
+    return;
   }
+  const send = (sig: NodeJS.Signals) => {
+    try {
+      if (group) process.kill(-group, sig);
+      else child.kill(sig);
+    } catch {
+      /* already gone */
+    }
+  };
+  send('SIGTERM');
+  // one that ignores SIGTERM is killed outright
+  setTimeout(() => {
+    if (group || child.exitCode == null) send('SIGKILL');
+  }, KILL_GRACE_MS).unref();
 }
 
 // Start a GUI program and forget about it.

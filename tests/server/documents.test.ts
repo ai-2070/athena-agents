@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { strToU8, zipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import {
   DocumentError,
@@ -77,6 +77,41 @@ describe('the text of each kind', () => {
     expect((await documentText('powerpoint', pptxRaw(slide))).text).toBe('--- Slide 1 ---\nQ1 | Q2');
   });
 
+  it('reads Word text whatever prefix the file gives its namespace, or none', async () => {
+    const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    const doc = (xml: string) =>
+      zipSync({ '[Content_Types].xml': strToU8('<Types/>'), 'word/document.xml': strToU8(xml) });
+    const own = doc(
+      `<x:document xmlns:x="${W}"><x:body><x:p><x:r><x:t>Own prefix</x:t></x:r></x:p></x:body></x:document>`,
+    );
+    expect((await documentText('word', own)).text).toBe('Own prefix');
+    const none = doc(`<document xmlns="${W}"><body><p><r><t>No prefix</t></r></p></body></document>`);
+    expect((await documentText('word', none)).text).toBe('No prefix');
+  });
+
+  it("knows a workbook by its own parts, not a Word file's name inside it", () => {
+    const parts = unzipSync(xlsx({ S: '' }));
+    parts['xl/embeddings/word/document.xml'] = strToU8('<w:document/>');
+    expect(documentKind(zipSync(parts), 'a.xlsx')).toBe('excel');
+  });
+
+  it('follows sheet addresses written ./ or %-encoded', async () => {
+    const parts = unzipSync(
+      xlsx({
+        First: '<row r="1"><c r="A1" t="str"><v>one</v></c></row>',
+        Second: '<row r="1"><c r="A1" t="str"><v>two</v></c></row>',
+      }),
+    );
+    const rels = strFromU8(parts['xl/_rels/workbook.xml.rels']!)
+      .replace('Target="worksheets/sheet1.xml"', 'Target="./worksheets/sheet1.xml"')
+      .replace('Target="worksheets/sheet2.xml"', 'Target="worksheets/%73heet2.xml"');
+    parts['xl/_rels/workbook.xml.rels'] = strToU8(rels);
+    const read = await documentText('excel', zipSync(parts));
+    expect(read.sheets).toEqual(['First', 'Second']);
+    expect(read.text).toContain('one');
+    expect(read.text).toContain('two');
+  });
+
   it('reads each sheet of a workbook, cells in their columns', async () => {
     const read = await documentText(
       'excel',
@@ -139,6 +174,21 @@ describe('the text of each kind', () => {
     expect((await pdfText(file)).text).toContain('Contract signed 3 May');
   });
 
+  it('counts the time waiting for a free thread in the time a read may take', async () => {
+    const file = pdf('Contract signed 3 May');
+    const t0 = Date.now();
+    // both threads busy: the third waits for one
+    const busy = Promise.all([pdfText(file), pdfText(file)]).then(() => Date.now() - t0);
+    const third = pdfText(file, { timeoutMs: 30 }).then(
+      () => ({ error: '', at: Date.now() - t0 }),
+      (e: unknown) => ({ error: (e as Error).message, at: Date.now() - t0 }),
+    );
+    const freeAt = await busy;
+    const r = await third;
+    expect(r.error).toContain('took too long');
+    expect(r.at).toBeLessThan(freeAt);
+  });
+
   it("stops reading a PDF when it's told to, and reads it in full next time", async () => {
     const file = path.join(folder(), 'long.pdf');
     fs.writeFileSync(file, pdf('Contract signed 3 May'));
@@ -181,6 +231,15 @@ describe('limits', () => {
     );
     expect(bomb.length).toBeLessThan(100_000);
     await expect(documentText('word', bomb)).rejects.toThrow('too large');
+  });
+
+  it('counts a stored part by its body, not by the size its header claims', async () => {
+    // four stored sheets, each under the per-part limit but over the total together, each claiming 10 bytes
+    const parts = unzipSync(xlsx({ S0: '', S1: '', S2: '', S3: '' }));
+    for (const name of Object.keys(parts))
+      if (/^xl\/worksheets\//.test(name)) parts[name] = new Uint8Array(UNPACKED_MAX_BYTES / 4 + 1_000_000);
+    const stored = declareSizes(zipSync(parts, { level: 0 }), /^xl\/worksheets\//, 10);
+    await expect(documentText('excel', stored)).rejects.toThrow('too large');
   });
 
   it('caps what a package unpacks in all, and how many parts', async () => {

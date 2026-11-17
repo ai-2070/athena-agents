@@ -92,6 +92,22 @@ describe('attachTray()', () => {
     expect(await tray.ready()).toEqual(['/up/notes.txt']);
   });
 
+  it('keeps two loose files of the same name as two, and sends both', async () => {
+    const tray = attachTray();
+    tray.add(files('report.pdf', 'report.pdf'));
+    await flush();
+    expect(open()).toHaveLength(2);
+    // (the server gives the second its own name)
+    open().forEach((x, i) => {
+      x.finished = true;
+      x.status = 200;
+      const name = i ? 'report (2).pdf' : 'report.pdf';
+      x.responseText = JSON.stringify({ path: `/up/${name}`, top: `/up/${name}`, kind: 'file', name, size: 1 });
+      x.onload?.();
+    });
+    expect(await tray.ready()).toEqual(['/up/report.pdf', '/up/report (2).pdf']);
+  });
+
   it('uploads at most 4 files at once, across every chip', async () => {
     const tray = attachTray();
     tray.add(files(...Array.from({ length: 10 }, (_, i) => `f${i}.txt`)));
@@ -168,6 +184,18 @@ describe('attachTray()', () => {
     expect(tray.count()).toBe(1);
   });
 
+  it('take() takes what ready() sent, not a file that finished after it while the message went', async () => {
+    const tray = attachTray();
+    tray.add(files('a.txt'));
+    await finishAll();
+    expect(await tray.ready()).toEqual(['/up/a.txt']);
+    // while the message is on its way (a new chat being made), another file is added and finishes
+    tray.add(files('b.txt'));
+    await finishAll();
+    expect(tray.take().map((it) => it.path)).toEqual(['/up/a.txt']);
+    expect(tray.count()).toBe(1);
+  });
+
   it('a deferred tray uploads on ready(), including files added meanwhile', async () => {
     const tray = attachTray({ deferred: true });
     tray.add(files('a.txt'));
@@ -221,6 +249,21 @@ describe('pasting into a chat', () => {
     expect(paste(input, clip({}, [new File(['x'], 'b.txt')])).defaultPrevented).toBe(false);
     await flush();
     expect(tray.count()).toBe(1);
+  });
+
+  it('a file pasted into a chat closed before it was read goes nowhere', async () => {
+    const tray = attachTray();
+    const zone = document.createElement('div');
+    const input = document.createElement('textarea');
+    zone.append(input);
+    document.body.append(zone);
+    const stop = tray.dropZone(zone);
+    paste(input, clip({}, [new File(['x'], 'image.png', { type: 'image/png' })]));
+    // closed at once, before the pasted file is read
+    stop();
+    await flush();
+    expect(tray.count()).toBe(0);
+    expect(open()).toHaveLength(0);
   });
 });
 
@@ -298,6 +341,33 @@ describe('looking at attached files before sending', () => {
       expect(posted.at(-1)).toEqual(['/api/files/open', { path: '/up/data.csv' }]);
     } finally {
       state.data = null;
+    }
+  });
+});
+
+describe("a picture's preview", () => {
+  it('is let go once the picture is sent, and made again when a failed send puts it back', async () => {
+    let made = 0;
+    const revoked: string[] = [];
+    const create = vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:preview-${++made}`);
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation((u: string) => void revoked.push(u));
+    try {
+      const tray = attachTray();
+      tray.add(files('cat.png'));
+      await finishAll();
+      await tray.ready();
+      expect(made).toBe(1);
+      const sent = tray.take();
+      expect(sent).toHaveLength(1);
+      expect(revoked).toEqual(['blob:preview-1']);
+      // the send failed: it comes back, with a preview again
+      tray.put(sent);
+      expect(made).toBe(2);
+      tray.clear();
+      expect(revoked).toEqual(['blob:preview-1', 'blob:preview-2']);
+    } finally {
+      create.mockRestore();
+      revoke.mockRestore();
     }
   });
 });

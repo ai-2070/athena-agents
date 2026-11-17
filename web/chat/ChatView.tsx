@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { attempt, toast, state, onState, onEvent, approvalCard } from '../core.ts';
+import { attempt, toast, state, onState, onEvent, onReconnect, approvalCard } from '../core.ts';
 import { rpcAt } from '../client/rpc.ts';
 import type { AttachTray } from '../attach.tsx';
 import { COMPOSER_BTNS, COMPOSER_TEXT } from '../attach.tsx';
@@ -137,6 +137,8 @@ export function ChatView(p: ChatViewProps) {
   const missedStart = useRef(false);
   // your /loop and /goal here (the server keeps them)
   const [loop, setLoop] = useState<LoopInfo | null>(null);
+  const loopRef = useRef(loop);
+  loopRef.current = loop;
   const [goal, setGoal] = useState<BrainBrief | null>(null);
   // the agent's harness's own / commands (a Claude Code agent's), for the / menu
   const [harness, setHarness] = useState<{ name: string; about: string }[]>([]);
@@ -185,15 +187,26 @@ export function ChatView(p: ChatViewProps) {
   const helping = !!chatId && !!app?.runs.some((r) => r.chatId === chatId && ours(r.projectId) && (r.depth ?? 0) > 0);
   const approvals = (app?.approvals || []).filter((a) => a.agentId === agent.id && ours(a.projectId));
 
-  // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet)
+  // the saved chat, shown as it is. after: a stream just ended (its flag may not have caught up yet). Only the latest
+  // load of a view that is still there counts: one that comes back after the view closed, or after a newer load,
+  // would show (and tell the page) a chat that isn't the one open
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  const loads = useRef(0);
   const reload = useCallback(
     async (after = false) => {
       const id = chatIdRef.current;
       if (!id) return;
+      const mine = ++loads.current;
       const saved = await rpcAt(at)
         .agents.chats.get({ id: agent.id, chatId: id })
         .catch(() => null);
-      if (!saved || chatIdRef.current !== id) return;
+      if (!saved || !alive.current || mine !== loads.current || chatIdRef.current !== id) return;
       setItems(saved.items);
       setQueued(saved.queued || []);
       setLoop(saved.loop || null);
@@ -237,16 +250,20 @@ export function ChatView(p: ChatViewProps) {
     void follow();
   }, [ended, streaming, follow]);
 
+  // the saved chat, then a run going in it followed: when the view opens, and again when live events come back
+  // after they dropped (what happened meanwhile wasn't sent)
+  const catchUpSaved = useCallback(async () => {
+    await reload();
+    if (
+      chatIdRef.current &&
+      state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))
+    )
+      await follow();
+  }, [reload, follow]);
   useEffect(() => {
-    void (async () => {
-      await reload();
-      if (
-        chatIdRef.current &&
-        state.data?.runs.some((r) => r.chatId === chatIdRef.current && oursRef.current(r.projectId))
-      )
-        await follow();
-    })();
+    void catchUpSaved();
   }, []);
+  useEffect(() => onReconnect(() => void catchUpSaved()), [catchUpSaved]);
 
   // a run starting here from elsewhere, compactions, and runs ending without a stream (missed ones)
   useEffect(
@@ -268,11 +285,12 @@ export function ChatView(p: ChatViewProps) {
         if (ev.type === 'queue') return void setQueued((ev.queued as QueuedMessage[]) || []);
         if (ev.type !== 'run') return;
         const kind = (ev.event as { kind?: string })?.kind;
-        // (the server starts a queued message right as the turn before it ends: this view may still be streaming that one)
+        // (the server starts a queued message, or a /loop's next turn, right as the turn before it ends: this view may
+        // still be streaming that one)
         if (
           kind === 'start' &&
           (streamingRef.current || sending.current || following.current) &&
-          queuedRef.current.length
+          (queuedRef.current.length || loopRef.current)
         )
           missedStart.current = true;
         if (kind === 'start' && !streamingRef.current && !sending.current) void reload().then(follow);

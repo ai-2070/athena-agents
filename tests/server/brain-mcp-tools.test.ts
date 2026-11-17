@@ -276,6 +276,24 @@ describe("the Brain's own MCP tools", () => {
     expect(calls).toEqual([]);
   });
 
+  it('Read only picked while the server is still starting: the call never runs', async () => {
+    let ready = () => {};
+    toolsGate = new Promise<void>((r) => {
+      ready = r;
+    });
+    answers.push(
+      actions([{ do: 'mcp_call', server: 'composio', tool: 'GMAIL_SEND_EMAIL', args: { to: 'q@r.s' } }]),
+      'Done.',
+    );
+    const answer = ask('send it');
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    saveSettings({ brainAccess: 'read' });
+    ready();
+    await answer;
+    expect(calls).toEqual([]);
+    expect(asked[1]?.user).toContain('may only read');
+  });
+
   it('nobody answering in Needs you is told as a timeout, with the real wait', async () => {
     saveSettings({ brainAccess: 'ask' });
     vi.useFakeTimers({ shouldAdvanceTime: true });

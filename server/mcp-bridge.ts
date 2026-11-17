@@ -4,6 +4,7 @@
 //   DASH_PORT   dashboard port (default 4800)
 //   DASH_TOKEN  internal token from data/.internal-token (read automatically when unset)
 //   DASH_AGENT  which agent is calling (its tool groups and autonomy apply)
+//   DASH_RUN    the run it belongs to; DASH_PROJECT the project an agent's terminal was opened in
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -39,15 +40,18 @@ if (!token) {
 }
 const agent = process.env.DASH_AGENT || '';
 const runId = process.env.DASH_RUN || '';
+const projectId = process.env.DASH_PROJECT || '';
 const base = `http://127.0.0.1:${port}/api/internal`;
 
 // Plain http (no timeout): a call can wait a long time while you decide on an approval.
-function call<T>(pathname: string, body?: unknown): Promise<T> {
+function call<T>(pathname: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
     const req = http.request(
       `${base}${pathname}`,
       {
+        // (the client cancelled the call: the request goes, and the dashboard stops what it waited on)
+        ...(signal ? { signal } : {}),
         method: body ? 'POST' : 'GET',
         headers: {
           'x-dash-internal': token,
@@ -83,7 +87,7 @@ const server = new Server({ name: 'dashboard', version: '0.1.0' }, { capabilitie
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   try {
     const { tools } = await call<{ tools: BridgeTool[] }>(
-      `/tools?agent=${encodeURIComponent(agent)}&run=${encodeURIComponent(runId)}`,
+      `/tools?agent=${encodeURIComponent(agent)}&run=${encodeURIComponent(runId)}&project=${encodeURIComponent(projectId)}`,
     );
     return { tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.parameters })) };
   } catch (e) {
@@ -94,14 +98,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   }
 });
 
-server.setRequestHandler(CallToolRequestSchema, async (req) => {
+server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
   try {
-    const r = await call<BridgeCallResult>('/tools/call', {
-      agent,
-      run: runId,
-      name: req.params.name,
-      args: req.params.arguments || {},
-    });
+    const r = await call<BridgeCallResult>(
+      '/tools/call',
+      {
+        agent,
+        run: runId,
+        project: projectId,
+        name: req.params.name,
+        args: req.params.arguments || {},
+      },
+      extra.signal,
+    );
     const content: CallToolResult['content'] = [{ type: 'text', text: r.text || '(no output)' }];
     for (const img of r.images || []) {
       const m = /^data:([^;]+);base64,(.*)$/.exec(img);

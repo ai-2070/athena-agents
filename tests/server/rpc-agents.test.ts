@@ -122,6 +122,30 @@ describe('agents over oRPC', () => {
       json: { error: 'Say which file or folder to remove.' },
     });
   });
+
+  it('keeps a page saved before when fetching it again fails', async () => {
+    const a = await make();
+    const site = http.createServer((req, res) => {
+      if (req.url === '/broken') {
+        res.writeHead(500, { 'content-type': 'text/html' });
+        return res.end('<h1>Internal Server Error</h1>');
+      }
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      res.end('The real guide.');
+    });
+    await new Promise<void>((r) => site.listen(0, '127.0.0.1', () => r()));
+    const at = `http://127.0.0.1:${(site.address() as net.AddressInfo).port}`;
+    try {
+      const saved = await send('POST', `/api/agents/${a.id}/knowledge`, { url: `${at}/guide`, name: 'guide.md' });
+      const file = (saved.json as { file: string }).file;
+      expect(fs.readFileSync(file, 'utf8')).toContain('The real guide.');
+      const failed = await send('POST', `/api/agents/${a.id}/knowledge`, { url: `${at}/broken`, name: 'guide.md' });
+      expect(failed.status).toBe(502);
+      expect(fs.readFileSync(file, 'utf8')).toContain('The real guide.');
+    } finally {
+      await new Promise<void>((r) => site.close(() => r()));
+    }
+  });
 });
 
 describe('an agent’s chats over oRPC', () => {

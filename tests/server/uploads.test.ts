@@ -74,6 +74,26 @@ describe('receiving files', () => {
     );
     expect(fs.readFileSync(victim.path, 'utf8')).toBe('safe');
   });
+  // (Windows won't move a folder with a file open in it)
+  it.skipIf(process.platform === 'win32')(
+    'never removes an outside file when a folder of the upload turns into a link while it streams',
+    async () => {
+      const { batch, dir } = newBatch();
+      const outside = fs.mkdtempSync(path.join(path.dirname(uploadsRoot()), 'outside-'));
+      fs.writeFileSync(path.join(outside, 'victim.txt'), 'safe');
+      const sub = path.join(dir, 'sub');
+      async function* swapped() {
+        yield Buffer.from('first');
+        // the folder moves away and a link to the outside folder takes its name
+        fs.renameSync(sub, `${sub}-moved`);
+        fs.symlinkSync(outside, sub, process.platform === 'win32' ? 'junction' : 'dir');
+        yield Buffer.from('second');
+      }
+      await expect(receiveSource(swapped(), batch, 'sub/victim.txt')).rejects.toThrow('Bad upload path');
+      expect(fs.readFileSync(path.join(outside, 'victim.txt'), 'utf8')).toBe('safe');
+    },
+  );
+
   it('saves a file into its batch, and a folder file under its folder', async () => {
     const { batch, dir } = newBatch();
     expect(dir.startsWith(uploadsRoot() + path.sep)).toBe(true);
@@ -217,6 +237,15 @@ describe('telling the agent', () => {
     expect(all.text).not.toContain('read_document');
   });
 
+  it('never counts a PDF read only in part as all of it', async () => {
+    const { batch } = newBatch();
+    const pages = Array.from({ length: 301 }, (_, i) => (i === 0 ? 'First page' : ''));
+    const big = await receive(body(Buffer.from(pdf(...pages))), batch, 'big.pdf');
+    const read = await readAttachments([big.path], { inline: 20000, rest: 'read_document' });
+    expect(read.text).toContain('Only the first 300 of 301 pages were read.');
+    expect([...read.whole]).toEqual([]);
+  }, 60_000);
+
   it('stops reading documents when told to', async () => {
     const { batch } = newBatch();
     const contract = await receive(body(Buffer.from(pdf('Signed on 3 May, again'))), batch, 'contract-2.pdf');
@@ -233,5 +262,29 @@ describe('telling the agent', () => {
     expect(withAttachments('Sum this', [f.path])).toMatch(/^Sum this\n\n\[Attached files/);
     expect(withAttachments('', [f.path])).toMatch(/^Have a look at what I attached\./);
     expect(withAttachments('Just text', [])).toBe('Just text');
+  });
+});
+
+describe("the uploads folder's .gitignore", () => {
+  // (a file link needs admin rights on Windows)
+  it.skipIf(process.platform === 'win32')('is never made through a link that points nowhere', () => {
+    const root = uploadsRoot();
+    const brain = path.dirname(root);
+    fs.mkdirSync(path.join(brain, '.git'), { recursive: true });
+    fs.mkdirSync(root, { recursive: true });
+    const outside = path.join(path.dirname(brain), `missing-${Date.now()}`, '.gitignore');
+    fs.mkdirSync(path.dirname(outside), { recursive: true });
+    fs.rmSync(path.join(root, '.gitignore'), { force: true });
+    fs.symlinkSync(outside, path.join(root, '.gitignore'));
+    newBatch();
+    expect(fs.existsSync(outside)).toBe(false);
+  });
+
+  it('is made in a Git project when there is none', () => {
+    const root = uploadsRoot();
+    fs.mkdirSync(path.join(path.dirname(root), '.git'), { recursive: true });
+    fs.rmSync(path.join(root, '.gitignore'), { force: true });
+    newBatch();
+    expect(fs.readFileSync(path.join(root, '.gitignore'), 'utf8')).toContain('*');
   });
 });

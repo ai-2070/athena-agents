@@ -29,6 +29,13 @@ describe('xLength', () => {
     expect(xLength('1️⃣')).toBe(2); // a keycap
     expect(xLength('❤️')).toBe(2);
     expect(xLength('©')).toBe(1); // a bare © is text
+    // a joiner in ordinary text (a Devanagari conjunct) is no emoji: its letters weigh as they do
+    expect(xLength('क्‍ष')).toBe(4);
+  });
+
+  it('counts a bare link with a less common ending as a link too', () => {
+    expect(xLength('see example.museum')).toBe(4 + X_URL_LENGTH);
+    expect(xLength('shop at goods.shop/new')).toBe(8 + X_URL_LENGTH);
   });
 
   it('measures after NFC normalization', () => {

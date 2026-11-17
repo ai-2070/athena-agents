@@ -286,6 +286,15 @@ export function prepareEveRecovery(): void {
       continue;
     }
     reconcileOperations(run.id);
+    // Stop was saved, but the server ended before the native run took it: it is stopped, never resumed
+    if (readExecution().runs.find((item) => item.id === run.id)?.stopRequested) {
+      setRunStatus(run.id, 'stopped');
+      cancelForRun(run.id);
+      cancelQuestions(run.id);
+      reconcileOperations(run.id, true);
+      retireSession(run.bindingId);
+      continue;
+    }
     if (
       run.status === 'interrupted' ||
       ((!binding.sessionId || !run.deliveryId) && !validAdmission(run.id)) ||

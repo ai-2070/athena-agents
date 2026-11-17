@@ -269,6 +269,13 @@ describe('placing copies', () => {
     expect(run([{ place: 'Person', grid: { rows: 3, cols: 4, gap: [2, 2] } }], { prefabs }).instances.length).toBe(12);
   });
 
+  it('along a path drawn in many short steps, still one copy every so far', () => {
+    // a 40-long line in steps of 1: ten copies 4 apart would be 0, 4, … 36 (and 40)
+    const along = Array.from({ length: 41 }, (_, i) => [i, 0]);
+    const r = run([{ place: 'Person', along, every: 4, on: 'spot' }], { prefabs });
+    expect(r.instances.length).toBe(11);
+  });
+
   it('unplace takes copies away; a failing step keeps the copies there were', () => {
     const instances: PrefabInstance[] = [
       { prefab: 'p1', p: [0, 0, 0] },

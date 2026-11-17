@@ -1,6 +1,6 @@
 // Models by provider: which engine runs each provider's models, whether it is set up on this PC,
 // and the models it has (for the Brain's find_models and set_model, and the model picker).
-import { getSecrets, getSettings } from './store.ts';
+import { bus, getSecrets, getSettings } from './store.ts';
 import { which } from './util.ts';
 import { CLAUDE_MODELS } from './engines/claude.ts';
 import { listModels } from './providers.ts';
@@ -135,11 +135,21 @@ const cacheKey = (p: ModelProvider) => {
     ? `${p}|${getSettings().providers?.[srv]?.baseUrl || ''}`
     : p;
 };
-export const clearModelCache = (): void => cache.clear();
+// (a key saved or removed, or an address changed, is a new list: one fetched before is dropped, and one still on
+// its way is not kept when it comes)
+let generation = 0;
+export const clearModelCache = (): void => {
+  generation++;
+  cache.clear();
+};
+bus.on('event', (ev) => {
+  if (ev.type === 'settings') clearModelCache();
+});
 
 /** Every model a provider has. [] when it can't be listed (not set up, server not running). */
 export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
   const key = cacheKey(p);
+  const asked = generation;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.list;
   let list: FoundModel[] = [];
@@ -187,7 +197,7 @@ export async function availableModels(p: ModelProvider): Promise<FoundModel[]> {
     }));
   }
   // an empty list may be a server that isn't running yet: ask again next time
-  if (list.length) cache.set(key, { at: Date.now(), list });
+  if (list.length && asked === generation) cache.set(key, { at: Date.now(), list });
   return list;
 }
 

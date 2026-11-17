@@ -32,8 +32,9 @@ export const comfyRouter = c.router({
     refusing(() =>
       comfy.runWorkflow({
         workflow: input.workflow,
-        prompt: input.prompt || undefined,
-        negative: input.negative || undefined,
+        // (an empty text is asked for: it clears the saved one, where left out keeps it)
+        prompt: input.prompt ?? undefined,
+        negative: input.negative ?? undefined,
         inputs: input.inputs || {},
       }),
     ),

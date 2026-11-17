@@ -160,6 +160,9 @@ let cache: { at: number; value: CodexLimits | null; running: Promise<CodexLimits
 };
 export async function codexLimits({ force = false } = {}): Promise<CodexLimits | null> {
   if (!force && Date.now() - cache.at < 60_000) return cache.value;
+  // (forced after a reset: a read already going began before it, so its numbers are old; wait for it, then read)
+  if (cache.running && !force) return cache.running;
+  if (cache.running) await cache.running.catch(() => null);
   if (cache.running) return cache.running;
   cache.running = (async () => {
     let value: CodexLimits | null;

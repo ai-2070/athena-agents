@@ -127,7 +127,8 @@ beforeEach(() => {
   brainRequests.length = 0;
 });
 
-const until = async (ok: () => boolean, ms = 8000) => {
+// (generous: these runs go through a real model server and the Brain's checks, slow under a full test run's load)
+const until = async (ok: () => boolean, ms = 20_000) => {
   for (const end = Date.now() + ms; Date.now() < end;) {
     if (ok()) return;
     await new Promise((r) => setTimeout(r, 25));
@@ -418,10 +419,11 @@ describe('ordinary assignments keep going automatically', () => {
     const a = agent('Offline');
     const c = chats.create(a.id);
     startRun(a, c, 'Finish the assignment.');
-    await until(() => briefIn(c.id)?.status === 'blocked', 11000);
+    // (each retry waits a moment, about 6 s in all: under a full test run's load it can take twice that)
+    await until(() => briefIn(c.id)?.status === 'blocked', 25_000);
     expect(calls.get('Offline')).toBe(3);
     expect(questions.list().some((q) => q.briefId === briefIn(c.id).id && q.status === 'waiting')).toBe(true);
-  }, 12000);
+  }, 30_000);
 
   it('includes actual tool results in the completion check', async () => {
     const a = agents.save({ ...agent('Evidence'), toolGroups: ['agents'] });

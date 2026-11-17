@@ -271,6 +271,37 @@ describe('General & keys', () => {
     expect(key().value).toBe('');
   });
 
+  it('saving a key keeps what you typed elsewhere in the form', async () => {
+    await open();
+    await type(fieldInput('Max tool steps per message'), '9');
+    const row = [...el.querySelectorAll('.ai-key')].find(
+      (r) => r.querySelector('label')?.textContent === 'OpenRouter key',
+    )!;
+    await type(row.querySelector<HTMLInputElement>('input')!, 'sk-or-1');
+    await act(async () =>
+      [...row.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Save')!.click(),
+    );
+    await settle();
+    expect(fieldInput('Max tool steps per message').value).toBe('9');
+    await act(async () => button('Save settings').click());
+    await settle();
+    expect(requests.filter((r) => r.method === 'PUT' && r.url === '/api/settings').at(-1)!.body).toEqual({
+      maxToolSteps: 9,
+    });
+  });
+
+  it('a second Save sends only what changed since the first', async () => {
+    await open();
+    await type(fieldInput('Max tool steps per message'), '7');
+    await act(async () => button('Save settings').click());
+    await settle();
+    await type(fieldInput('Extra ComfyUI workflow folders'), 'D:/flows');
+    await act(async () => button('Save settings').click());
+    await settle();
+    const puts = requests.filter((r) => r.method === 'PUT' && r.url === '/api/settings');
+    expect(puts.map((r) => r.body)).toEqual([{ maxToolSteps: 7 }, { comfyui: { workflowDirs: ['D:/flows'] } }]);
+  });
+
   it('adds decorative marks to model choices and program fields without changing their names', async () => {
     await open();
     const sections = [...el.querySelectorAll('.settings-section h2')];

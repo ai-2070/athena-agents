@@ -126,4 +126,14 @@ describe('think() on opencode', () => {
     fake.code = 1;
     await expect(think('s', 'u')).rejects.toThrow(/Free usage limit reached/);
   });
+
+  it('fails when it errs after it started answering, never passing the start off as the answer', async () => {
+    saveSettings({ brain: { provider: 'opencode', model: '' } });
+    fake.lines = [
+      JSON.stringify({ type: 'text', part: { text: 'Let me check the files first.' } }),
+      JSON.stringify({ type: 'error', error: { message: 'The model stopped responding.' } }),
+    ];
+    fake.code = 1;
+    await expect(think('s', 'u')).rejects.toThrow(/failed before it finished.*stopped responding/);
+  });
 });

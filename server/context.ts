@@ -71,8 +71,14 @@ const ENGINE_OVERHEAD: Record<string, number> = {
 type ModelOf = Pick<Agent, 'engine' | 'model' | 'provider'>;
 
 /** Who measures a chat's memory: a measurement by another engine, provider or model doesn't apply. */
-export const measuredBy = (agent: ModelOf): string =>
-  `${agent.engine}|${agent.engine === 'eve' ? agent.provider || 'openrouter' : ''}|${agent.model || ''}`;
+// (an API-model agent's is the model it really uses, its default when none is set, at the address it is asked at:
+// the same name at another address can be another model, with another window)
+export const measuredBy = (agent: ModelOf): string => {
+  if (agent.engine !== 'eve') return `${agent.engine}||${agent.model || ''}`;
+  const provider = String(agent.provider || 'openrouter');
+  const model = agent.model || defaultModelForEngine('eve', getSettings().defaults, provider);
+  return `eve|${provider}|${PROVIDERS[provider as ProviderId]?.base() || ''}|${model}`;
+};
 const measurement = (chat: Chat | null | undefined, agent: ModelOf) =>
   chat?.context && chat.context.by === measuredBy(agent) ? chat.context : null;
 

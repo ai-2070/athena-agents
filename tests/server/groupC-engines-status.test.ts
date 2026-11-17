@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ChatItem } from '../../shared/types.ts';
 import { newAgent } from '../../server/library.ts';
-import { saveServer } from '../../server/mcp.ts';
-import { internalToken } from '../../server/store.ts';
+import { bridgeServerConfig, saveServer } from '../../server/mcp.ts';
+import { activeProject, internalToken } from '../../server/store.ts';
+import { bridgeEnv } from '../../server/engines/cli.ts';
 import { dataPath } from '../../server/util.ts';
 import { codexArgs, codexLaunch, terminalPromptFile } from '../../server/engines/codex.ts';
 import { turnActivity } from '../../server/engines/index.ts';
@@ -41,6 +42,12 @@ describe('codex args', () => {
     const bridge = overrides(args).find((x) => x.startsWith('mcp_servers.dashboard.env='))!;
     expect(bridge).toContain(`DASH_DATA=${JSON.stringify(dataPath())}`);
     expect(bridge).not.toContain('DASH_TOKEN');
+    // (a terminal has no run: its bridge names the project it was opened in)
+    expect(bridge).toContain(`DASH_PROJECT=${JSON.stringify(activeProject().id)}`);
+    expect(bridgeEnv('a1').DASH_PROJECT).toBe(activeProject().id);
+    expect(bridgeServerConfig('a1').env.DASH_PROJECT).toBe(activeProject().id);
+    // an outside client works in whichever project is open
+    expect(bridgeServerConfig('').env.DASH_PROJECT).toBeUndefined();
   });
 
   it("puts MCP servers' keys in Codex's environment, hidden from the commands it runs", () => {
@@ -57,6 +64,40 @@ describe('codex args', () => {
     expect(c).toContain('shell_environment_policy.exclude=["ATHENA_MCP_SECRET_GH_0","SERVICE_KEY"]');
   });
 
+  it("keeps the backslashes in a local server's arguments, and writes its command as a path", () => {
+    saveServer('scripted', {
+      type: 'stdio',
+      command: 'C:\\Tools\\run.exe',
+      args: ['-e', 'print("a\\tb")', '--match', '\\d+'],
+    });
+    const c = overrides(
+      codexArgs(newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['scripted'] }), { version: '0.166.0' }),
+    );
+    expect(c).toContain('mcp_servers.scripted.command="C:/Tools/run.exe"');
+    const listed = c.find((x) => x.startsWith('mcp_servers.scripted.args='))!;
+    // (TOML reads these back as the arguments as they were)
+    expect(JSON.parse(listed.slice('mcp_servers.scripted.args='.length))).toEqual([
+      '-e',
+      'print("a\\tb")',
+      '--match',
+      '\\d+',
+    ]);
+  });
+
+  it('gives servers whose names fold together their own key variables', () => {
+    saveServer('work-mail', { type: 'http', url: 'https://a.example/mcp', headers: { Authorization: 'Bearer a' } });
+    saveServer('work_mail', { type: 'http', url: 'https://b.example/mcp', headers: { Authorization: 'Bearer b' } });
+    const { args, env } = codexLaunch(
+      newAgent({ name: 'Coder', engine: 'codex', mcpServers: ['work-mail', 'work_mail'] }),
+      { version: '0.166.0' },
+    );
+    const c = overrides(args);
+    expect(c).toContain('mcp_servers.work-mail.env_http_headers={Authorization="ATHENA_MCP_SECRET_WORK_MAIL_0"}');
+    expect(c).toContain('mcp_servers.work_mail.env_http_headers={Authorization="ATHENA_MCP_SECRET_WORK_MAIL_0_2"}');
+    expect(env.ATHENA_MCP_SECRET_WORK_MAIL_0).toBe('Bearer a');
+    expect(env.ATHENA_MCP_SECRET_WORK_MAIL_0_2).toBe('Bearer b');
+  });
+
   it('keeps a variable two servers want with different values on the command line for the second', () => {
     saveServer('one', { type: 'stdio', command: 'node', args: ['a.js'], env: { TOKEN_X: 'first' } });
     saveServer('two', { type: 'stdio', command: 'node', args: ['b.js'], env: { TOKEN_X: 'second' } });
@@ -65,6 +106,15 @@ describe('codex args', () => {
     });
     expect(env.TOKEN_X).toBe('first');
     expect(overrides(args)).toContain('mcp_servers.two.env={TOKEN_X="second"}');
+  });
+
+  it("gives each terminal its own instructions file, so one opened later doesn't change another's", () => {
+    const agent = newAgent({ name: 'Coder', engine: 'codex' });
+    const one = terminalPromptFile(agent, 'Brief for the first terminal.', 'terminal-one');
+    const two = terminalPromptFile(agent, 'Brief for the second terminal.', 'terminal-two');
+    expect(one).not.toBe(two);
+    expect(fs.readFileSync(one, 'utf8')).toBe('Brief for the first terminal.');
+    expect(fs.readFileSync(two, 'utf8')).toBe('Brief for the second terminal.');
   });
 
   it('points the interactive terminal at a file with the agent instructions', () => {

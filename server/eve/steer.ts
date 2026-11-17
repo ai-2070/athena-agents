@@ -41,8 +41,11 @@ export async function sendSteer(
   const binding = run && readBinding(run.bindingId);
   if (!run || !binding?.sessionId || !canSteer(runId)) throw new Error('This turn can no longer take a message.');
   recordSteer(runId, { ...steer, deliveryId: null, at: Date.now() });
+  // once it is on its way, a failure doesn't say Eve didn't take it (a lost answer, a timeout)
+  let maybeTaken = false;
   try {
     const host = await eveRuntime.ready();
+    maybeTaken = true;
     const response = await eveClient(host, binding.id).fetch(
       `/eve/v1/session/${encodeURIComponent(binding.sessionId)}`,
       {
@@ -52,7 +55,11 @@ export async function sendSteer(
         signal: AbortSignal.timeout(15000),
       },
     );
-    if (!response.ok) throw new Error('Eve did not take the message.');
+    if (!response.ok) {
+      // (Eve's refusal is sure; a server error may come after it took it)
+      if (response.status < 500) maybeTaken = false;
+      throw new Error('Eve did not take the message.');
+    }
     const receipt: unknown = await response.json();
     const sessionId = receipt && typeof receipt === 'object' && 'sessionId' in receipt ? receipt.sessionId : null;
     const deliveryId = receipt && typeof receipt === 'object' && 'deliveryId' in receipt ? receipt.deliveryId : null;
@@ -61,6 +68,12 @@ export async function sendSteer(
     return updateSteer(runId, steer.id, { deliveryId })!;
   } catch (error) {
     updateSteer(runId, steer.id, { dropped: true });
+    // It may have started a turn Eve runs anyway, even after this run ended (so stopping it would end nothing):
+    // the session ends, and the message the caller sends again is the only one that runs
+    if (maybeTaken) {
+      retireSession(run.bindingId);
+      void eveRuntime.retireBindings().catch(() => {});
+    }
     throw error;
   }
 }

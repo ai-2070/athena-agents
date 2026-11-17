@@ -87,6 +87,16 @@ function assignment(p: Project, t: ProjectTask, tags: readonly BoardTag[], repor
     .filter(Boolean)
     .join('\n');
 }
+/** What of the task's message the user wrote: the task, when they made it, and their own comments. Links in the
+ *  rest (an agent's comment, a task an agent made) never count as theirs when the Brain installs or connects. */
+function ownWords(t: ProjectTask): string {
+  return [
+    ...(t.createdBy === 'you' ? [t.title, t.description] : []),
+    ...(t.comments || []).filter((c) => c.by === 'you').map((c) => c.text),
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
 /** The task's files and its comments' files, where they are now. */
 function attachmentsOf(p: Project, t: ProjectTask): string[] {
   const all = [...(t.files || []), ...(t.comments || []).flatMap((c) => c.files || [])];
@@ -122,6 +132,11 @@ export async function startWork(projectId: string, taskId: string): Promise<Boar
         startedAt: Date.now(),
         state: 'starting',
       };
+      // Start on a card in To do or Blocked moves it to In progress, where the board follows the work it started
+      if (task.status === 'todo' || task.status === 'blocked') {
+        task.status = 'in_progress';
+        delete task.blockedReason;
+      }
       claimed.task = structuredClone(task);
     });
     if (!claimed.task) return saved;
@@ -192,6 +207,7 @@ async function brainStart(
     attachments,
     conversationId: boardConversation(t.id),
     from: BOARD_SENDER,
+    ownWords: ownWords(t),
     operationId,
     proceed: same,
   });
@@ -590,6 +606,9 @@ export async function workerReply(
   if (status === 'blocked' && !reason && !text) return fail('Say why it is blocked (reason).');
   const by = `agent:${run.agentId}`;
   const files = await workerFiles(run, args.files, by);
+  // (copying files takes a while: stopped, given to someone else or moved to Done meanwhile, this reply is not saved)
+  if (workerTask(runId, agentId).task.work?.operationId !== task.work?.operationId)
+    return fail("This task's work changed while the files were copied, so nothing was saved.");
   const retag = args.addTags !== undefined || args.removeTags !== undefined;
   if (!text && !files.length && !status && !retag) return fail('Give text, files, a status or tags.');
   return withProject(run.project, () => {

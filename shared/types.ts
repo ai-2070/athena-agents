@@ -890,6 +890,8 @@ export interface SavedHandoff {
   chatId: string;
   runId: string;
   task: string;
+  /** The asker's private conversation (a gateway's, a board task's): only runs in it may collect the answer. */
+  conversationId?: string;
   startedAt: number;
   endedAt?: number;
   answer?: string;
@@ -2647,6 +2649,9 @@ export interface BrainChatMessage {
   attachments?: string[];
   from?: string;
   operationId?: string;
+  /** Of a message others' words went into (a board task with agents' comments): the part the user wrote. GitHub
+   *  links and MCP server settings the Brain acts on are checked against this, not the whole text. */
+  ownWords?: string;
   /** What the Brain did with this answer, so a reopened chat shows it the way it first did. */
   done?: BrainDone[];
   /** Who it handed the work to, and where (a reopened chat follows that work again). */

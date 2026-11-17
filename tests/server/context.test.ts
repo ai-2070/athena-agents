@@ -36,3 +36,21 @@ describe('engine-owned context', () => {
     expect(estimateTokens('漢字😀')).toBeGreaterThan(estimateTokens('test'));
   });
 });
+
+describe('whose measurement a chat has', () => {
+  it('is the model really used, its default one too, at the address it is asked at', async () => {
+    const { saveSettings } = await import('../../server/store.ts');
+    const { defaultModelForEngine } = await import('../../shared/modeldefaults.ts');
+    const blank = { engine: 'eve', provider: 'custom', model: '' } as const;
+    saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:1111/v1' } } });
+    const here = measuredBy(blank);
+    // the same model name at another address is another measurement
+    saveSettings({ providers: { custom: { baseUrl: 'http://127.0.0.1:2222/v1' } } });
+    expect(measuredBy(blank)).not.toBe(here);
+    // no model set: the default one it runs on, as the transcript records it
+    const { getSettings } = await import('../../server/store.ts');
+    const used = defaultModelForEngine('eve', getSettings().defaults, 'custom');
+    expect(measuredBy(blank)).toBe(measuredBy({ ...blank, model: used }));
+    saveSettings({ providers: { custom: { baseUrl: '' } } });
+  });
+});

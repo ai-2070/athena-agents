@@ -247,7 +247,7 @@ describe('converting editor files', () => {
 
   it('flattens a subgraph, naming its nodes "<instance>:<id>", with the values the instance promotes', () => {
     const SUB = '6f0a4cd2-4c4e-4b8e-9d0b-0f6a1c2b3d4e';
-    const file = (instanceValues?: unknown[]) =>
+    const file = (instanceValues?: unknown[] | Record<string, unknown>) =>
       wf({
         nodes: [
           { id: 4, type: 'CheckpointLoaderSimple', widgets_values: ['sdxl.safetensors'] },
@@ -316,6 +316,8 @@ describe('converting editor files', () => {
     expect(findPromptNodes(api).promptInputs).toEqual(['10:1.text']);
     // without a value of its own, the instance leaves the inner widget's
     expect(uiToApi(file(), INFO).api['10:1'].inputs.text).toBe('a cat');
+    // values the instance keeps by name are its values too
+    expect(uiToApi(file({ text: 'a harbour' }), INFO).api['10:1'].inputs.text).toBe('a harbour');
   });
 
   it("says plainly what it can't convert", () => {

@@ -452,6 +452,9 @@ async function run(
     if (r.lastError) throw new Error(r.lastError);
     if (rpc.refused()) throw new Error(`${LABEL[flavor]} refused the message: ${rpc.refused()}`);
     if (!r.answer && rpc.failed()) throw new Error(`${LABEL[flavor]} failed: ${rpc.failed()}`);
+    // it crashed before its run said it ended: what it wrote so far is in the chat, but it isn't an answer
+    if (r.answer && !r.ended && end.code !== 0)
+      throw new Error(`${LABEL[flavor]} exited (${end.code}) before it finished its answer.${tail(end.stderr)}`);
     if (!r.answer) {
       const msg = `${LABEL[flavor]} exited (${end.code}) without an answer.${tail(end.stderr)}`;
       // oh-my-pi: a session it no longer has (deleted, or made by another engine): a new one, with the chat so far
@@ -476,10 +479,10 @@ async function run(
 }
 
 /** The interactive terminal: the agent brief stays in a file for the whole session. */
-export function terminalArgs(flavor: PiFlavor, agent: Agent, systemPrompt: string): string[] {
+export function terminalArgs(flavor: PiFlavor, agent: Agent, systemPrompt: string, tag = 'terminal'): string[] {
   return piArgs(flavor, agent, {
     interactive: true,
-    instructions: promptFile(agent, `terminal-${flavor}-instructions.md`, systemPrompt),
+    instructions: promptFile(agent, `${tag}-${flavor}-instructions.md`, systemPrompt),
   });
 }
 

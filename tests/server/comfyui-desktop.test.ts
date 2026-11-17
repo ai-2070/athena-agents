@@ -146,7 +146,8 @@ describe('what Comfy Desktop does when it opens', () => {
   });
 
   it("doesn't start anything when ComfyUI already answers", async () => {
-    const server = http.createServer((_req, res) => res.end('{}'));
+    // (what ComfyUI's /system_stats has)
+    const server = http.createServer((_req, res) => res.end('{"system":{},"devices":[]}'));
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     saveSettings({ comfyui: { url } });

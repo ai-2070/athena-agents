@@ -359,6 +359,19 @@ describe('undo', () => {
 });
 
 describe('saving part of an object as a prefab', () => {
+  it('keeps to the side limit a prefab built any other way has', () => {
+    fresh();
+    const was = WORLD_LIMITS.prefabSide;
+    build({ by: A, object: 'Wall', steps: [{ box: [3, 1, 1], use: 'wood' }] });
+    WORLD_LIMITS.prefabSide = 2;
+    try {
+      expect(() => savePrefabFrom({ by: A, name: 'Wall part', from: 'Wall' })).toThrow(/on a side/);
+    } finally {
+      WORLD_LIMITS.prefabSide = was;
+    }
+    expect(savePrefabFrom({ by: A, name: 'Wall part', from: 'Wall' }).prefab.name).toBe('Wall part');
+  });
+
   it('counts against the world voxel limit when the part stays in the object too (finding 53)', () => {
     fresh();
     build({ by: A, object: 'Hut', steps: [{ box: [2, 2, 2], use: 'wood' }] });
@@ -436,6 +449,20 @@ describe('.vox import', () => {
     expect(getWorld(w.id)!.built).toBe(false);
     importVox({ by: A, file: voxFile('pebble', [[0, 0, 0]]), as: 'prefab', name: 'Pebble' });
     expect(getWorld(w.id)!.built).toBe(true);
+  });
+
+  it('keeps to the prefab cap, as every other way to make one does', () => {
+    fresh();
+    const was = WORLD_LIMITS.prefabs;
+    WORLD_LIMITS.prefabs = 1;
+    try {
+      importVox({ by: A, file: voxFile('one', [[0, 0, 0]]), as: 'prefab', name: 'One' });
+      expect(() => importVox({ by: A, file: voxFile('two', [[0, 0, 0]]), as: 'prefab', name: 'Two' })).toThrow(
+        /the most it can hold/,
+      );
+    } finally {
+      WORLD_LIMITS.prefabs = was;
+    }
   });
 
   it('refuses a model the build tools could not edit (finding 101)', () => {

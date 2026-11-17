@@ -280,7 +280,12 @@ export function listModels(): Promise<OpencodeModel[]> {
 export interface Server {
   url: string;
   /** a JSON route: its { data }, or throws with its message (status: what it answered) */
-  call<T = unknown>(method: string, route: string, body?: unknown): Promise<{ status: number; data?: T }>;
+  call<T = unknown>(
+    method: string,
+    route: string,
+    body?: unknown,
+    stop?: AbortSignal,
+  ): Promise<{ status: number; data?: T }>;
   /** its event stream, from now on (live only: open it before what it should hear about) */
   events(signal: AbortSignal): AsyncGenerator<OcEvent>;
   /** it ends: its stdin closes (killed if it doesn't go) */
@@ -364,12 +369,12 @@ export async function startServer({
   const server: Server = {
     url,
     ended,
-    async call<T>(method: string, route: string, body?: unknown) {
+    async call<T>(method: string, route: string, body?: unknown, stop?: AbortSignal) {
       const r = await fetch(url + route, {
         method,
         headers,
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: AbortSignal.timeout(60_000),
+        signal: stop ? AbortSignal.any([AbortSignal.timeout(60_000), stop]) : AbortSignal.timeout(60_000),
       });
       const text = await r.text();
       let json: unknown = null;
@@ -668,9 +673,18 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
   try {
     server = await startServer({ cwd: workspace, env: { ...process.env, OPENCODE_CONFIG: files.config }, signal });
     const srv = server;
+    // Stop while it is set up ends the waiting at once, and nothing more is sent (the turn's own handling, below,
+    // takes over just before its message goes)
+    const stopped = () => {
+      if (signal.aborted) throw new Error('Stopped.');
+    };
+    const onEarlyStop = () => stopStream.abort();
+    signal.addEventListener('abort', onEarlyStop);
+    if (signal.aborted) onEarlyStop();
     // the stream first: it only tells what happens after it opens
     const stream = srv.events(stopStream.signal);
     const first = await stream.next();
+    stopped();
     if (first.done) throw new Error('opencode closed its event stream at once.');
 
     // the chat's session: a new one under our own id, or the one it has (gone: a new one, with the chat so far)
@@ -689,13 +703,17 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       const id = `${want.providerID}/${want.id}`;
       m = cached()?.find((x) => x.id === id) || (await modelsOf(srv).catch(() => [])).find((x) => x.id === id);
     } else if (agent.effort || sessionId) {
-      const d = (await srv.call<ApiModel>('GET', '/api/model/default').catch(() => ({ status: 0, data: undefined })))
-        .data;
+      const d = (
+        await srv
+          .call<ApiModel>('GET', '/api/model/default', undefined, signal)
+          .catch(() => ({ status: 0, data: undefined }))
+      ).data;
       if (d?.providerID && d.id) {
         target = { providerID: d.providerID, id: d.id };
         m = toModel(d);
       }
     }
+    stopped();
     const variant = m ? variantFor(agent.effort, m.variants) : '';
     const window = m?.context || 0;
     const modelBody = target ? { ...target, ...(variant ? { variant } : {}) } : null;
@@ -705,11 +723,14 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
             .call<{ model?: { providerID?: string; id?: string; variant?: string } }>(
               'GET',
               `/api/session/${encodeURIComponent(sessionId)}`,
+              undefined,
+              signal,
             )
             .catch((e: unknown) =>
               e instanceof ApiError && (e.status === 404 || e.status === 400) ? null : Promise.reject(e),
             )
         : null;
+      stopped();
       if (!s) {
         chat.sessionId = null;
         chat.reseed = true;
@@ -721,18 +742,18 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
         modelBody &&
         (has?.providerID !== modelBody.providerID || has?.id !== modelBody.id || (has?.variant || '') !== variant)
       )
-        await srv.call('POST', `/api/session/${sessionId}/model`, { model: modelBody });
+        await srv.call('POST', `/api/session/${sessionId}/model`, { model: modelBody }, signal);
     } else {
       sessionId = newId('ses');
       chat.sessionId = sessionId;
       // (on opencode's default without an effort, the session is left to follow its default)
       const pin = want || variant ? modelBody : null;
-      await srv.call('POST', '/api/session', {
-        id: sessionId,
-        agent: AGENT,
-        location: { directory: workspace },
-        ...(pin ? { model: pin } : {}),
-      });
+      await srv.call(
+        'POST',
+        '/api/session',
+        { id: sessionId, agent: AGENT, location: { directory: workspace }, ...(pin ? { model: pin } : {}) },
+        signal,
+      );
     }
 
     const reader = opencodeReader(onEvent);
@@ -789,6 +810,8 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
       // (it may not say so: the stream ends after a moment either way)
       setTimeout(() => stopStream.abort(), 3000).unref?.();
     };
+    signal.removeEventListener('abort', onEarlyStop);
+    stopped();
     signal.addEventListener('abort', onAbort);
     try {
       await post(newId('msg'), { text });
@@ -909,8 +932,12 @@ async function run({ agent, chat, text, signal, onEvent, systemPrompt, runId }: 
 
 /** The interactive terminal: its own server (not the shared service, which wouldn't see this config), on the
  *  athena agent. The files stay for the terminal's whole session. */
-export function terminalLaunch(agent: Agent, systemPrompt: string): { args: string[]; env: NodeJS.ProcessEnv } {
-  const files = writeRunFiles(agent, systemPrompt, 'terminal');
+export function terminalLaunch(
+  agent: Agent,
+  systemPrompt: string,
+  tag = 'terminal',
+): { args: string[]; env: NodeJS.ProcessEnv } {
+  const files = writeRunFiles(agent, systemPrompt, tag);
   return { args: ['--standalone'], env: { ...process.env, OPENCODE_CONFIG: files.config } };
 }
 
@@ -1043,8 +1070,11 @@ export async function ask({
       onLine: (l) => onLine(l.trim()),
     });
     const answer = texts.join('\n\n');
-    if (!answer)
-      throw new Error(`opencode didn't answer (${(err || r.stderr || '').trim().slice(-300) || `exit ${r.code}`})`);
+    // (an error, a failed exit or the time running out is a failure, whatever it wrote before)
+    if (!answer || err || r.code !== 0)
+      throw new Error(
+        `opencode ${answer ? 'failed before it finished' : "didn't answer"} (${(err || r.stderr || '').trim().slice(-300) || `exit ${r.code}`})`,
+      );
     return answer;
   } finally {
     fs.rmSync(brief, { force: true });

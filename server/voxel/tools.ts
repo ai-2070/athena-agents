@@ -441,6 +441,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
           let r: ReturnType<typeof build>;
           if (code) {
             const qjs = await loadSandbox();
+            // (the sandbox takes a moment to start the first time: Stop meanwhile builds nothing)
+            ctx.signal?.throwIfAborted();
             const seed = a.seed === undefined ? 1 : Math.round(Number(a.seed)) || 1;
             r = build({
               ...target,

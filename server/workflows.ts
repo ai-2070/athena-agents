@@ -101,6 +101,14 @@ export function stopWorkflowRun(runId: string): boolean {
   return !!ctl;
 }
 
+/** Stops the runs of one workflow going in this project (it is being deleted: nothing it waits on goes on). */
+export function stopRunsOf(workflowId: string): number {
+  let n = 0;
+  for (const r of runs.list())
+    if (r.workflowId === workflowId && r.status === 'running' && activeRuns.has(r.id) && stopWorkflowRun(r.id)) n++;
+  return n;
+}
+
 // Runs that were going when the dashboard stopped can't continue (in every project, not only the open one).
 export function markInterruptedRuns() {
   for (const p of listProjects()) {
@@ -289,27 +297,33 @@ export function due(
 }
 
 export function startScheduler() {
-  setInterval(() => {
-    const now = Date.now();
-    for (const wf of workflows.list() as Workflow[]) {
-      if (!due(wf, now)) continue;
-      wf.lastScheduledAt = now;
-      workflows.save(wf);
-      // a step list runs its steps; a team gets its routine message in the team chat
-      if (isStepList(wf)) {
-        startWorkflow(wf.id, wf.schedule!.input || '', { trigger: 'schedule' }).catch((e: unknown) =>
-          log('error', `Scheduled workflow "${wf.name}": ${(e as Error).message}`),
-        );
-        continue;
-      }
-      const team = normalize(wf);
-      postUserMessage(
-        team.id,
-        wf.schedule!.input || `Scheduled check-in: ${team.description || 'do your routine work'}`,
-        { route: pickMember },
-      ).catch((e: unknown) => log('error', `Scheduled team "${wf.name}": ${(e as Error).message}`));
+  setInterval(() => checkWorkflowSchedules(), 30_000).unref();
+}
+
+// Every project's schedules, not only the open one's: each runs in its own project.
+export function checkWorkflowSchedules(now = Date.now()): void {
+  for (const p of listProjects()) withProject(p, () => checkSchedulesHere(now));
+}
+
+function checkSchedulesHere(now: number): void {
+  for (const wf of workflows.list() as Workflow[]) {
+    if (!due(wf, now)) continue;
+    wf.lastScheduledAt = now;
+    workflows.save(wf);
+    // a step list runs its steps; a team gets its routine message in the team chat
+    if (isStepList(wf)) {
+      startWorkflow(wf.id, wf.schedule!.input || '', { trigger: 'schedule' }).catch((e: unknown) =>
+        log('error', `Scheduled workflow "${wf.name}": ${(e as Error).message}`),
+      );
+      continue;
     }
-  }, 30_000).unref();
+    const team = normalize(wf);
+    postUserMessage(
+      team.id,
+      wf.schedule!.input || `Scheduled check-in: ${team.description || 'do your routine work'}`,
+      { route: pickMember },
+    ).catch((e: unknown) => log('error', `Scheduled team "${wf.name}": ${(e as Error).message}`));
+  }
 }
 
 export const TEMPLATES: WorkflowTemplate[] = [

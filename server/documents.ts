@@ -109,6 +109,22 @@ const pdfHeader = (bytes: Uint8Array, name: string) => {
   return false;
 };
 
+/** The names of a ZIP package's parts, from its list (nothing is unpacked), or null when it can't be listed. */
+function packageParts(bytes: Uint8Array): Set<string> | null {
+  const names = new Set<string>();
+  try {
+    unzipSync(bytes, {
+      filter: (file) => {
+        names.add(file.name);
+        return false;
+      },
+    });
+  } catch {
+    return null;
+  }
+  return names;
+}
+
 /**
  * What kind of document the bytes are, or null for anything else. Office files (2007 on) are ZIP packages, told
  * apart by the part each must hold; older ones are compound files, which other programs use too, so for those the
@@ -118,10 +134,20 @@ export function documentKind(bytes: Uint8Array, name: string): DocumentKind | nu
   if (!bytes.length) return null;
   if (pdfHeader(bytes, name)) return 'pdf';
   if (startsWith(bytes, ZIP)) {
-    if (!contains(bytes, ascii('[Content_Types].xml'))) return null;
-    if (contains(bytes, ascii('word/document.xml'))) return 'word';
-    if (contains(bytes, ascii('xl/workbook.xml'))) return 'excel';
-    if (contains(bytes, ascii('ppt/presentation.xml'))) return 'powerpoint';
+    // by the package's own parts (its file list), not a name found anywhere in its bytes: a workbook with a Word
+    // file inside it is still a workbook
+    const names = packageParts(bytes);
+    if (!names) {
+      if (!contains(bytes, ascii('[Content_Types].xml'))) return null;
+      if (contains(bytes, ascii('word/document.xml'))) return 'word';
+      if (contains(bytes, ascii('xl/workbook.xml'))) return 'excel';
+      if (contains(bytes, ascii('ppt/presentation.xml'))) return 'powerpoint';
+      return null;
+    }
+    if (!names.has('[Content_Types].xml')) return null;
+    if (names.has('word/document.xml')) return 'word';
+    if (names.has('xl/workbook.xml')) return 'excel';
+    if (names.has('ppt/presentation.xml')) return 'powerpoint';
     return null;
   }
   if (startsWith(bytes, COMPOUND) && OLD_OFFICE_NAME.test(name)) return 'old-office';
@@ -342,7 +368,14 @@ export async function pdfText(
   bytes: Uint8Array,
   { timeoutMs = PDF_TIMEOUT_MS, signal }: ReadOptions = {},
 ): Promise<PdfRead> {
-  const free = await threadSlot(signal);
+  // the time waiting for a thread counts too: a caller's budget is for the whole read
+  const started = Date.now();
+  const budget = Math.min(timeoutMs, PDF_TIMEOUT_MS);
+  const queued = AbortSignal.timeout(budget);
+  const free = await threadSlot(signal ? AbortSignal.any([signal, queued]) : queued).catch((e: unknown) => {
+    if (!signal?.aborted && queued.aborted) throw new DocumentError('it took too long to read.', { lasting: false });
+    throw e;
+  });
   let worker: Worker;
   try {
     worker = new Worker(PDF_WORKER, {
@@ -355,7 +388,7 @@ export async function pdfText(
     free();
     throw readerFailed(e);
   }
-  const limit = Math.min(timeoutMs, PDF_TIMEOUT_MS);
+  const limit = Math.max(1, budget - (Date.now() - started));
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
   try {
@@ -398,7 +431,8 @@ export async function pdfText(
 
 /**
  * The parts of a package `wanted` picks, each within PART_MAX_BYTES unpacked, all within UNPACKED_MAX_BYTES and
- * PARTS_MAX. The sizes are the headers': fflate unpacks a part into a buffer of its header's size, never more.
+ * PARTS_MAX. fflate unpacks a deflated part into a buffer of its header's size, but copies a stored one whole, whatever
+ * its header says: so a part counts as the larger of the two, and the parts it gave back are counted again.
  */
 function unpack(bytes: Uint8Array, wanted: (name: string) => boolean): Map<string, string> {
   let files: Record<string, Uint8Array>;
@@ -409,9 +443,10 @@ function unpack(bytes: Uint8Array, wanted: (name: string) => boolean): Map<strin
     files = unzipSync(bytes, {
       filter: (file) => {
         if (!wanted(file.name)) return false;
-        total += file.originalSize;
+        const size = Math.max(file.originalSize, file.size);
+        total += size;
         count += 1;
-        if (file.originalSize > PART_MAX_BYTES || total > UNPACKED_MAX_BYTES) throw tooLarge();
+        if (size > PART_MAX_BYTES || total > UNPACKED_MAX_BYTES) throw tooLarge();
         if (count > PARTS_MAX) throw new DocumentError('it has too many parts to read.');
         return true;
       },
@@ -422,9 +457,11 @@ function unpack(bytes: Uint8Array, wanted: (name: string) => boolean): Map<strin
   }
   const decoder = new TextDecoder();
   const parts = new Map<string, string>();
+  let unpacked = 0;
   for (const [name, data] of Object.entries(files)) {
     // a header can understate the size; the unpacked bytes can't
-    if (data.length > PART_MAX_BYTES) throw tooLarge();
+    unpacked += data.length;
+    if (data.length > PART_MAX_BYTES || unpacked > UNPACKED_MAX_BYTES) throw tooLarge();
     parts.set(name, decoder.decode(data));
   }
   return parts;
@@ -444,13 +481,28 @@ export function xmlText(text: string): string {
   });
 }
 
+const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+const PRESENTATION_NS = 'http://schemas.openxmlformats.org/presentationml/2006/main';
+const RELATIONSHIPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+/** The prefix a part's XML gives a namespace, with its colon ('w:'), '' when it is the default one, else usual's. */
+function nsPrefix(xml: string, uri: string, usual: string): string {
+  const head = xml.slice(0, 20_000);
+  const named = [...head.matchAll(/xmlns:([A-Za-z_][\w.-]*)="([^"]*)"/g)].find((m) => m[2] === uri);
+  if (named) return `${named[1]}:`;
+  if (head.includes(`xmlns="${uri}"`)) return '';
+  return `${usual}:`;
+}
+
 /**
  * Word or PowerPoint XML as text: paragraphs as lines, a table's row on one line with its cells split by " | ". `ns`
  * is w (Word) or a (slides). A cell's own paragraphs (every cell ends with one) are joined by spaces.
  */
-function runsAsLines(xml: string, ns: 'w' | 'a'): string {
+function runsAsLines(xml: string, prefix: 'w' | 'a'): string {
+  // (the prefix the file itself gives the namespace: w: and a: are usual, but any name or none is the same)
+  const ns = nsPrefix(xml, prefix === 'w' ? WORD_NS : DRAWING_NS, prefix);
   const token = new RegExp(
-    `<${ns}:t(?:\\s[^>]*)?>([^<]*)</${ns}:t>|<${ns}:tab/>|<${ns}:br(?:\\s[^>]*)?/>|<${ns}:tc(?:\\s[^>]*)?>|</${ns}:p>|</${ns}:tc>|</${ns}:tr>`,
+    `<${ns}t(?:\\s[^>]*)?>([^<]*)</${ns}t>|<${ns}tab/>|<${ns}br(?:\\s[^>]*)?/>|<${ns}tc(?:\\s[^>]*)?>|</${ns}p>|</${ns}tc>|</${ns}tr>`,
     'g',
   );
   // the text outside any cell, then one entry per cell open around this point (a table can sit in a cell)
@@ -461,10 +513,10 @@ function runsAsLines(xml: string, ns: 'w' | 'a'): string {
   for (const [tag, text] of xml.matchAll(token)) {
     const inCell = open.length > 1;
     if (text !== undefined) add(xmlText(text));
-    else if (tag.startsWith(`<${ns}:tab`)) add(inCell ? ' ' : '\t');
-    else if (tag.startsWith(`<${ns}:br`) || tag === `</${ns}:p>`) add(inCell ? ' ' : '\n');
-    else if (tag === `</${ns}:tr>`) add(inCell ? ' ' : '\n');
-    else if (tag === `</${ns}:tc>`) {
+    else if (tag.startsWith(`<${ns}tab`)) add(inCell ? ' ' : '\t');
+    else if (tag.startsWith(`<${ns}br`) || tag === `</${ns}p>`) add(inCell ? ' ' : '\n');
+    else if (tag === `</${ns}tr>`) add(inCell ? ' ' : '\n');
+    else if (tag === `</${ns}tc>`) {
       if (!inCell) continue;
       const cell = open
         .pop()!
@@ -497,13 +549,21 @@ function relationTargets(rels: string, folder: string): Map<string, string> {
   const targets = new Map<string, string>();
   for (const [rel] of rels.matchAll(/<(?:\w+:)?Relationship\b[^>]*>/g)) {
     const id = /\bId="([^"]+)"/.exec(rel)?.[1];
-    const target = /\bTarget="([^"]+)"/.exec(rel)?.[1];
-    // (absolute targets start at the package's root)
-    if (id && target)
-      targets.set(
-        id,
-        target.startsWith('/') ? target.slice(1) : `${folder}/${target.replace(new RegExp(`^${folder}/`), '')}`,
-      );
+    const raw = /\bTarget="([^"]+)"/.exec(rel)?.[1];
+    if (!id || !raw) continue;
+    // a part's address, as a package names it: %-encoded, and relative (./, ../) to the folder, or from the root (/)
+    let target = raw;
+    try {
+      target = decodeURIComponent(raw);
+    } catch {
+      /* not encoded */
+    }
+    const from = target.startsWith('/')
+      ? target.slice(1)
+      : target.startsWith(`${folder}/`)
+        ? target
+        : `${folder}/${target}`;
+    targets.set(id, path.posix.normalize(from).replace(/^(\.\.\/)+/, ''));
   }
   return targets;
 }
@@ -612,7 +672,10 @@ export function powerpointText(bytes: Uint8Array): { text: string; slides: numbe
   const deck = parts.get('ppt/presentation.xml');
   if (deck === undefined) throw new DocumentError('it has no presentation in it.');
   const targets = relationTargets(parts.get('ppt/_rels/presentation.xml.rels') ?? '', 'ppt');
-  const order = [...deck.matchAll(/<p:sldId\b[^>]*\br:id="([^"]+)"/g)]
+  // (with the prefixes the deck gives its namespaces: p: and r: are usual)
+  const p = nsPrefix(deck, PRESENTATION_NS, 'p');
+  const r = nsPrefix(deck, RELATIONSHIPS_NS, 'r');
+  const order = [...deck.matchAll(new RegExp(`<${p}sldId\\b[^>]*\\b${r}id="([^"]+)"`, 'g'))]
     .map((m) => targets.get(m[1]!))
     .filter((name): name is string => !!name && parts.has(name));
   // (a deck whose list can't be followed: its slides by number)
