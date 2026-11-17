@@ -559,7 +559,7 @@ Completed reviews:
 - Trigger/evidence: private install before authentication caches null; user follows `gh auth login` then immediately retries, without `GITHUB_TOKEN`.
 - Impact/expected: retries remain unauthenticated for ten minutes/restart, also after installing missing CLI. Refresh negative credential discovery on retry.
 - Limits: no CLI/authentication run.
-- Fixed: a missing GitHub CLI sign-in is remembered for 15 s, not ten minutes, so signing in with `gh auth login` counts on the next try. No test of its own.
+- Fixed: a missing GitHub CLI sign-in is remembered for 15 s, not ten minutes, so signing in with `gh auth login` counts on the next try. Test in `tests/server/skillinstall-token.test.ts` (a fake `gh`).
 
 ### BH-059 — Eve recovery resumes runs with a saved Stop intent
 

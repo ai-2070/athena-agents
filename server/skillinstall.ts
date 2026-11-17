@@ -73,7 +73,7 @@ export function parseGitHubUrl(input: string): GitHubLink {
 
 // ---------- talking to GitHub ----------
 let tokenCache: { token: string | null; at: number } | null = null;
-async function token(): Promise<string | null> {
+export async function token(): Promise<string | null> {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
   // (a token is kept ten minutes; "not signed in" only a few seconds, so signing in with gh counts at once)
   if (tokenCache && Date.now() - tokenCache.at < (tokenCache.token ? 10 * 60_000 : 15_000)) return tokenCache.token;
