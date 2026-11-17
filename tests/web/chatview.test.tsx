@@ -464,6 +464,34 @@ describe('the agent chat (AI SDK)', () => {
     expect(el.textContent).toContain('CI is green');
   });
 
+  it('a load that answers after the view closed tells the page nothing', async () => {
+    const real = globalThis.fetch;
+    let release = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url === '/api/agents/a1/chats/c1' && (init?.method || 'GET') === 'GET') await held;
+      return real(url, init);
+    });
+    const told: string[] = [];
+    const el = document.createElement('div');
+    document.body.append(el);
+    let view: MountedChat | null = null;
+    await act(async () => {
+      view = mountChat(el, {
+        agent: { id: 'a1', name: 'Renderer' },
+        chatId: 'c1',
+        tray: attachTray(),
+        onChat: (c) => void told.push(c.id),
+      });
+    });
+    await settle();
+    // another chat opened meanwhile: this view is gone before its load answers
+    act(() => view!.destroy());
+    release();
+    await settle();
+    expect(told).toEqual([]);
+  });
+
   it('/queue when nothing is working just sends it', async () => {
     const el = await open();
     await type(el, '/queue hello there');
