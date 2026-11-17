@@ -1036,7 +1036,7 @@ Completed reviews:
 - Trigger/evidence: linked reference exceeds five million characters. Every reader page first truncates that same prefix and computes total from it; search separately stops at two million.
 - Impact/expected: agents without Files cannot reach later contents and totals imply completion. Preserve access or explicitly expose the cutoff.
 - Limits: linking large files is suggested, but intended hard-cutoff policy was not documented; no large read executed.
-- Fixed: `knowledge_read` says when a file goes on past the 5,000,000 characters it reads, and to use the Files tools for the rest. No test of its own.
+- Fixed: `knowledge_read` says when a file goes on past the 5,000,000 characters it reads, and to use the Files tools for the rest. Test in `tests/server/knowledge.test.ts`.
 
 ### BH-113 — Partial PDF extraction is treated as complete attachment text
 

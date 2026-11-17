@@ -313,3 +313,17 @@ describe('knowledge that is long or has two files of one name', () => {
     expect(knowledgeContext(agent)).toContain('Search them with knowledge_search');
   });
 });
+
+describe('reading a very long knowledge file', () => {
+  it('says where what it can read ends, instead of passing that off as the whole file', () => {
+    const folder = fs.mkdtempSync(path.join(os.homedir(), 'kb-long-'));
+    fs.writeFileSync(path.join(folder, 'log.md'), ['a'.repeat(3_000_000), 'b'.repeat(3_000_000), 'the end'].join('\n'));
+    fs.writeFileSync(path.join(folder, 'short.md'), 'short');
+    const agent = { id: 'kb-long', knowledge: { folders: [folder] } };
+    const read = readKnowledge(agent, path.join(path.basename(folder), 'log.md'));
+    expect(read.text).toMatch(/goes on past the first 5,000,000 characters/);
+    expect(read.text).not.toContain('the end');
+    // a file that fits says nothing of the kind
+    expect(readKnowledge(agent, path.join(path.basename(folder), 'short.md')).text).toBe('short');
+  });
+});
