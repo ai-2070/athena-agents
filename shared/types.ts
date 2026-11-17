@@ -3503,6 +3503,8 @@ export interface SceneVersion {
   /** the first error, when it doesn't load */
   error?: string;
   pinned?: boolean;
+  /** a small picture of it was kept (the first tab it loaded in made one) */
+  thumb?: boolean;
 }
 /** A project's scene versions, newest first, and what the Station should show. */
 export interface SceneVersions {

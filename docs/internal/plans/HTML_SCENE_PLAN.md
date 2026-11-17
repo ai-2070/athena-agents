@@ -8,7 +8,7 @@ cyberpunk loft. Athena sends the page the Station's state and live events; the p
 Agents write the scene, like they build the voxel world: the user asks "make the Station an underwater garden" and a
 builder writes the page, looks at a picture of it, and fixes it.
 
-Status: Phases 1 and 2 built (see As built). Written 17 November 2026; the same day, agents moved to editing the files directly
+Status: built, Phases 1 to 3 (see As built). Written 17 November 2026; the same day, agents moved to editing the files directly
 (§6, §6c) and the versions moved out of the project folder (§3a).
 
 ## As built
@@ -40,6 +40,21 @@ Status: Phases 1 and 2 built (see As built). Written 17 November 2026; the same 
     says so.
   - Log lines go to the server every 3 seconds, errors within a moment, so `scene_logs` right after `scene_check`
     has them.
+
+- **Phase 3** (better scenes). Where it differs from the plan below:
+  - Anchors are a helper call (`Athena.anchors(items)`, sent at most 20 times a second) and a protocol message; the
+    Station's labels are buttons over the scene with a status dot, the name and what an agent is doing. Scenes that
+    send anchors draw no labels of their own (the starter keeps its own, as the simplest pattern).
+  - The samples are templates (`scene/templates/garden`, `scene/templates/solar`): `scene_restore` and the Brain's
+    `scene_restore` take `"garden"` and `"solar"` like `"starter"`, and **Settings › Appearance › Start from** puts
+    one in. Starting from a template replaces the scene's files (the ones before stay in the versions). No night city.
+  - Thumbnails: after a version has loaded for 5 seconds, the tab asks it for a capture, shrinks it to a 320 × 200
+    JPEG and sends it once (`scene.saveThumb`); the versions list loads them with `scene.thumb`. Backups don't carry
+    them (the next load makes them again).
+  - Quality: the scene look uses the voxel look's quality setting (**Settings › Appearance › Quality**, now shown for
+    Scene too). Four frame-rate reports under 20 in a row step it down for the visit, with a toast.
+  - The abyssal-garden fork is not part of it: it is raw WebGPU with its own build, and the garden template covers
+    the idea in three.js. It stays a possible sample for later (§10).
 
 Inspiration: [abyssal-garden](https://github.com/Noniv/abyssal-garden) (see §10).
 

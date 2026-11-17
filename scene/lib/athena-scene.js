@@ -49,6 +49,8 @@ function report(level, e, uncaught = false) {
 
 // ---------- what the Station says ----------
 let capture = null;
+let pendingAnchors = [];
+let anchorsAt = 0;
 window.addEventListener('message', (ev) => {
   if (ev.source !== parentWindow) return;
   const m = ev.data;
@@ -193,6 +195,16 @@ export const Athena = {
   /** The pointer is over something (or nothing: null). */
   hover(kind, id) {
     post({ type: 'hover', pick: kind ? { kind, ...(id ? { id } : {}) } : null });
+  },
+  /** Where things are on screen now, in the scene's pixels: [{ kind, id, x, y }] for what is visible. The Station
+   *  then draws its own labels there (names, status, what an agent is doing), clickable like the map's. Call it every
+   *  frame; it is sent at most 20 times a second. A scene that sends anchors shouldn't draw its own labels. */
+  anchors(items) {
+    pendingAnchors = items;
+    const now = performance.now();
+    if (now - anchorsAt < 50) return;
+    anchorsAt = now;
+    post({ type: 'anchors', items: pendingAnchors.slice(0, 500) });
   },
   /** Something for builders to read (scene_logs). */
   log(text, level = 'info') {

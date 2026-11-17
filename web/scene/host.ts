@@ -12,7 +12,15 @@ import { modal, toast } from '../core.ts';
 import { accentFor, accentTone, currentLook } from '../look.ts';
 import { isDark, onThemeChange } from '../theme.ts';
 import { readSceneMessage, SCENE_PROTOCOL } from '../../shared/scene.ts';
-import type { FromScene, SceneEvent, ScenePickKind, SceneState, SceneTheme, ToScene } from '../../shared/scene.ts';
+import type {
+  FromScene,
+  SceneEvent,
+  ScenePickKind,
+  SceneQuality,
+  SceneState,
+  SceneTheme,
+  ToScene,
+} from '../../shared/scene.ts';
 import type {
   ActiveRun,
   Agent,
@@ -29,6 +37,7 @@ export const SETTLE_MS = 5_000;
 /** No frame rate from the shown scene for this long (while it is visible): it froze the tab. */
 export const FREEZE_MS = 15_000;
 const STATE_EVERY_MS = 250;
+const QUALITY: SceneQuality[] = ['low', 'medium', 'high'];
 const LOGS_KEPT = 200;
 
 // ---------- the state a scene is sent ----------
@@ -166,8 +175,13 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
     class:
       'absolute left-4 top-18 z-4 hidden items-center gap-3 rounded-box border border-line bg-panel px-4 py-2.5 text-[13px] text-ink shadow-lg max-w-[calc(100%-32px)]',
   });
-  opts.container.append(layer, bar);
+  // the Station's own labels, where the scene says things are (Athena.anchors): above the scene, under the bar
+  const labelLayer = h('div.st-scene-labels', { class: 'pointer-events-none absolute inset-0 overflow-hidden' });
+  opts.container.append(layer, labelLayer, bar);
 
+  /** the best quality this computer kept up with on this visit (it steps down when the scene stays slow) */
+  let qualityCap: SceneQuality | null = null;
+  const fpsSeen: number[] = [];
   const theme = (): SceneTheme => {
     const look = currentLook();
     return {
@@ -176,7 +190,8 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
       reducedMotion:
         look.motion === 'reduced' ||
         (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches),
-      quality: look.worldQuality,
+      quality:
+        qualityCap && QUALITY.indexOf(qualityCap) < QUALITY.indexOf(look.worldQuality) ? qualityCap : look.worldQuality,
     };
   };
   const send = (f: Frame | null, msg: ToScene) => {
@@ -211,6 +226,7 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
   function showFrame(f: Frame): void {
     f.el.classList.remove('opacity-0', 'pointer-events-none');
     layer.dataset.shown = f.version;
+    clearLabels();
   }
   function hideFrame(f: Frame): void {
     f.el.classList.add('opacity-0', 'pointer-events-none');
@@ -284,6 +300,9 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
         previous = null;
         const v = overview?.versions.find((x) => x.id === f.version);
         if (v && !v.loads) void report(f.version, 'ok');
+        // a small picture for the versions list, once per version
+        if (v && !v.thumb && f.version !== 'starter')
+          send(f, msg<'look'>({ type: 'look', request: `thumb:${f.version}`, width: 320, height: 200 }));
       }, SETTLE_MS),
     );
     drawBar();
@@ -385,9 +404,20 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
     if (m.type === 'ready') return onReady(f);
     if (m.type === 'fps') {
       f.lastFps = Date.now();
+      if (f === shown) slowCheck(m.fps);
+      return;
+    }
+    if (m.type === 'anchors') {
+      if (f === shown) placeLabels(m.items);
       return;
     }
     if (m.type === 'capture') {
+      if (m.request === `thumb:${f.version}` && f === shown) {
+        void shrink(m.image).then((image) => {
+          if (image) void rpc.scene.saveThumb({ project: opts.projectId, version: f.version, image }).catch(() => null);
+        });
+        return;
+      }
       const want = looks.get(m.request);
       if (!want || f !== shown) return;
       looks.delete(m.request);
@@ -497,6 +527,86 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
       send(shown, msg<'event'>({ type: 'event', event: { kind: 'brain', status: next.brain.status, at } }));
   }
 
+  // ---------- labels where the scene says things are ----------
+  const labelEls = new Map<string, { el: HTMLElement; sig: string; at: number }>();
+  function clearLabels(): void {
+    labelEls.clear();
+    labelLayer.replaceChildren();
+  }
+  function labelContent(kind: ScenePickKind, id: string | undefined): { sig: string; nodes: Node[] } | null {
+    if (kind === 'brain') return { sig: 'brain', nodes: [h('span', { class: 'font-semibold' }, 'Brain')] };
+    if (!lastState || !id) return null;
+    if (kind === 'team') {
+      const t = lastState.teams.find((x) => x.id === id);
+      if (!t) return null;
+      const name = `${t.emoji ? `${t.emoji} ` : ''}${t.name}`;
+      return { sig: `t:${name}`, nodes: [h('span', { class: 'font-semibold' }, name)] };
+    }
+    const a = lastState.agents.find((x) => x.id === id);
+    if (!a) return null;
+    return {
+      sig: `a:${a.emoji}${a.name}:${a.status}:${a.now}`,
+      nodes: [
+        domDot(a.status === 'working' ? 'on' : a.status === 'needs' ? 'warn' : 'off'),
+        h('span', {}, `${a.emoji} ${a.name}`),
+        a.now ? h('span', { class: 'max-w-55 truncate text-dim' }, ` · ${a.now}`) : null,
+      ].filter((x): x is HTMLElement => !!x),
+    };
+  }
+  function placeLabels(items: { kind: ScenePickKind; id?: string; x: number; y: number }[]): void {
+    const now = Date.now();
+    const seen = new Set<string>();
+    for (const it of items) {
+      if (!known(it.kind, it.id)) continue;
+      const key = `${it.kind}:${it.id || ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const content = labelContent(it.kind, it.id);
+      if (!content) continue;
+      let l = labelEls.get(key);
+      if (!l) {
+        const el = h('button.st-scene-label', {
+          type: 'button',
+          class:
+            'pointer-events-auto absolute left-0 top-0 flex max-w-80 items-center gap-1.5 rounded-ctl border border-line bg-panel/90 px-2 py-0.5 text-[12px] leading-[1.5] whitespace-nowrap text-ink shadow-sm will-change-transform cursor-pointer',
+          'data-key': key,
+          onclick: () => opts.onPick(it.kind, it.id),
+          oncontextmenu: (e: MouseEvent) => {
+            e.preventDefault();
+            opts.onMenu(it.kind, it.id, e.clientX, e.clientY);
+          },
+          onmouseenter: () => opts.onHover({ kind: it.kind, ...(it.id ? { id: it.id } : {}) }),
+          onmouseleave: () => opts.onHover(null),
+        });
+        labelLayer.append(el);
+        l = { el, sig: '', at: now };
+        labelEls.set(key, l);
+      }
+      if (l.sig !== content.sig) {
+        l.sig = content.sig;
+        l.el.replaceChildren(...content.nodes);
+      }
+      l.at = now;
+      l.el.style.display = '';
+      l.el.style.transform = `translate(${Math.round(it.x)}px, ${Math.round(it.y)}px) translate(-50%, -100%)`;
+    }
+    for (const [key, l] of labelEls) if (!seen.has(key)) l.el.style.display = 'none';
+  }
+
+  // ---------- a slow scene draws less ----------
+  function slowCheck(fps: number): void {
+    fpsSeen.push(fps);
+    if (fpsSeen.length > 4) fpsSeen.shift();
+    const q = theme().quality;
+    if (fpsSeen.length < 4 || q === 'low' || fpsSeen.some((x) => x >= 20)) return;
+    qualityCap = QUALITY[QUALITY.indexOf(q) - 1];
+    fpsSeen.length = 0;
+    for (const fr of [shown, trial]) if (fr?.readyAt) send(fr, msg<'theme'>({ type: 'theme', ...theme() }));
+    toast(
+      `The scene was slow here, so it now draws at ${qualityCap === 'low' ? 'Low' : 'Medium'} quality. You can change it in Settings › Appearance.`,
+    );
+  }
+
   const freezeTimer = setInterval(() => {
     const f = shown;
     if (!f?.readyAt || paused || f.version === 'starter' || f.error) return;
@@ -558,6 +668,7 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
       dropFrame(previous);
       layer.remove();
       bar.remove();
+      labelLayer.remove();
     },
   };
 }
@@ -580,6 +691,7 @@ export function showSceneVersions(projectId: string): void {
         class: 'flex items-center gap-3 rounded-ctl px-2 py-2 hover:bg-ink/4',
         'data-version': v.id,
       },
+      v.thumb ? thumbImage(projectId, v.id) : h('span', { class: 'h-10 w-16 flex-none rounded-ctl bg-ink/4' }),
       domDot(v.loads === 'ok' ? 'on' : v.loads === 'broken' ? 'warn' : 'off', {
         title: v.loads === 'ok' ? 'Loads' : v.loads === 'broken' ? "Doesn't load" : 'Not loaded yet',
       }),
@@ -650,6 +762,40 @@ export function showSceneVersions(projectId: string): void {
       ),
       list,
     ),
+  });
+}
+
+// A version's small picture, loaded when the list shows it.
+function thumbImage(projectId: string, version: string): HTMLElement {
+  const img = h('img', {
+    class: 'scene-thumb h-10 w-16 flex-none rounded-ctl border border-line object-cover',
+    alt: '',
+  }) as HTMLImageElement;
+  void rpc.scene
+    .thumb({ project: projectId, version })
+    .then((r) => {
+      if (r.image) img.src = r.image;
+    })
+    .catch(() => null);
+  return img;
+}
+
+// A capture made small for the versions list: 320 × 200, cropped to fill, as JPEG.
+function shrink(dataUrl: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = 320;
+      c.height = 200;
+      const ctx = c.getContext('2d');
+      if (!ctx || !img.width || !img.height) return resolve(null);
+      const k = Math.max(320 / img.width, 200 / img.height);
+      ctx.drawImage(img, (320 - img.width * k) / 2, (200 - img.height * k) / 2, img.width * k, img.height * k);
+      resolve(c.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
   });
 }
 

@@ -220,4 +220,47 @@ describe('the scene host', () => {
     });
     host.dispose();
   });
+
+  it('draws its own labels where the scene says things are, only for things the Station has', async () => {
+    const { host, container, picks } = mount();
+    host.update();
+    await new Promise((r) => setTimeout(r, 300));
+    const frame = container.querySelector('iframe')!;
+    say(frame, { athena: 1, type: 'ready' });
+    say(frame, {
+      athena: 1,
+      type: 'anchors',
+      items: [
+        { kind: 'agent', id: 'a1', x: 100, y: 50 },
+        { kind: 'team', id: 't1', x: 300, y: 80 },
+        { kind: 'agent', id: 'nobody', x: 1, y: 1 },
+        { kind: 'brain', x: 200, y: 20 },
+      ],
+    });
+    const labels = [...container.querySelectorAll<HTMLElement>('.st-scene-label')];
+    expect(labels.map((l) => l.dataset.key).sort()).toEqual(['agent:a1', 'brain:', 'team:t1']);
+    const a1 = labels.find((l) => l.dataset.key === 'agent:a1')!;
+    expect(a1.textContent).toContain('A1');
+    expect(a1.style.transform).toContain('translate(100px, 50px)');
+    a1.click();
+    expect(picks).toEqual([{ kind: 'agent', id: 'a1' }]);
+    // gone from the next anchors: hidden
+    say(frame, { athena: 1, type: 'anchors', items: [{ kind: 'brain', x: 200, y: 20 }] });
+    expect(a1.style.display).toBe('none');
+    host.dispose();
+  });
+
+  it('steps the quality down when the scene stays slow', async () => {
+    const { host, container } = mount();
+    await settle();
+    const frame = container.querySelector('iframe')!;
+    say(frame, { athena: 1, type: 'ready' });
+    const before = (posted.get(frame) || []).length;
+    for (const fps of [12, 11, 14, 10]) say(frame, { athena: 1, type: 'fps', fps });
+    const sent = (posted.get(frame) || []).slice(before) as { type: string; quality?: string }[];
+    const theme = sent.find((m) => m.type === 'theme');
+    expect(theme?.quality).toBeDefined();
+    expect(theme?.quality).not.toBe('high');
+    host.dispose();
+  });
 });

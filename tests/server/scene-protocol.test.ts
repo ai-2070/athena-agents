@@ -28,6 +28,17 @@ describe('messages from a scene', () => {
     expect(readSceneMessage({ athena: 1, type: 'fps', fps: -1 })).toBeNull();
   });
 
+  it('reads where a scene drew things, and nothing odd in it', () => {
+    expect(
+      readSceneMessage({ athena: 1, type: 'anchors', items: [{ kind: 'agent', id: 'a1', x: 10, y: 20 }] }),
+    ).not.toBeNull();
+    expect(
+      readSceneMessage({ athena: 1, type: 'anchors', items: [{ kind: 'agent', id: 'a1', x: 'left', y: 0 }] }),
+    ).toBeNull();
+    const many = Array.from({ length: 501 }, () => ({ kind: 'brain', x: 0, y: 0 }));
+    expect(readSceneMessage({ athena: 1, type: 'anchors', items: many })).toBeNull();
+  });
+
   it('caps what a log line says', () => {
     const m = readSceneMessage({ athena: 1, type: 'log', level: 'error', text: 'e'.repeat(5000), uncaught: true });
     expect(m?.type === 'log' && m.text.length).toBe(2000);

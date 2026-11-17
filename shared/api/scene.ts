@@ -3,6 +3,9 @@
 import { oc, type } from '@orpc/contract';
 import { z } from 'zod';
 import type { SceneVersions } from '../types.ts';
+import { SCENE_TEMPLATES } from '../scene.ts';
+
+const SCENE_TEMPLATE_IDS = SCENE_TEMPLATES.map((t) => t.id) as [string, ...string[]];
 
 const project = z.string({ error: 'Say which project.' }).min(1, { error: 'Say which project.' });
 const version = z.string({ error: 'Say which version.' }).min(1, { error: 'Say which version.' });
@@ -68,6 +71,20 @@ export const scene = {
       }),
     )
     .output(type<{ ok: boolean }>()),
+  /** Replaces the scene with a template (the starter, or a sample); the scene before is kept as a version. */
+  start: oc
+    .route({ method: 'POST', path: '/scene/start' })
+    .input(z.object({ project, template: z.enum(SCENE_TEMPLATE_IDS, { error: 'Pick one of the templates.' }) }))
+    .output(type<SceneVersions>()),
+  /** A small picture of a version that loads (a JPEG data: URL), made by the first tab it loaded in. */
+  saveThumb: oc
+    .route({ method: 'POST', path: '/scene/thumb' })
+    .input(z.object({ project, version, image: z.string().max(300 * 1024) }))
+    .output(type<{ ok: boolean }>()),
+  thumb: oc
+    .route({ method: 'GET', path: '/scene/thumb' })
+    .input(z.object({ project, version }))
+    .output(type<{ image: string | null }>()),
   /** Keeps a version however old it gets (pinned), or lets it go again. */
   pin: oc
     .route({ method: 'POST', path: '/scene/pin' })

@@ -151,8 +151,8 @@ import { build as buildInWorld } from './voxel/build.ts';
 import { shownWorld, worldForBuild } from './voxel/link.ts';
 import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.ts';
 import { worldText } from './voxel/describe.ts';
-import { restoreVersion, sceneOverview } from './scene/history.ts';
-import { startFromStarter } from './scene/tools.ts';
+import { restoreVersion, sceneOverview, startFromTemplate } from './scene/history.ts';
+import { isSceneTemplate } from '../shared/scene.ts';
 import { setEffect, setEnvironment, setLight } from './voxel/scene.ts';
 import { playAnimation, setAnimation, setSkin } from './voxel/characters.ts';
 import type {
@@ -1117,7 +1117,7 @@ read_skill {"name":"<skill id>"}   (you get the skill's whole text)
 {"do":"set_mcp","servers":["<name>",…],"to":"agent"|"team","id":"…"}   (their whole list becomes exactly this; [] takes all away)${tools.actions}
 {"do":"build","object":"name (a new name makes a new object)","anchor":"world"|"brain"|"team:<team id>","position":[x,y,z],"voxel_size":0.25,"units":"map","steps":[STEP,…]}   (builds in the project's voxel world; position in map units from the anchor, new objects only; "units":"map" puts the steps in map units too; "prefab":"name" instead of "object" builds a prefab, with "description")
 {"do":"station_look","look":"world"|"scene"|"classic"}   (how the Station looks, for every project: "world" draws the voxel world, "scene" shows the project's scene page (agents with the Station scene tools make it), "classic" is the dark map; only when the user asks for it, or asks for a world while the Station is classic)
-{"do":"scene_restore","version":"<a version id from scene_versions, or 'starter'>","path":"<only this file>"}   (puts an earlier version of the Station's scene back, or the starter scene; it is kept as a new version, so it can be undone; only when the user asks)
+{"do":"scene_restore","version":"<a version id from scene_versions, or a template: 'starter', 'garden' (underwater garden), 'solar' (solar system)>","path":"<only this file>"}   (puts an earlier version of the Station's scene back, or replaces it with a template; it is kept as a new version, so it can be undone; only when the user asks)
 {"do":"background","image":"<path of a PNG, JPG, WebP or GIF: a file the user attached, or one in the project folder>"}  or  {"do":"background","clear":true}   (the picture behind the Station's map in this project, in the classic and the voxel look, where it takes the sky's place; only when the user asks)
 {"do":"background","opacity":40,"dots":20}   (how strong that picture and the classic map's floor dots are in this project, in percent: 0 hides it, 100 is full; "default" puts one back; either one alone is fine, and they go with "image" too; only when the user asks)
 {"do":"world_env","preset":"station|day|golden|dusk|night|overcast|snow","sun":{"elevation":8},"fog":{"density":0.4},"weather":"none|snow|rain|petals|leaves|dust","wind":[1,0,0.5]}   (the world's time of day, sky, sun, fog, weather and wind; only what changes)
@@ -2783,20 +2783,13 @@ function applyAsBrain(
         // going back is itself a kept version, so it can be undone too; only when the user asks
         if (auto) throw new Error('only when the user asks');
         const version = String(act.version ?? '').trim();
-        if (!version) throw new Error('give "version": a version id from scene_versions, or "starter"');
+        if (!version) throw new Error('give "version": a version id from scene_versions, or a template name');
         const by = { kind: 'brain' as const, id: BRAIN_ID, name: 'The Brain' };
-        const v =
-          version === 'starter'
-            ? startFromStarter(p, by)
-            : restoreVersion(p, version, by, act.path ? String(act.path) : undefined);
-        log('project', `The Brain went back to an earlier version of the scene in "${p.name}"`);
-        done.push({
-          kind: 'note',
-          text:
-            version === 'starter'
-              ? 'Started the scene from the starter'
-              : v?.note || 'The scene already was that version',
-        });
+        const v = isSceneTemplate(version)
+          ? startFromTemplate(p, version, by)
+          : restoreVersion(p, version, by, act.path ? String(act.path) : undefined);
+        log('project', `The Brain changed the scene in "${p.name}"`);
+        done.push({ kind: 'note', text: v?.note || 'The scene already was that version' });
       } else if (kind === 'background') {
         if (auto) throw new Error('only when the user asks');
         // how strong the picture and the map's dots are: a percent, or "default"

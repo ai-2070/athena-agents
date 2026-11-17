@@ -6,12 +6,11 @@
 // None of them asks first, and nor do file writes inside the scene folder: a builder changes a scene many times in a
 // row, the scene runs sandboxed, and every change is kept so a broken one is one call away from undone. (A
 // deliberate exception to "anything that runs code is high" in AGENTS.md.)
-import fs from 'node:fs';
 import path from 'node:path';
 import { activeProject, getSettings, log, saveSettings } from '../store.ts';
-import { isInside, ROOT } from '../util.ts';
+import { isInside } from '../util.ts';
 import { BRAIN_ID } from '../brainmcp.ts';
-import { SCENE_LIMITS } from '../../shared/scene.ts';
+import { isSceneTemplate, SCENE_LIMITS, SCENE_TEMPLATES } from '../../shared/scene.ts';
 import {
   restoreVersion,
   sceneDir,
@@ -21,7 +20,7 @@ import {
   scanScene,
   setSceneAuthor,
   settleScene,
-  takeVersion,
+  startFromTemplate,
   versionFile,
 } from './history.ts';
 import { requestSceneLook, sceneLogLines, scenePagesOpen, sceneShownLately, waitForLoad } from './look.ts';
@@ -29,12 +28,13 @@ import type { JSONSchema, ToolAgent, ToolContext, ToolDef, ToolResult } from '..
 import type { ActiveRun, Project, SceneAuthor, SceneVersion } from '../../shared/types.ts';
 
 const str = (description: string): JSONSchema => ({ type: 'string', description });
+// (names only: the builders' instructions say what each one is)
+const TEMPLATE_LIST = SCENE_TEMPLATES.map((t) => `"${t.id}" (${t.label.toLowerCase()})`).join(', ');
 const obj = (properties: Record<string, JSONSchema>, required: string[] = []): JSONSchema => ({
   type: 'object',
   properties,
   ...(required.length ? { required } : {}),
 });
-const STARTER = path.join(ROOT, 'scene', 'starter');
 
 // ---------- who changed the folder ----------
 /** The last write into a project's scene folder by a built-in file tool (known exactly). */
@@ -179,14 +179,6 @@ async function checkText(p: Project): Promise<ToolResult> {
   return { text: lines.join('\n'), isError: loaded.loads === 'broken' };
 }
 
-/** Copies the starter scene into the folder (only its own files; others stay). */
-export function startFromStarter(p: Project, by: SceneAuthor): SceneVersion | null {
-  const dir = sceneDir(p);
-  fs.mkdirSync(dir, { recursive: true });
-  for (const name of fs.readdirSync(STARTER)) fs.copyFileSync(path.join(STARTER, name), path.join(dir, name));
-  return takeVersion(p, by, 'Started from the starter scene');
-}
-
 export function sceneTools(): ToolDef[] {
   return [
     {
@@ -284,20 +276,23 @@ export function sceneTools(): ToolDef[] {
       name: 'scene_restore',
       group: 'scene',
       risk: 'none',
-      description:
-        'Writes an earlier version of the scene (or one file of it, with path) back into the folder; that becomes the newest version, and later ones stay kept. version "starter" copies the starter scene in, a working pattern to build from.',
-      parameters: obj({ version: str('A version id from scene_versions, or "starter"'), path: str('Only this file') }, [
-        'version',
-      ]),
+      description: `Writes an earlier version of the scene (or one file of it, with path) back into the folder; that becomes the newest version, and later ones stay kept. Or replaces the scene with a template: ${TEMPLATE_LIST}.`,
+      parameters: obj(
+        {
+          version: str('A version id from scene_versions, or a template name'),
+          path: str('Only this file'),
+        },
+        ['version'],
+      ),
       run: async ({ version, path: file }: { version: string; path?: string }, ctx: ToolContext) => {
         const p = activeProject();
         const by = authorOf(ctx.agent, ctx.runId);
         try {
-          if (version === 'starter') {
-            const v = startFromStarter(p, by);
-            log('project', `${ctx.agent.name} started the scene from the starter in "${p.name}"`);
+          if (isSceneTemplate(version)) {
+            const v = startFromTemplate(p, version, by);
+            log('project', `${ctx.agent.name} started the scene from the ${version} template in "${p.name}"`);
             return {
-              text: `${v ? `Copied the starter scene in (version ${v.id})` : 'The folder already had the starter scene'}: ${sceneDir(p)}. Change it from there, then scene_check.`,
+              text: `${v ? `Copied the ${version} scene in (version ${v.id})` : `The folder already had the ${version} scene`}: ${sceneDir(p)}. Change it from there, then scene_check.`,
             };
           }
           const v = restoreVersion(p, version, by, file || undefined);
@@ -343,7 +338,7 @@ export function scenePrompt(toolNames: string[], engine?: string): string {
   const dir = sceneDir(p);
   const o = sceneOverview(p);
   const state = !o.present
-    ? 'It has no scene yet: start from the starter (scene_restore version "starter") unless asked for something else.'
+    ? 'It has no scene yet: start from a template (scene_restore version "starter", or a finished sample to change: "garden", "solar") unless asked for something else.'
     : o.versions[0]?.loads === 'broken'
       ? `Its newest version doesn't load (${o.versions[0].error || 'see scene_check'}); the Station shows an older one.`
       : 'It has a scene: read it before changing it.';
@@ -360,6 +355,7 @@ How a scene works:
 - three.js comes from the Station: an import map with "three": "/scene-lib/three/three.module.js" and "three/addons/": "/scene-lib/three/addons/" (the starter's index.html has it).
 - import { Athena } from '/scene-lib/athena-scene.js'. Athena.onState(s => …) gives { project, brain: { status }, teams: [{ id, name, color, emoji, members, lead, working, queued }], agents: [{ id, name, emoji, color, engine, status: idle|working|needs, now, teams }], needsYou }: draw everything from it and keep things by id. Athena.onEvent(e => …) for animation (run-start, run-end, tool, handoff, message, needs, brain). Athena.onTheme(t => …): theme light|dark, accent, reducedMotion, quality. Athena.onPause(paused => …): stop drawing while paused.
 - On click: Athena.pick('agent'|'team'|'brain', id) opens the Station's panel; right-click: Athena.menu(kind, id, x, y); hover: Athena.hover(kind, id) or Athena.hover(null).
+- Labels: call Athena.anchors([{ kind, id, x, y }, …]) each frame with where things are on screen (in the scene's pixels, for what is visible) and the Station draws its own labels there (names, status, what an agent is doing), clickable. Then draw no labels of your own. The garden and solar templates do this.
 - Athena.setCapture(() => { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/png'); }) so scene_look gets a picture. (It is the canvas only: HTML drawn over it, like the starter's labels, isn't in the picture.)
 - Call Athena.ready() once set up. A scene that throws before that (or in the 5 seconds after), never calls it, or freezes the page counts as not loading.
 - It should read well in light and dark, with one agent or fifty, and with no teams.

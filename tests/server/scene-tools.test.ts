@@ -13,7 +13,10 @@ import {
   markLoaded,
   sceneDir,
   sceneVersions,
+  readThumb,
+  saveThumb,
   settleScene,
+  startFromTemplate,
   takeVersion,
 } from '../../server/scene/history.ts';
 import { forgetSceneLook, setScenePages, addSceneLogs } from '../../server/scene/look.ts';
@@ -197,7 +200,7 @@ describe('the Brain and the scene', () => {
     });
     expect(getSettings().look.stationLook).toBe('scene');
     const started = applyActions([{ do: 'scene_restore', version: 'starter' }]).done[0];
-    expect(started).toMatchObject({ text: 'Started the scene from the starter' });
+    expect(started).toMatchObject({ text: 'Started from the starter scene' });
     const p = activeProject();
     const first = sceneVersions(p)[0];
     expect(first.by).toMatchObject({ kind: 'brain' });
@@ -232,5 +235,40 @@ describe('backups', () => {
     const versions = sceneVersions(project);
     expect(versions.map((v) => v.id)).toContain(v1.id);
     expect(versions.find((v) => v.id === v1.id)?.loads).toBe('ok');
+  });
+});
+
+describe('templates and small pictures', () => {
+  it('a template replaces the scene; what was there stays in the versions', async () => {
+    clean();
+    const p = activeProject();
+    write('index.html', HTML);
+    write('mine.js', 'mine');
+    const before = takeVersion(p, { kind: 'outside' })!;
+    const r = await callTool(builder, 'scene_restore', { version: 'garden' });
+    expect(r.text).toMatch(/Copied the garden scene in/);
+    expect(fs.existsSync(path.join(sceneDir(p), 'garden.js'))).toBe(true);
+    expect(fs.existsSync(path.join(sceneDir(p), 'mine.js'))).toBe(false);
+    expect(sceneVersions(p)[0].note).toBe('Started from the underwater garden scene');
+    expect(sceneVersions(p).map((v) => v.id)).toContain(before.id);
+    startFromTemplate(p, 'solar', { kind: 'user', name: 'You' });
+    expect(fs.existsSync(path.join(sceneDir(p), 'solar.js'))).toBe(true);
+    expect(fs.existsSync(path.join(sceneDir(p), 'garden.js'))).toBe(false);
+  });
+
+  it('keeps one small JPEG per version, and nothing that is not one', () => {
+    clean();
+    const p = activeProject();
+    write('index.html', HTML);
+    const v = takeVersion(p, { kind: 'outside' })!;
+    const jpeg = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]).toString('base64')}`;
+    expect(saveThumb(p, v.id, 'data:image/png;base64,iVBORw0KGgo=')).toBe(false);
+    expect(saveThumb(p, v.id, `data:image/jpeg;base64,${Buffer.from('not a jpeg').toString('base64')}`)).toBe(false);
+    expect(saveThumb(p, v.id, jpeg)).toBe(true);
+    expect(sceneVersions(p)[0].thumb).toBe(true);
+    expect(readThumb(p, v.id)).toBe(jpeg);
+    // the first one counts
+    expect(saveThumb(p, v.id, jpeg)).toBe(false);
+    expect(readThumb(p, '../../secrets')).toBeNull();
   });
 });

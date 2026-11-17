@@ -9,8 +9,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { emit, listProjects, activeProject } from '../store.ts';
-import { dataPath, ensureDir, isPlainDir, readJSON, uid, writeJSON } from '../util.ts';
-import { SCENE_LIMITS, scenePath, sceneType } from '../../shared/scene.ts';
+import { dataPath, ensureDir, isPlainDir, readJSON, ROOT, uid, writeJSON } from '../util.ts';
+import { SCENE_LIMITS, SCENE_TEMPLATES, scenePath, sceneType } from '../../shared/scene.ts';
+import type { SceneTemplate } from '../../shared/scene.ts';
 import type { Project, SceneAuthor, SceneVersion, SceneVersions } from '../../shared/types.ts';
 
 /** How many versions are kept, at least (plus pinned ones, and the newest one that loads of each recent day). */
@@ -344,7 +345,10 @@ export function pruneVersions(p: Project): void {
   }
   const gone = list.filter((v) => !kept.includes(v));
   if (!gone.length) return;
-  for (const v of gone) fs.rmSync(path.join(versionsDir(p), `${v.id}.json`), { force: true });
+  for (const v of gone) {
+    fs.rmSync(path.join(versionsDir(p), `${v.id}.json`), { force: true });
+    fs.rmSync(thumbFile(p, v.id), { force: true });
+  }
   cache.set(p.id, kept);
   const used = new Set(kept.flatMap((v) => Object.values(v.files).map((f) => f.hash)));
   let blobs: string[] = [];
@@ -575,3 +579,52 @@ const isInsideDir = (root: string, dir: string): boolean => {
   const d = path.resolve(dir);
   return d === r || d.startsWith(r + path.sep);
 };
+
+// ---------- starting from a template ----------
+const templateDir = (id: SceneTemplate): string =>
+  id === 'starter' ? path.join(ROOT, 'scene', 'starter') : path.join(ROOT, 'scene', 'templates', id);
+
+/** Replaces the scene with a template (the starter, or a sample): the files there now go (they stay in the kept
+ *  versions; a change not kept yet is kept first), the template's come in, and that is the newest version. */
+export function startFromTemplate(p: Project, id: SceneTemplate, by: SceneAuthor): SceneVersion | null {
+  const src = templateDir(id);
+  const label = SCENE_TEMPLATES.find((t) => t.id === id)?.label || id;
+  const dash = path.join(p.brainPath, '.dashboard');
+  const root = sceneDir(p);
+  ensureDir(dash);
+  if (!isPlainDir(dash)) throw new Error("The project's .dashboard folder is a link; not writing there.");
+  ensureDir(root);
+  if (!isPlainDir(root)) throw new Error('The scene folder is a link; not writing there.');
+  takeVersion(p, { kind: 'outside' });
+  for (const f of scanScene(p).files) fs.rmSync(f.abs, { force: true });
+  for (const name of fs.readdirSync(src)) fs.copyFileSync(path.join(src, name), path.join(root, name));
+  return takeVersion(p, by, `Started from the ${label.toLowerCase()} scene`);
+}
+
+// ---------- small pictures of versions (the versions list shows them) ----------
+const THUMB_MAX = 200 * 1024;
+const thumbFile = (p: Project, id: string): string => path.join(historyDir(p), 'thumbs', `${id}.jpg`);
+
+/** Keeps a small JPEG of a version that loads (the first one sent counts). */
+export function saveThumb(p: Project, id: string, dataUrl: string): boolean {
+  const v = sceneVersion(p, id);
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!v || v.thumb || !m) return false;
+  const buf = Buffer.from(m[1], 'base64');
+  if (buf.length > THUMB_MAX || buf[0] !== 0xff || buf[1] !== 0xd8) return false;
+  ensureDir(path.dirname(thumbFile(p, id)));
+  fs.writeFileSync(thumbFile(p, id), buf);
+  saveVersion(p, { ...v, thumb: true });
+  emit('scene', { project: p.id, version: id });
+  return true;
+}
+
+/** A version's small picture as a data: URL, or null. */
+export function readThumb(p: Project, id: string): string | null {
+  if (!/^[\w-]+$/.test(id)) return null;
+  try {
+    return `data:image/jpeg;base64,${fs.readFileSync(thumbFile(p, id)).toString('base64')}`;
+  } catch {
+    return null;
+  }
+}

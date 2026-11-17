@@ -2,7 +2,17 @@
 import { implement } from '@orpc/server';
 import { scene as sceneContract } from '../../shared/api/scene.ts';
 import { listProjects, log } from '../store.ts';
-import { markLoaded, pinVersion, restoreVersion, sceneOverview, sceneVersion } from '../scene/history.ts';
+import {
+  markLoaded,
+  pinVersion,
+  readThumb,
+  restoreVersion,
+  saveThumb,
+  sceneOverview,
+  sceneVersion,
+  startFromTemplate,
+} from '../scene/history.ts';
+import { isSceneTemplate } from '../../shared/scene.ts';
 import { sceneToken } from '../scene/serve.ts';
 import { addSceneLogs, deliverSceneLook } from '../scene/look.ts';
 import { refuse, refusing } from './refuse.ts';
@@ -35,6 +45,19 @@ export const sceneRouter = s.router({
     addSceneLogs(input.project, input.lines);
     return { ok: true };
   }),
+  start: s.start.handler(({ input }) => {
+    const p = projectOf(input.project);
+    if (!isSceneTemplate(input.template)) refuse('Pick one of the templates.');
+    refusing(() =>
+      startFromTemplate(p, input.template as Parameters<typeof startFromTemplate>[1], { kind: 'user', name: 'You' }),
+    );
+    log('project', `Started the scene from a template in "${p.name}"`);
+    return sceneOverview(p);
+  }),
+  saveThumb: s.saveThumb.handler(({ input }) => ({
+    ok: saveThumb(projectOf(input.project), input.version, input.image),
+  })),
+  thumb: s.thumb.handler(({ input }) => ({ image: readThumb(projectOf(input.project), input.version) })),
   pin: s.pin.handler(({ input }) => {
     const p = projectOf(input.project);
     if (!pinVersion(p, input.version, input.pinned)) refuse('There is no such version of the scene.', 404);

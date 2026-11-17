@@ -118,6 +118,34 @@ export interface SceneState {
   /** the Needs you count */
   needsYou: number;
 }
+/** Where a scene drew something, so the Station puts its label there (Athena.anchors). */
+export interface SceneAnchor {
+  kind: ScenePickKind;
+  id?: string;
+  x: number;
+  y: number;
+}
+/** Starting points for a scene: the starter, and finished samples to change (scene/templates/). */
+export const SCENE_TEMPLATES = [
+  {
+    id: 'starter',
+    label: 'Starter',
+    about: 'An orb for the Brain, a ring per team, a figure per agent: plain, to build on.',
+  },
+  {
+    id: 'garden',
+    label: 'Underwater garden',
+    about: 'Teams are reefs, agents are fish that swim faster while they work, the Brain is a glowing jellyfish.',
+  },
+  {
+    id: 'solar',
+    label: 'Solar system',
+    about: 'The Brain is the sun, teams are planets on their orbits, agents are moons that light up while they work.',
+  },
+] as const;
+export type SceneTemplate = (typeof SCENE_TEMPLATES)[number]['id'];
+export const isSceneTemplate = (v: unknown): v is SceneTemplate => SCENE_TEMPLATES.some((t) => t.id === v);
+
 /** Something that happened, for the scene to animate. */
 export type SceneEvent =
   | { kind: 'run-start'; agentId: string; at: number }
@@ -178,6 +206,12 @@ export const fromSceneSchema = z.discriminatedUnion('type', [
     uncaught: z.boolean().optional(),
   }),
   z.object({ athena: z.literal(SCENE_PROTOCOL), type: z.literal('fps'), fps: z.number().finite().min(0).max(1000) }),
+  // where things are on screen (in the scene's own pixels): the Station draws its labels there
+  z.object({
+    athena: z.literal(SCENE_PROTOCOL),
+    type: z.literal('anchors'),
+    items: z.array(z.object({ kind: pickKind, id: id.optional(), x: at, y: at })).max(500),
+  }),
 ]);
 export type FromScene = z.infer<typeof fromSceneSchema>;
 

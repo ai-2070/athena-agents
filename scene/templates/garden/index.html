@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Underwater garden</title>
+    <!-- three.js and its addons come from the Station (no network in a scene) -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/scene-lib/three/three.module.js",
+          "three/addons/": "/scene-lib/three/addons/"
+        }
+      }
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0b2a3a;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module" src="garden.js"></script>
+  </body>
+</html>
