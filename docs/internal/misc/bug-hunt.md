@@ -1485,7 +1485,7 @@ Completed reviews:
 - Trigger/evidence: --python script precedes --python-exit-code 1. [INFERENCE] If supported Blender processes actions sequentially, a script exception occurs before nonzero failure policy is set and can be labelled Finished.
 - Impact/expected: failed scripts may appear successful. Establish exit policy before execution if the documented ordering requires it.
 - Limits: supported Blender semantics need confirmation; no upstream implementation or Blender process inspected.
-- Fixed: `--python-exit-code 1` now comes before `--python`, as Blender's own examples put it (it reads its arguments in order). No test of its own; Blender was not run.
+- Fixed: `--python-exit-code 1` now comes before `--python`, as Blender's own examples put it (it reads its arguments in order). Test in `tests/server/blender-args.test.ts` (the order only; Blender was not run).
 
 ### BH-165 — Loaded slicing profiles may restore prohibited post-processing commands
 
