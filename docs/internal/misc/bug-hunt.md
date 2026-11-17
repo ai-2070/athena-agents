@@ -1413,7 +1413,7 @@ Completed reviews:
 - Trigger/evidence: program is available only as a Start Menu shortcut and file/args are supplied. Known shortcut branch is skipped for extras, but Start Menu fallback chooses the same shortcut; openWithShell receives no extras.
 - Impact/expected: success is reported without opening the requested document or applying options. Preserve arguments or explicitly reject unsupported shortcut launches.
 - Limits: no program launched.
-- Fixed: a program found only as a shortcut is refused when it is given a file or options, saying to use open_path or set its path, instead of opening without them. No test of its own.
+- Fixed: a program found only as a shortcut is refused when it is given a file or options, saying to use open_path or set its path, instead of opening without them. Test in `tests/server/launch-shortcut.test.ts` (Windows only).
 
 ### BH-157 — Scan again retains stale executable lookup results
 
