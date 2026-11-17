@@ -627,6 +627,7 @@ Completed reviews:
 - Trigger/evidence: another process claims the chosen port after temporary listener closes but before child binds. Readiness accepts any successful TCP connection and navigates without child ownership proof.
 - Impact/expected: another service/dashboard's data can appear and be interacted with before child-exit watcher replaces it with an error. Verify owned service readiness.
 - Limits: interleaving not reproduced.
+- Fixed: the desktop app shows the page only once its own server has written "is running at http://localhost:<port>" to its log (a log only that process writes) as well as the port answering, so another program that took the port in the moment between doesn't get shown. Checked: the bundled server writes that line, ending in a newline, when its output goes to a file as in the app. Rust test of the match (`cargo test` in src-tauri); the race itself wasn't reproduced.
 
 ### BH-066 — Login-shell PATH timeout leaks the shell process
 
