@@ -15,6 +15,7 @@ import {
   history,
   newBrainThread,
   removeBrainThread,
+  steerAsks,
   stopAsks,
 } from '../../server/overseer.ts';
 import { askAgent } from '../../server/engines/index.ts';
@@ -197,6 +198,40 @@ describe("the Brain's turn as an agent run", () => {
     expect(done.map((r) => r.answer)).toEqual(['Done: first', 'Done: second', 'Done: third']);
     expect(most).toBe(1);
     expect(new Set(seen.map((x) => x.chatId)).size).toBe(1);
+  });
+
+  it('a correction sent while it answers is read with the question it corrects (BH-071)', async () => {
+    clearHistory();
+    seen.length = 0;
+    // the first answer runs until it is stopped
+    script = async (a) => {
+      if (a.text.includes('MySQL'))
+        await new Promise<void>((r) => (a.signal.aborted ? r() : a.signal.addEventListener('abort', () => r())));
+      return 'Ok.';
+    };
+    const first = ask('Design the orders database with MySQL.');
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    // the page sends a new message while it answers: that cuts the first one off
+    steerAsks();
+    const second = ask('Use PostgreSQL instead.');
+    await Promise.all([first, second]);
+    // both turns go to the one engine chat (the Brain's session for this conversation), the cut-off question first:
+    // the correction is read with what it corrects
+    expect(seen).toHaveLength(2);
+    expect(seen[1]!.chatId).toBe(seen[0]!.chatId);
+    const said = (chats.get(BRAIN_ID, seen[1]!.chatId)?.items || [])
+      .filter((i) => i.type === 'user')
+      .map((i) => (i.type === 'user' ? i.text : ''));
+    const at = (words: string) => said.findIndex((t) => t.includes(words));
+    expect(at('Design the orders database with MySQL.')).toBeGreaterThan(-1);
+    expect(at('Design the orders database with MySQL.')).toBeLessThan(at('Use PostgreSQL instead.'));
+    // and the chat keeps them in the order they were asked
+    expect(history().map((m) => m.text)).toEqual([
+      'Design the orders database with MySQL.',
+      '(stopped before answering: the user sent a new message)',
+      'Use PostgreSQL instead.',
+      'Ok.',
+    ]);
   });
 
   it('opening another project while it waits or answers: the turn stays in the project it was asked in', async () => {

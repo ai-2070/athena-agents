@@ -782,17 +782,26 @@ export function startIrc(): void {
 // A parent may finish its turn before ask_agent's background work. Check after its children settle.
 const waitingParents = new Map<string, { end: RunEnd; project: ReturnType<typeof activeProject> }>();
 const endedChildren = new Map<string, RunEnd>();
+/** What a restart loses: which finished parents wait on helpers still working (tests use it to act one out). */
+export function forgetRunLinks(): void {
+  waitingParents.clear();
+  endedChildren.clear();
+}
 function ended(e: RunEnd): void {
   if (isStopping()) return;
   const project = activeProject();
   const runs = activeRuns();
+  // (a helper whose parent this server still knows: its answer reaches the check with the parent's below)
+  let linked = false;
   if (e.parentRunId && e.ownerChatId !== e.chatId) {
     if (
       runs.some((r) => r.id === e.parentRunId) ||
       waitingParents.has(e.parentRunId) ||
       endedChildren.has(e.parentRunId)
-    )
+    ) {
       endedChildren.set(e.runId, e);
+      linked = true;
+    }
   } else waitingParents.set(e.runId, { end: e, project });
   const belongsTo = (id: string | null | undefined, root: string): boolean => {
     const seen = new Set<string>();
@@ -847,7 +856,17 @@ function ended(e: RunEnd): void {
       const brief = listBriefs().findLast(
         (b) => b.status === 'open' && b.chatId === owner.id && b.targetId === e.ownerAgentId,
       );
-      if (brief && !checking.has(brief.id)) void agentFinished(brief.id, project.id, '', false);
+      if (brief && !checking.has(brief.id)) {
+        // a helper that outlived a restart: its parent isn't known here any more, so its answer goes into the
+        // parent's chat as it would have with the parent's check (else the check judges without it)
+        if (!linked && !e.stopped)
+          addChatNote(
+            e.ownerAgentId,
+            e.ownerChatId,
+            `Delegated work finished:\n**${agents.get(e.agentId)?.name || 'A member'}:** ${e.failed ? 'Failed.' : e.answer}`,
+          );
+        void agentFinished(brief.id, project.id, '', false);
+      }
     }
   }
 }

@@ -321,7 +321,9 @@ fn watch_server(app: AppHandle, generation: u64, port: u16) {
                 &format!("The dashboard's server stopped while starting ({status})."),
             );
         }
-        if TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok() {
+        // (our server says in its own log that it listens on this port: something else that took the port in the
+        // moment between picking it and the server starting answers too, but can't write that)
+        if listening(&app, port) && TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok() {
             break;
         }
         if started.elapsed() > START_TIMEOUT {
@@ -348,6 +350,19 @@ fn watch_server(app: AppHandle, generation: u64, port: u16) {
             );
         }
     }
+}
+
+/// Whether the server this app started says it is listening on `port` (server/index.ts prints it once it is).
+fn listening(app: &AppHandle, port: u16) -> bool {
+    log_file(app)
+        .and_then(|p| fs::read_to_string(p).ok())
+        .is_some_and(|log| says_listening(&log, port))
+}
+
+fn says_listening(log: &str, port: u16) -> bool {
+    // (the whole address and the line's end: 4800 isn't 48001)
+    log.contains(&format!("is running at http://localhost:{port}\n"))
+        || log.contains(&format!("is running at http://localhost:{port}\r\n"))
 }
 
 fn stop_server(app: &AppHandle) {
@@ -488,5 +503,18 @@ mod tests {
         assert!(!encoded.contains(['#', ' ', '"', '\\']));
         assert_eq!(encode_uri_component("a-b_c.d!e~f*g'h(i)"), "a-b_c.d!e~f*g'h(i)");
         assert_eq!(encode_uri_component("é"), "%C3%A9");
+    }
+
+    #[test]
+    fn listening_is_said_for_the_exact_port_only() {
+        let log = "\n  Athena Agents is running at http://localhost:4801\n  Data folder: x\n";
+        assert!(super::says_listening(log, 4801));
+        assert!(!super::says_listening(log, 480));
+        assert!(!super::says_listening(log, 48011));
+        assert!(!super::says_listening("Building the page (public/dist)\n", 4801));
+        assert!(super::says_listening(
+            "Athena Agents is running at http://localhost:4802\r\n",
+            4802
+        ));
     }
 }

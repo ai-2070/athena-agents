@@ -245,11 +245,24 @@ export function cleanAttachments(list: unknown, max = MAX_ATTACHMENTS): string[]
   const out = new Set<string>();
   for (const x of list) {
     if (typeof x !== 'string' || !x) continue;
-    const p = path.resolve(x);
+    let p = path.resolve(x);
+    if (!inside(root, p)) p = relocated(root, p) ?? p;
     if (inside(root, p) && exists(p)) out.add(isDir(p) ? p + path.sep : p);
     if (out.size >= max) break;
   }
   return [...out];
+}
+
+/** An upload of this project's folder as it was somewhere else (a copied project folder, a restored backup or a
+ *  clone): the same place under this project's uploads, when it is there. Null otherwise. */
+export function relocated(root: string, p: string): string | null {
+  const parts = path.resolve(p).split(/[\\/]+/);
+  const at = parts.map((x) => x.toLowerCase()).lastIndexOf('uploads');
+  if (at < 0 || at === parts.length - 1) return null;
+  const rel = parts.slice(at + 1);
+  if (rel.some((x) => x === '..' || x === '.' || !x)) return null;
+  const here = path.join(root, ...rel);
+  return inside(root, here) && exists(here) ? here : null;
 }
 
 // Take back something you attached (✕ on its chip): only inside uploads/.

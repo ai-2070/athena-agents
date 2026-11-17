@@ -5,6 +5,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cancelPrompt } from '../../server/comfyui.ts';
 
 let running = 'theirs';
+// jobs waiting in ComfyUI's queue behind the running one
+let pending: unknown[] = [];
 // a ComfyUI that takes in the request and never answers
 let hang = false;
 const calls: { url: string; body: string }[] = [];
@@ -17,7 +19,7 @@ beforeAll(async () => {
     calls.push({ url: `${req.method} ${req.url}`, body });
     if (hang) return;
     if (req.method === 'GET' && req.url === '/queue')
-      return res.end(JSON.stringify({ queue_running: [[1, running, {}, {}, []]], queue_pending: [] }));
+      return res.end(JSON.stringify({ queue_running: [[1, running, {}, {}, []]], queue_pending: pending }));
     res.end('{}');
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
@@ -39,6 +41,24 @@ describe('stopping a ComfyUI job', () => {
     running = 'mine';
     await cancelPrompt(base, 'mine');
     expect(calls.at(-1)).toEqual({ url: 'POST /interrupt', body: JSON.stringify({ prompt_id: 'mine' }) });
+  });
+});
+
+describe('stopping a job while another waits behind it', () => {
+  it('leaves it to finish rather than risk an older ComfyUI stopping the next one (BH-127)', async () => {
+    calls.length = 0;
+    running = 'mine';
+    pending = [[2, 'theirs-next', {}, {}, []]];
+    try {
+      expect(await cancelPrompt(base, 'mine')).toEqual({ leftRunning: true });
+      expect(calls.map((c) => c.url)).toEqual(['POST /queue', 'GET /queue']);
+    } finally {
+      pending = [];
+    }
+    // with nothing waiting, it is interrupted as before
+    calls.length = 0;
+    expect(await cancelPrompt(base, 'mine')).toEqual({ leftRunning: false });
+    expect(calls.at(-1)?.url).toBe('POST /interrupt');
   });
 });
 

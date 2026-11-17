@@ -6,7 +6,7 @@ Investigation only: no application code changed. This is an accumulating concern
 
 ## Fix status
 
-Fixed so far: all 22 high, 133 of 142 medium and both low findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does). Still open, medium: BH-010, BH-063, BH-064, BH-065, BH-071, BH-072, BH-091, BH-092, BH-127. Left on purpose for now: BH-063 (decided: left as it is for now), BH-010 (team reference files across copies and backups needs a larger change: relocated paths and their bytes in backups), BH-091/BH-092 (need the Hermes, OpenClaw and opencode command lines checked), BH-064/BH-065 (Tauri updater internals; a readiness handshake that can't be run here), BH-071/BH-072 (the Brain's steering and helper bookkeeping need a careful pass; the Brain changed a lot in #229), BH-127 (an older ComfyUI can't be told to stop one prompt only).
+Fixed so far: all 22 high, 141 of 142 medium and both low findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does). Still open: BH-063 (decided: left as it is for now).
 
 ## Evidence and verification
 
@@ -133,6 +133,7 @@ Completed reviews:
 - Trigger/evidence: attach team references, then restore a copied folder or backup/clone. Absolute team `files` still point to the old Brain folder and fail the new project's upload admission. Backups pack board-task upload bytes, not ordinary team/chat attachments.
 - Impact/expected: teams silently lose references. Copies need relocated references; backups also need the corresponding bytes.
 - Limits: source producer/consumer trace only; no restore executed.
+- Fixed: backups and clones pack the teams' reference files (a file or a whole attached folder) with the board's files, in the room left, and a restore puts them back in the new project's uploads. A team's file paths still name the old folder, so where uploads are checked (`cleanAttachments`) a path into another project folder's uploads is found at the same place under this project's uploads when it is there (`relocated()`): that covers a copied project folder too. Test in `tests/server/project-delete-clone.test.ts` (a clone; the copied-folder case uses the same mapping, untested on its own).
 
 ### BH-011 — An empty world's first WORLD.md can abort restore
 
@@ -618,6 +619,7 @@ Completed reviews:
 - Trigger/evidence: update download/extraction succeeds but Windows refuses installer launch. Tauri cleanup precedes `ShellExecuteW`, hiding windows, dropping tray/resources and releasing single-instance ownership.
 - Impact/expected: app restarts its server/warns but does not rebuild/show resources; hidden app has no tray while `HAS_TRAY` stays true, and another instance can start. Failure should leave the old app usable.
 - Limits: locked dependencies inspected; Windows failure path not executed.
+- Fixed: the app's updater replaces the plugin's default hook (Tauri's `cleanup_before_exit`: windows, tray and single-instance lock taken apart before `ShellExecuteW`) with one that only saves the window's place. If Windows refuses the installer, the app is still whole and the existing error path restarts its server and says so; when the installer starts, the app exits and Windows frees the rest. Builds with `cargo clippy`; the refusal itself wasn't run (no test).
 
 ### BH-065 — Desktop readiness can navigate to another process's port
 
@@ -626,6 +628,7 @@ Completed reviews:
 - Trigger/evidence: another process claims the chosen port after temporary listener closes but before child binds. Readiness accepts any successful TCP connection and navigates without child ownership proof.
 - Impact/expected: another service/dashboard's data can appear and be interacted with before child-exit watcher replaces it with an error. Verify owned service readiness.
 - Limits: interleaving not reproduced.
+- Fixed: the desktop app shows the page only once its own server has written "is running at http://localhost:<port>" to its log (a log only that process writes) as well as the port answering, so another program that took the port in the moment between doesn't get shown. Checked: the bundled server writes that line, ending in a newline, when its output goes to a file as in the app. Rust test of the match (`cargo test` in src-tauri); the race itself wasn't reproduced.
 
 ### BH-066 — Login-shell PATH timeout leaks the shell process
 
@@ -679,6 +682,7 @@ Completed reviews:
 - Trigger/evidence: while first request thinks, steer “Use PostgreSQL instead.” Stop counter changes but original question saves only after old `think()` returns; client cancels reader and immediately submits correction.
 - Impact/expected: correction lacks its original context, and interrupted exchange can appear after replacement answer. Persist original before acknowledging steer.
 - Limits: reader cancellation does not finish model call; existing test waits for old answer, missing overlap. No race run.
+- Fixed: resolved by #229 (the Brain runs as an agent): a new message waits for the turn it cut off to end, that turn saves its question first, and both go to the one engine chat of the conversation, the cut-off question before the correction. Test in `tests/server/brain-run.test.ts` (no code change needed).
 
 ### BH-072 — Restart loses background helper completion evidence
 
@@ -687,6 +691,7 @@ Completed reviews:
 - Trigger/evidence: parent finishes while native helper continues; restart before helper completion. `waitingParents`/`endedChildren` are memory-only and not rebuilt; owner fallback reviews parent chat without appending helper `e.answer`.
 - Impact/expected: supervision judges without completed delegated evidence and can request it again. Recover completion linkage/evidence as in uninterrupted flow.
 - Limits: distinct from native execution recovery; no restart run.
+- Fixed: a helper that finishes after a restart, when its parent's wait is no longer known here, has its answer put into the parent's chat as a "Delegated work finished" note before the check, as the uninterrupted way does. Test in `tests/server/goals.test.ts` (the restart acted out by clearing what it loses).
 
 ### BH-073 — Brain API treats unterminated SSE text as a completed answer
 
@@ -857,6 +862,7 @@ Completed reviews:
 - Trigger/evidence: open an agent whose Dashboard instructions differ from its CLI profile. Those terminal branches never build/deliver `buildSystemPrompt(agent)`, unlike ordinary Dashboard runs.
 - Impact/expected: underlying profile starts without the advertised role/instructions/context. Terminal launch should supply them or accurately describe the limitation.
 - Limits: external profiles may contain overlapping instructions; no CLI launched.
+- Fixed: a Hermes agent's terminal starts with the agent's instructions as the session's first message, from a file of its own passed with `--query-file` (Hermes 0.21 seeds an interactive session with it on a real terminal; a run sends them the same way), removed when the terminal closes. OpenClaw (not installed here, so its terminal flags weren't checked): the Terminals page says an OpenClaw agent opens with that OpenClaw agent's own instructions. Tests in `tests/server/terminal-agent-brief.test.ts` (a stand-in pty: Hermes wasn't started) and `tests/web/terminals.test.tsx`.
 
 ### BH-092 — OpenCode terminals omit the selected model and effort
 
@@ -865,6 +871,7 @@ Completed reviews:
 - Trigger/evidence: open an OpenCode agent with nondefault model/effort. Terminal args/config carry instructions, permissions and MCP, but not those choices; ordinary run dispatch explicitly translates both.
 - Impact/expected: terminal can use another provider/model/reasoning default. Honor the Dashboard selection.
 - Limits: exact fallback depends on installed OpenCode configuration; no provider call.
+- Fixed: an opencode terminal starts on the agent's model with its effort (`"model": "provider/model#effort"` on the athena agent in its config, the form `opencode debug agents` 2.2.7 reads as model and variant); without a model set, opencode's default stays. A run still picks the nearest variant the model has; the terminal uses the effort's own name. Test in `tests/server/opencode-engine.test.ts`.
 
 ### BH-093 — Slow terminal viewers can accumulate unbounded queued output
 
@@ -1179,6 +1186,7 @@ Completed reviews:
 - Trigger/evidence: checked running prompt finishes before interrupt POST, another starts, and server version ignores prompt_id. Global interrupt then hits that other job.
 - Impact/expected: cancellation affects unrelated work despite the comment's safety claim. Do not claim identity is stable across separate requests.
 - Limits: supported legacy versions ignoring prompt_id were not available; existing tests hold identity fixed. No race reproduced.
+- Fixed: Stop still names the prompt (newer ComfyUI interrupts only it), but sends the interrupt only when nothing else waits in ComfyUI's queue: an older ComfyUI that ignores the name could otherwise stop the next job if this one ends in the moment between. With another job waiting, this one is left to finish and Stop says so. (Which ComfyUI versions honour the name couldn't be checked here.) Test in `tests/server/comfyui-cancel.test.ts`.
 
 ### BH-128 — Outstanding team steers survive Stop and conversation replacement
 

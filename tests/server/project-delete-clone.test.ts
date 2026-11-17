@@ -8,6 +8,7 @@ import { createProject } from '../../server/projects.ts';
 import { newAgent } from '../../server/library.ts';
 import { backupAndDeleteProject, cloneProject, verifyBackup, backupsRoot } from '../../server/backup.ts';
 import { dataPath } from '../../server/util.ts';
+import { cleanAttachments, uploadsRoot } from '../../server/uploads.ts';
 import type { Team } from '../../shared/types.ts';
 
 const folder = (name: string) => path.join(os.homedir(), 'projects', name);
@@ -115,6 +116,38 @@ describe('cloning a project', () => {
     setActiveProject(src.id);
     expect(agents.list()).toHaveLength(2);
     expect(workflows.list()[0].enabled).toBe(true);
+  });
+
+  it("a team's reference files come with the copy, and its team finds them there (BH-010)", async () => {
+    const src = await createProject({ name: 'Clone: refs', mode: 'new', folder: folder('clone-refs') });
+    setActiveProject(src.id);
+    // a file and a folder attached to the team, in this project's uploads
+    const uploads = uploadsRoot();
+    fs.mkdirSync(path.join(uploads, 'b1', 'refs'), { recursive: true });
+    fs.writeFileSync(path.join(uploads, 'b1', 'brief.md'), 'the brief');
+    fs.writeFileSync(path.join(uploads, 'b1', 'refs', 'logo.svg'), '<svg/>');
+    const lead = newAgent({ name: 'Ref lead' });
+    workflows.save({
+      name: 'Ref crew',
+      members: [lead.id],
+      lead: lead.id,
+      steps: [],
+      files: [path.join(uploads, 'b1', 'brief.md'), path.join(uploads, 'b1', 'refs') + path.sep],
+    } as Partial<Team>);
+    const { project } = await cloneProject(src.id);
+    setActiveProject(project.id);
+    const files = cleanAttachments(workflows.list()[0]!.files);
+    // both, in the copy's own folder now
+    expect(files).toHaveLength(2);
+    for (const f of files) expect(f.startsWith(uploadsRoot())).toBe(true);
+    expect(
+      fs.readFileSync(
+        files.find((f) => f.endsWith('brief.md'))!,
+        'utf8',
+      ),
+    ).toBe('the brief');
+    expect(fs.existsSync(path.join(uploadsRoot(), 'b1', 'refs', 'logo.svg'))).toBe(true);
+    setActiveProject(src.id);
   });
 
   it('takes the name it is given, and says so for a project that is not there', async () => {

@@ -97,6 +97,18 @@ describe('the Terminals page', () => {
     expect(location.hash).toBe('#/terminals/t9');
   });
 
+  it("says an OpenClaw agent's terminal uses OpenClaw's own instructions (BH-091)", async () => {
+    state.data = {
+      ...state.data!,
+      agents: [{ id: 'o1', name: 'Claw', engine: 'openclaw' }],
+    } as unknown as AppState;
+    await act(async () => terminals.render(el, []));
+    await settle();
+    expect(el.querySelector('.openclaw-note')?.textContent).toMatch(
+      /OpenClaw agent's own instructions, not the ones set here/,
+    );
+  });
+
   it('closing the terminal that shows falls back to the next one (the page stays the same)', async () => {
     class FakeSocket {
       readyState = 0;
