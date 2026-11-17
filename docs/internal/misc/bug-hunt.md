@@ -586,6 +586,7 @@ Completed reviews:
 - Trigger/evidence: oversized unrestricted steer reaches compaction. Steering calls `eveMessage()` without ordinary `messageTokens()`/`currentLimit` validation; compaction uses the capped tail budget and cuts its middle.
 - Impact/expected: chat accepts intact instructions that model memory later shortens. Apply ordinary admission budget to steers.
 - Limits: ordinary limit is `min(20000, remainingThreshold / 2)`; existing coverage addresses ordinary input, not this steer edge. No compaction run.
+- Fixed: a message sent into an Eve turn is held to the same input limit as the run's own message (kept when the run was admitted; after a restart, 20,000 tokens): a bigger one is refused before it is saved or sent, and then goes the ordinary way, which says it is too big. Test in `tests/server/eve-steer.test.ts`.
 
 ### BH-062 — Retention deletes native results before application settlement
 

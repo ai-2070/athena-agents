@@ -197,6 +197,11 @@ export async function eveMessage(text: string, saved: readonly string[]): Promis
   return parts;
 }
 
+// What a run's input may be at most and stay whole through compaction (worked out when the run was admitted): a
+// message joining its turn is held to it too. After a restart, the most it can ever be.
+const inputLimits = new Map<string, number>();
+export const inputLimitOf = (runId: string): number => Math.min(20000, inputLimits.get(runId) ?? 20000);
+
 /** Save the exact bytes before dispatch; retry never rereads an edited or deleted attachment. */
 export async function prepareAdmission(runId: string, project: Project): Promise<EveAdmissionRecord> {
   const existing = readAdmission(runId);
@@ -263,6 +268,9 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     const addressed = messageTokens(message);
     // Eve retains at most 20k tokens or half its remaining compaction threshold for the current input.
     const currentLimit = Math.min(20000, Math.floor((window * 0.9 - envelope) / 2));
+    inputLimits.set(runId, currentLimit);
+    // (a run's turn is long over well before a thousand more have started)
+    if (inputLimits.size > 1000) inputLimits.delete(inputLimits.keys().next().value!);
     const originalHistory = history.map((item) => ({ role: item.role, content: item.text }));
     const historySize = Math.max(
       estimateTokens(history.map((item) => item.text).join('\n')),

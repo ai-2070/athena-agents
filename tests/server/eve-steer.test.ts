@@ -19,9 +19,9 @@ import { sendSteer } from '../../server/eve/steer.ts';
 const during = vi.hoisted(() => ({ read: () => {} }));
 vi.mock('../../server/eve/admission.ts', async (original) => ({
   ...(await original<typeof import('../../server/eve/admission.ts')>()),
-  eveMessage: async () => {
+  eveMessage: async (text: string) => {
     during.read();
-    return [{ type: 'text', text: 'and a summary' }];
+    return [{ type: 'text', text }];
   },
 }));
 
@@ -99,5 +99,21 @@ describe('a steer message whose answer is lost', () => {
       fetch.mockRestore();
     }
     expect(readBinding(binding.id)?.retired).toBeFalsy();
+  });
+});
+
+describe('a steer message too big to stay whole', () => {
+  it('is refused before it is saved or sent, as the same message would be on its own (BH-061)', async () => {
+    const binding = steerableRun('steer-big');
+    during.read = () => {};
+    const before = worker.retired;
+    // far past the 20,000 tokens Eve keeps whole through compaction
+    await expect(
+      sendSteer('steer-big', { id: 'big', text: 'word '.repeat(60_000), attachments: [], from: null }),
+    ).rejects.toThrow(/exceed the space Eve keeps intact/);
+    expect(readRun('steer-big')?.steers ?? []).toEqual([]);
+    // nothing reached Eve: the session goes on
+    expect(worker.retired).toBe(before);
+    expect(readBinding(binding.id)?.retiring).toBeFalsy();
   });
 });
