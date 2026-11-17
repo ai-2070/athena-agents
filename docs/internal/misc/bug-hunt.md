@@ -658,6 +658,7 @@ Completed reviews:
 - Trigger/evidence: unscoped Brain request begins in A, switch to B during awaited Git inspection. Ordinary requests lack private requests' `withProject()`; subsequent collections read B while captured folder/project remain A.
 - Impact/expected: mixed context is sent to the model before stale guard, which prevents later actions but not disclosure/call. Pin construction or reject before sending.
 - Limits: scheduling window untested.
+- Fixed: every Brain answer, not only private ones, is made inside the project it was asked in (`withProject`), so what it tells the model comes from that project only; its actions are still skipped after a switch. Test in `tests/server/brain-project-pin.test.ts`.
 
 ### BH-071 — Brain steering submits corrections before saving the original question
 

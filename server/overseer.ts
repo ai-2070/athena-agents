@@ -2940,8 +2940,10 @@ export interface BrainAskOptions {
   /** The user's own words, when text holds others' too (see BrainChatMessage.ownWords). */
   ownWords?: string;
 }
+// (the whole answer is made in the project it was asked in: what it reads can't come half from one opened meanwhile;
+// its actions are skipped then all the same, see stale())
 export async function ask(text: string, opts: BrainAskOptions = {}): Promise<BrainAnswer> {
-  return opts.conversationId ? withProject(activeProject(), () => askNow(text, opts)) : askNow(text, opts);
+  return withProject(activeProject(), () => askNow(text, opts));
 }
 async function askNow(text: string, opts: BrainAskOptions): Promise<BrainAnswer> {
   if (opts.conversationId !== undefined) checkConversationId(opts.conversationId);
