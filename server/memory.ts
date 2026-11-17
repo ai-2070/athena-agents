@@ -157,9 +157,11 @@ export function cleanMemoryVersion(item: Record<string, unknown>, owner: string)
 export function putMemory(pid: string, owner: string, text: string): boolean {
   if (!isMemoryOwner(owner) || text.length > MEMORY_MAX * 2) return false;
   const file = fileOf(owner, pid);
-  if (!noLinksBelow(dataPath(), file)) return false;
-  ensureDir(path.dirname(file));
-  if (!noLinksBelow(dataPath(), file)) return false;
+  // (its folders must be no links; the file itself is replaced below, so a link there is never followed)
+  const dir = path.dirname(file);
+  if (!noLinksBelow(dataPath(), dir)) return false;
+  ensureDir(dir);
+  if (!noLinksBelow(dataPath(), dir)) return false;
   // (a new file in its place, never written through one that is there: it may be a link out)
   const tmp = `${file}.${process.pid}.${crypto.randomBytes(3).toString('hex')}.tmp`;
   fs.writeFileSync(tmp, tidy(text), { flag: 'wx' });

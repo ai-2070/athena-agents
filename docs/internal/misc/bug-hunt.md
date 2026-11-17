@@ -795,7 +795,7 @@ Completed reviews:
 - Trigger/evidence: a restore destination has a plain owner directory but MEMORY.md itself is a symlink to an outside file. `putMemory()` checks only the directory, then `writeFileSync()` follows the file link. Its folder/backup callers use that helper.
 - Impact/expected: import can overwrite the outside target with restored memory despite the ordinary editor rejecting that link. Apply equivalent destination safety to import.
 - Limits: requires an already-planted destination link (or concurrent filesystem control over a new restore destination) plus target write permission. This does not claim that a backup archive alone can create the link; no restore or symlink executed.
-- Fixed: `putMemory()` checks the whole path for links and replaces the file through a new temporary file instead of writing through what is there. Test in `tests/server/memory.test.ts` (skipped on Windows).
+- Fixed: `putMemory()` checks the folders on the way for links and replaces the file through a new temporary file, so a linked MEMORY.md is replaced, never written through. Test in `tests/server/memory.test.ts` (skipped on Windows; run on Linux in Docker).
 
 ### BH-086 — Agent terminals send Dashboard tool calls to the currently open project
 
