@@ -344,3 +344,30 @@ describe('looking at attached files before sending', () => {
     }
   });
 });
+
+describe("a picture's preview", () => {
+  it('is let go once the picture is sent, and made again when a failed send puts it back', async () => {
+    let made = 0;
+    const revoked: string[] = [];
+    const create = vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:preview-${++made}`);
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation((u: string) => void revoked.push(u));
+    try {
+      const tray = attachTray();
+      tray.add(files('cat.png'));
+      await finishAll();
+      await tray.ready();
+      expect(made).toBe(1);
+      const sent = tray.take();
+      expect(sent).toHaveLength(1);
+      expect(revoked).toEqual(['blob:preview-1']);
+      // the send failed: it comes back, with a preview again
+      tray.put(sent);
+      expect(made).toBe(2);
+      tray.clear();
+      expect(revoked).toEqual(['blob:preview-1', 'blob:preview-2']);
+    } finally {
+      create.mockRestore();
+      revoke.mockRestore();
+    }
+  });
+});

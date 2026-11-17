@@ -1371,7 +1371,7 @@ Completed reviews:
 - Trigger/evidence: repeatedly send images successfully. take removes items without revoking URLs; consumers never release them, and later clear/discard sees only remaining items.
 - Impact/expected: registered Blobs persist until page unload. Release accepted-send resources while allowing failed-send restoration.
 - Limits: browser memory not measured.
-- Fixed: a sent picture's preview URL is let go when it is taken; one put back after a failed send gets a new one. No test of its own.
+- Fixed: a sent picture's preview URL is let go when it is taken; one put back after a failed send gets a new one. Test in `tests/web/attach-tray.test.ts`.
 
 ### BH-152 — Partially successful preview boxes never retry missing files
 
