@@ -768,8 +768,7 @@ export async function runWorkflow({
   const promptId = res.prompt_id;
   // (Stop while it was being sent: ComfyUI took it, so it is taken back out of the queue)
   if (signal?.aborted) {
-    if (promptId) await cancelPrompt(url, promptId);
-    throw new Error('Stopped.');
+    throw new Error(promptId ? stoppedText(await cancelPrompt(url, promptId)) : 'Stopped.');
   }
   // A 200 answer can still list nodes that failed: ComfyUI runs the outputs that passed and drops the rest.
   const nodeErrors = res.node_errors && typeof res.node_errors === 'object' ? res.node_errors : {};
@@ -777,10 +776,7 @@ export async function runWorkflow({
   const started = Date.now();
   while (Date.now() - started < timeoutSec * 1000) {
     await new Promise((r) => setTimeout(r, 1500));
-    if (signal?.aborted) {
-      await cancelPrompt(url, promptId);
-      throw new Error('Stopped.');
-    }
+    if (signal?.aborted) throw new Error(stoppedText(await cancelPrompt(url, promptId)));
     const hist = await fetchJSON<Record<string, HistoryEntry>>(`${url}/history/${promptId}`, { timeout: 15000 }).catch(
       () => null,
     );
@@ -1007,7 +1003,7 @@ export function maskPng(
 
 /** Takes one job off ComfyUI: out of the queue, and interrupted only when it is the one running now
  *  (an interrupt stops whatever runs, which may be someone else's job). */
-export async function cancelPrompt(url: string, promptId: string): Promise<void> {
+export async function cancelPrompt(url: string, promptId: string): Promise<{ leftRunning: boolean }> {
   const json = { 'content-type': 'application/json' };
   // (each request has a time limit: a ComfyUI that hangs mustn't keep Stop waiting)
   await fetch(`${url}/queue`, {
@@ -1016,17 +1012,28 @@ export async function cancelPrompt(url: string, promptId: string): Promise<void>
     body: JSON.stringify({ delete: [promptId] }),
     signal: AbortSignal.timeout(10000),
   }).catch(() => {});
-  const q = await fetchJSON<{ queue_running?: unknown[][] }>(`${url}/queue`, { timeout: 10000 }).catch(() => null);
-  if (!q?.queue_running?.some((job) => Array.isArray(job) && job[1] === promptId)) return;
-  // (newer ComfyUI interrupts only the prompt named; an older one interrupts whatever runs when this arrives, which
-  // is this one unless it ended in the moment between)
+  const q = await fetchJSON<{ queue_running?: unknown[][]; queue_pending?: unknown[] }>(`${url}/queue`, {
+    timeout: 10000,
+  }).catch(() => null);
+  if (!q?.queue_running?.some((job) => Array.isArray(job) && job[1] === promptId)) return { leftRunning: false };
+  // Newer ComfyUI interrupts only the prompt named. An older one ignores the name and interrupts whatever runs when the
+  // request arrives: if this one ends in the moment between, the next one waiting would be stopped instead. So with
+  // another job waiting there, this one is left to finish rather than risk someone else's work.
+  if (q.queue_pending?.length) return { leftRunning: true };
   await fetch(`${url}/interrupt`, {
     method: 'POST',
     headers: json,
     body: JSON.stringify({ prompt_id: promptId }),
     signal: AbortSignal.timeout(10000),
   }).catch(() => {});
+  return { leftRunning: false };
 }
+
+// What Stop says when ComfyUI goes on with the job (see cancelPrompt).
+const stoppedText = ({ leftRunning }: { leftRunning: boolean }) =>
+  leftRunning
+    ? 'Stopped. ComfyUI is still finishing this job: another job waits there, and stopping this one could stop that one instead on some ComfyUI versions.'
+    : 'Stopped.';
 
 export async function queueStatus(): Promise<ComfyQueueStatus> {
   const url = await comfyUrl();

@@ -1183,6 +1183,7 @@ Completed reviews:
 - Trigger/evidence: checked running prompt finishes before interrupt POST, another starts, and server version ignores prompt_id. Global interrupt then hits that other job.
 - Impact/expected: cancellation affects unrelated work despite the comment's safety claim. Do not claim identity is stable across separate requests.
 - Limits: supported legacy versions ignoring prompt_id were not available; existing tests hold identity fixed. No race reproduced.
+- Fixed: Stop still names the prompt (newer ComfyUI interrupts only it), but sends the interrupt only when nothing else waits in ComfyUI's queue: an older ComfyUI that ignores the name could otherwise stop the next job if this one ends in the moment between. With another job waiting, this one is left to finish and Stop says so. (Which ComfyUI versions honour the name couldn't be checked here.) Test in `tests/server/comfyui-cancel.test.ts`.
 
 ### BH-128 — Outstanding team steers survive Stop and conversation replacement
 
