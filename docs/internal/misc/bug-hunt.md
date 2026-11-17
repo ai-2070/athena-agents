@@ -4,6 +4,10 @@ Started: 2026-11-16. All twenty subagent reviews completed.
 
 Investigation only: no application code changed. This is an accumulating concern log, not a claim of exhaustive coverage or patch-introduced regressions.
 
+## Fix status
+
+Fixed so far: all 22 high and 110 of 142 medium findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does). Still open, medium: BH-010, BH-031, BH-032, BH-042, BH-061–BH-065, BH-071, BH-072, BH-091, BH-092, BH-119, BH-124, BH-127, BH-130–BH-134, BH-136, BH-138–BH-144, BH-152–BH-154; low: BH-005, BH-050. Left on purpose for now: BH-124 (whether one prompt should replace every combined branch is a product call), BH-091/BH-092 (need the Hermes, OpenClaw and opencode command lines checked), BH-064/BH-065 (Tauri updater internals; a readiness handshake that can't be run here), BH-071/BH-072 (the Brain's steering and helper bookkeeping need a careful pass), BH-127 (an older ComfyUI can't be told to stop one prompt only).
+
 ## Evidence and verification
 
 - Source-confirmed means the relevant control/data flow was inspected, not that the behavior was reproduced.
