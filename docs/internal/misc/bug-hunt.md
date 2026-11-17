@@ -1467,7 +1467,7 @@ Completed reviews:
 - Trigger/evidence: Linux has bare orca screen reader or only orca-ide. Catalog detects bare orca everywhere, while orcaInstalled explicitly selects orca-ide on Linux.
 - Impact/expected: wrong application is advertised/launched or IDE is missed, including terminal command generation. Use consistent platform-specific identity.
 - Limits: no Linux process launched.
-- Fixed: on Linux the catalog looks for `orca-ide` (as `orcaInstalled()` does), and the Programs page opens that command in a terminal. No test of its own (Linux only).
+- Fixed: on Linux the catalog looks for `orca-ide` (as `orcaInstalled()` does), and the Programs page opens that command in a terminal. Test in `tests/server/programs-service.test.ts` (Linux only; run in Docker).
 
 ### BH-163 — Saved executable overrides stay unapplied in cached program launches
 

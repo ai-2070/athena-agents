@@ -44,3 +44,31 @@ describe('a service that starts after the scan', () => {
     }
   }, 60_000);
 });
+
+// (bare `orca` on Linux is the screen reader; Orca the IDE's command there is orca-ide)
+describe.runIf(process.platform === 'linux')('Orca on Linux', () => {
+  it('is found by orca-ide, never by the screen reader', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { dataPath, ensureDir, clearWhichCache } = await import('../../server/util.ts');
+    const dir = ensureDir(dataPath('fake-linux-bin'));
+    const reader = path.join(dir, 'orca');
+    fs.writeFileSync(reader, '#!/bin/sh\n');
+    fs.chmodSync(reader, 0o755);
+    const was = process.env.PATH;
+    process.env.PATH = `${dir}:${was}`;
+    try {
+      clearWhichCache();
+      await discoverPrograms(true);
+      expect(knownPrograms().find((p) => p.id === 'orca')?.exe ?? null).toBeNull();
+      const ide = path.join(dir, 'orca-ide');
+      fs.writeFileSync(ide, '#!/bin/sh\n');
+      fs.chmodSync(ide, 0o755);
+      await discoverPrograms(true);
+      expect(knownPrograms().find((p) => p.id === 'orca')?.exe).toBe(ide);
+    } finally {
+      process.env.PATH = was;
+      clearWhichCache();
+    }
+  }, 60_000);
+});
