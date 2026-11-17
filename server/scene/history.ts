@@ -8,7 +8,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { emit, listProjects, activeProject } from '../store.ts';
+import { emit, getSettings, listProjects } from '../store.ts';
 import { dataPath, ensureDir, isInside, isPlainDir, readJSON, ROOT, uid, writeJSON } from '../util.ts';
 import { SCENE_LIMITS, SCENE_TEMPLATES, scenePath, sceneType } from '../../shared/scene.ts';
 import type { SceneTemplate } from '../../shared/scene.ts';
@@ -368,12 +368,15 @@ export function pruneVersions(p: Project): void {
 // The open project's scene folder (and the projects tabs showed a scene of lately) is looked at once a second:
 // paths, sizes and times only. When it changed and then stayed the same for SETTLE_MS, it is kept as a version.
 // (A look rather than fs.watch: it is the same on every system, sees the folder being made, and is cheap for a
-// folder of a few hundred files at most.)
+// folder of a few hundred files at most.) Only while something can change it or show it: the scene look is on, a
+// tab showed a scene lately, or a run is going on. Otherwise nothing is looked at, and the first look after that
+// keeps what changed meanwhile.
 interface Watch {
   sig: string | null;
   changedAt: number;
   pending: boolean;
-  openedAt: number;
+  /** when a tab last asked for this project's scene (0: never, only watched as the open project) */
+  tabAt: number;
 }
 const watched = new Map<string, Watch>();
 /** Who changed the folder, when a change is seen (server/scene/tools.ts knows the runs going on). */
@@ -381,36 +384,49 @@ let authorOf: (p: Project) => SceneAuthor = () => ({ kind: 'outside' });
 export function setSceneAuthor(fn: (p: Project) => SceneAuthor): void {
   authorOf = fn;
 }
+/** Whether a run is going on now (one could write the folder with its own file tools). */
+let running: () => boolean = () => false;
+export function setSceneRunning(fn: () => boolean): void {
+  running = fn;
+}
+
+const watchOf = (projectId: string, now: number): Watch => {
+  let w = watched.get(projectId);
+  if (!w) watched.set(projectId, (w = { sig: null, changedAt: now, pending: false, tabAt: 0 }));
+  return w;
+};
 
 /** A tab shows this project's scene: watch its folder for a while. */
 export function watchScene(projectId: string, now = Date.now()): void {
-  const w = watched.get(projectId);
-  if (w) w.openedAt = now;
-  else watched.set(projectId, { sig: null, changedAt: now, pending: false, openedAt: now });
+  watchOf(projectId, now).tabAt = now;
 }
 
 /** One look at the watched folders (the timer calls it each second; tests call it with their own clock). */
 export function pollScenes(now = Date.now()): void {
   const projects = listProjects();
-  const active = activeProject()?.id;
+  const settings = getSettings();
+  // (activeProject() without reading both files again)
+  const active = (projects.find((p) => p.id === settings.activeProject) || projects[0])?.id;
+  for (const [id, w] of watched)
+    if (!projects.some((p) => p.id === id) || (id !== active && now - w.tabAt > WATCH_OPENED_MS)) watched.delete(id);
+  const tabs = [...watched.values()].some((w) => now - w.tabAt <= WATCH_OPENED_MS);
+  const pending = [...watched.values()].some((w) => w.pending);
+  if (settings.look.stationLook !== 'scene' && !tabs && !pending && !running()) {
+    // nothing can change or show a scene now: the first look when something can keeps what changed meanwhile
+    for (const w of watched.values()) w.sig = null;
+    return;
+  }
   // (the open project is always watched)
-  if (active) watchScene(active, now);
+  if (active) watchOf(active, now);
   for (const [id, w] of watched) {
     const p = projects.find((x) => x.id === id);
-    if (!p || (id !== active && now - w.openedAt > WATCH_OPENED_MS)) {
-      watched.delete(id);
-      continue;
-    }
+    if (!p) continue;
     const sig = signature(scanScene(p));
     if (w.sig === null) {
       // first look since the server started (or the project was opened): changed meanwhile?
       w.sig = sig;
       const first = !sceneVersions(p).length;
-      takeVersion(
-        p,
-        { kind: 'outside' },
-        first ? 'As found' : 'Changed while Athena was closed or showing another project',
-      );
+      takeVersion(p, { kind: 'outside' }, first ? 'As found' : 'Changed while Athena was not watching the folder');
       continue;
     }
     if (sig !== w.sig) {

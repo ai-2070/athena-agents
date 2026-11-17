@@ -27,6 +27,7 @@ import {
 } from '../../server/scene/history.ts';
 import { sceneResponse, sceneToken } from '../../server/scene/serve.ts';
 import { dataPath } from '../../server/util.ts';
+import { activeProject, getSettings, saveSettings } from '../../server/store.ts';
 import type { Project } from '../../shared/types.ts';
 
 const folder = (name: string) => path.join(os.homedir(), 'projects', name);
@@ -131,7 +132,26 @@ describe('scene versions', () => {
     watchScene(p.id, t);
     pollScenes(t);
     expect(sceneVersions(p)).toHaveLength(2);
-    expect(sceneVersions(p)[0].note).toMatch(/Changed while Athena was closed/);
+    expect(sceneVersions(p)[0].note).toMatch(/Changed while Athena was not watching/);
+  });
+
+  it('looks at nothing while nothing can change or show a scene, then keeps what changed meanwhile', () => {
+    const look = getSettings().look.stationLook;
+    saveSettings({ look: { stationLook: 'classic' } });
+    try {
+      const a = activeProject();
+      forgetScene(a.id);
+      write(a, 'index.html', HTML);
+      // (later than any tab's watch in the tests before)
+      const t = Date.now() + 5_000_000;
+      pollScenes(t);
+      expect(sceneVersions(a)).toHaveLength(0);
+      saveSettings({ look: { stationLook: 'scene' } });
+      pollScenes(t + 1000);
+      expect(sceneVersions(a)).toHaveLength(1);
+    } finally {
+      saveSettings({ look: { stationLook: look } });
+    }
   });
 
   it('settleScene keeps a change at once', () => {

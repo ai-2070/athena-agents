@@ -21,6 +21,7 @@ import {
   sceneVersions,
   scanScene,
   setSceneAuthor,
+  setSceneRunning,
   settleScene,
   startFromTemplate,
   versionFile,
@@ -85,6 +86,8 @@ export function forgetSceneWriters(): void {
 }
 export function takeSceneRunsFrom(runs: () => ActiveRun[]): void {
   setSceneAuthor((p) => sceneAuthor(p, runs()));
+  // (any run: an agent with full access can write the folder without the scene tools)
+  setSceneRunning(() => runs().length > 0);
 }
 
 // ---------- words ----------
