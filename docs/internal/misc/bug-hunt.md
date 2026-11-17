@@ -158,7 +158,7 @@ Completed reviews:
 - Trigger/evidence: change metadata or a world link without another watched change, especially on an inactive project. Autosave ignores `projects`; link events lack the `world` field its world branch requires.
 - Impact/expected: central JSON updates but portable copies remain stale; inactive changes can stay unsaved for the session. Relevant changes should schedule their own save.
 - Limits: periodic fallback saves only the active project. No runtime scenario.
-- Fixed: autosave also saves a project whose world link changed (the `world` event names it), and each project shortly after the project list changes (a rename, description, skills or look). No test of its own: no test starts the autosave watcher.
+- Fixed: autosave also saves a project whose world link changed (the `world` event names it), and each project shortly after the project list changes (a rename, description, skills or look). Test in `tests/server/projectsync-watch.test.ts` (the rename part fails without the fix).
 
 ### BH-014 — Preserved timestamps can make autosave skip changed contents
 
