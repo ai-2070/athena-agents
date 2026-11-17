@@ -275,7 +275,7 @@ Completed reviews:
 - Trigger/evidence: miss run events during socket outage, then reconnect. Global state refresh contains no transcript; ChatView neither handles reconnect nor reruns initial history/follow when runs change.
 - Impact/expected: replies, queue/loop updates or live streams remain missing until another event/reopen. Reconnection should catch up.
 - Limits: no outage simulated.
-- Fixed: an open chat loads its saved chat again, and follows a run going in it, when live events come back after they dropped (`onReconnect`). No test of its own.
+- Fixed: an open chat loads its saved chat again, and follows a run going in it, when live events come back after they dropped (`onReconnect`). Test in `tests/web/chatview.test.tsx` (the saved chat part).
 
 ### BH-027 — Empty-queue loops can lose overlapping run starts
 

@@ -101,6 +101,8 @@ beforeEach(() => {
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     if (url === '/api/agents/a1/chats/c1' && method === 'GET') return json(chat);
+    // (the page's own refresh when live events connect)
+    if (url === '/api/state') return json(state.data);
     if (url === '/api/agents/a1/chats/c1/stream' && method === 'POST') {
       const s = (sendStream = uiStream());
       init.signal?.addEventListener('abort', () => s.abort());
@@ -340,6 +342,19 @@ describe('the agent chat (AI SDK)', () => {
     expect(el.textContent).toContain('from the team');
     expect(el.textContent).toContain('Reading it now');
     expect([...el.querySelectorAll('.tname')].map((n) => n.textContent)).toContain('read_file');
+  });
+
+  it('when live events come back after they dropped, it loads what was said meanwhile', async () => {
+    const el = await open();
+    // (the first connection: after it, an open is a reconnect)
+    await act(async () => FakeSocket.last!.onopen!());
+    await settle();
+    // said while the page heard nothing
+    chat.items.push({ type: 'user', text: 'asked while away' }, { type: 'assistant', text: 'answered while away' });
+    expect(el.textContent).not.toContain('answered while away');
+    await act(async () => FakeSocket.last!.onopen!());
+    await settle();
+    expect(el.textContent).toContain('answered while away');
   });
 
   it('/queue while it works: the server holds it, it shows, × takes it back', async () => {
