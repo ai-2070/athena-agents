@@ -8,17 +8,24 @@ cyberpunk loft. Athena sends the page the Station's state and live events; the p
 Agents write the scene, like they build the voxel world: the user asks "make the Station an underwater garden" and a
 builder writes the page, looks at a picture of it, and fixes it.
 
-Status: plan, nothing built yet. Written 17 November 2026.
+Status: plan, nothing built yet. Written 17 November 2026; the same day, agents moved to editing the files directly
+(§6, §6c) and the versions moved out of the project folder (§3a).
 
 Inspiration: [abyssal-garden](https://github.com/Noniv/abyssal-garden) (see §10).
 
 ## Decisions
 
+- **Agents edit the scene's files directly**, with the file tools they already have (Claude Code's Read/Edit/Write,
+  Codex's patches, the built-in `read_file`/`edit_file`/`write_file`). They are better at that than at any tool we'd
+  add: small edits, several files, grep. The scene tools only do what file tools can't: pictures, load checks, versions
+  (§6).
 - **No approvals for scene changes.** A builder changes a scene many times in one go, and the scene runs sandboxed
-  (§4), so asking each time only gets in the way. The scene tools are risk `none`. This is a deliberate exception to
-  "anything that runs code is `high`" in `AGENTS.md`; the tool definitions say why in a comment.
-- **The real danger is a broken scene that is hard to put back**, so every change is kept as a version, the Station
-  never shows a broken scene in place of a working one, and going back is one click or one tool call (§3).
+  (§4), so asking each time only gets in the way. File writes inside the scene folder and the scene tools never ask
+  (§6c). This is a deliberate exception to "anything that runs code is `high`" in `AGENTS.md`; the code says why in a
+  comment.
+- **The real danger is a broken scene that is hard to put back**, so every change is kept as a version (taken by
+  watching the folder, whoever wrote to it), the Station never shows a broken scene in place of a working one, and
+  going back is one click or one tool call (§3). The versions live where agents' file tools can't reach them.
 
 ---
 
@@ -47,7 +54,7 @@ Non-goals (for now):
 - Files: `<project>/.dashboard/scene/`, with `index.html` as the entry and any assets next to it (JS, CSS, images,
   models, fonts, audio). Size limits per file and in total (start at 8 MB a file and 32 MB in all, like the
   background's own limit).
-- Versions: `<project>/.dashboard/scene-history/` (§3).
+- Versions: in the data folder, `projectData(<project>, 'scene-history')`, not in the project folder (§3a).
 - Backups (`server/backup.ts`) take the scene and part of its history (§3a). Restoring a backup brings the scene back
   as a new version; `BackupRestoreResult` gets `scene: boolean`.
 - `Project` gets `sceneAt?: number | null` (when the scene last changed; null = none), added by the server like
@@ -83,25 +90,33 @@ In `server/scene/history.ts`. The same idea as `server/versions.ts` for agents a
 
   A version that changes one file costs only that file. Taking a version means hashing the folder (32 MB at most).
 
-- **When a version is taken.** Agents can change the files without our tools: Claude Code and Codex edit
-  `.dashboard/scene/` with their own file tools, and the user can edit it in an editor. So versions don't depend on
-  `scene_write` alone:
-  - `scene_write` and `scene_restore` take a version right after the change, tagged with who made it.
-  - The server watches the folder (`fs.watch`, recursive, debounced 1.5 s) while the project is open, and takes a
-    version whenever the folder differs from the newest version, tagged `outside` (with the agent and run when one of
-    its runs in that project was writing at the time). A tool write leaves nothing new to see, so it isn't taken
-    twice. No watching outside open projects.
+- **When a version is taken.** Agents write the files with their own file tools, and the user can edit them in an
+  editor, so versions come from watching the folder, not from a tool:
+  - The server watches `.dashboard/scene/` (`fs.watch`, recursive, debounced 1.5 s) while the project is open, and
+    takes a version whenever the folder differs from the newest version. The debounce turns an agent's quick run of
+    edits into one version; a version caught half-way through is harmless, because a broken version never takes over
+    the Station (§3c). No watching outside open projects.
+  - `scene_restore` and the user's "Go back to this" take one at once (no wait for the watcher).
   - On start and when a project opens: if the folder differs from the newest version, take one ("Changed while Athena
     was closed").
   - The first time a project has a scene and no history: take one ("As found").
+  - `scene_check` (§6) takes one at once if the folder changed since the newest, so a builder never waits for the
+    debounce.
+- **Who made it.** A file write by a built-in tool is known exactly (the tool tells the history which agent and run
+  wrote which file). An edit by Claude Code, Codex or the user is seen only as a change in the folder; it is put on the
+  runs going on in that project at the time (`by.kind: 'agent'` with the run when there is exactly one, else
+  `'outside'` with the runs listed in `note`).
 - **Grouped by run.** Versions carry `runId`, so the list reads "Coral garden builder, 14 changes, 3:05 pm" and can go
   back to before a whole run.
 - **Keeping.** The last 200 versions; the newest version that loads, of each of the last 30 days; every pinned
   version; and always the newest version that loads. Blobs no version uses are deleted when pruning. Over 200 MB, the
   oldest unpinned versions go first.
-- **Where.** In the project folder, so it moves with the project. Auto-save (`server/projectsync.ts`) doesn't touch it.
-  Backups take the current scene, the newest version that loads, pinned versions and the last 20 (within the backup's
-  limits). If the dashboard writes a `.gitignore` into `.dashboard`, `scene-history/` goes in it.
+- **Where.** In the data folder (`projectData(<project>, 'scene-history')`), through `store.ts`. Not in the project
+  folder: an agent whose workspace is the project's folder may write anywhere in it, `.dashboard/` included, so a
+  history there could be damaged by the same careless edit it is meant to undo. It also stays out of the user's git
+  repo. Backups take the current scene, the newest version that loads, pinned versions and the last 20 (within the
+  backup's limits), so a project moved to another computer through a backup keeps them. The project folder's auto-save
+  (`server/projectsync.ts`) carries only the scene itself.
 
 ### 3b. Knowing which versions work
 
@@ -126,9 +141,10 @@ In `server/scene/history.ts`. The same idea as `server/versions.ts` for agents a
 
 ### 3d. Going back
 
-- **For builders** (risk `none`, §6): `scene_versions` lists versions (when, who, files changed, loads or broken, its
-  error, pinned). `scene_restore { version, path? }` brings back a whole version or one file. `scene_diff { version,
-path }` shows a file's changes against now, so a builder can see what it broke.
+- **For builders** (§6): `scene_versions` lists versions (when, who, files changed, loads or broken, its error,
+  pinned). `scene_restore { version, path? }` writes a whole version, or one file of it, back into the folder.
+  `scene_versions { version, path }` gives that file's text as it was, so a builder can compare it with its own file
+  tools and see what it broke.
 - **For the user:** a "Scene versions" list, opened from the bar in §3c and from Settings › Appearance when Scene is
   chosen. Each version shows who and when, a green or red dot (loads / doesn't load), and buttons: "Go back to this",
   "Keep" (pin). Runs are grouped, with "Go back to before this".
@@ -260,35 +276,35 @@ Unknown types are ignored, so scenes made for a newer protocol still mostly work
 
 ## 6. Tools
 
-In `server/scene/tools.ts`, wired up like `server/voxel/tools.ts`: given where the `world_*` tools are given, with a
-prompt part (like `worldPrompt`) that explains the protocol in short. None of them asks for approval (see Decisions).
+Agents read and write the scene's files with their own file tools (§6c). The scene tools, in `server/scene/tools.ts`,
+do only what file tools can't. They are wired up like `server/voxel/tools.ts`: given where the `world_*` tools are
+given, with a prompt part (like `worldPrompt`) that says, in short:
 
-| Tool             | What it does                                                                                                                                 |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scene_list`     | the scene's files, sizes, when they changed                                                                                                  |
-| `scene_read`     | one file's text (of now, or of a version)                                                                                                    |
-| `scene_write`    | writes or replaces one file (text, or base64 for images), within the limits; `delete: true` removes one; then waits for how it loads (below) |
-| `scene_look`     | a picture of the scene as the open Station shows it (§6a)                                                                                    |
-| `scene_logs`     | the scene's last errors and logs (the last 200, from the open tab), and whether a tab is showing it                                          |
-| `scene_versions` | the scene's versions (§3d)                                                                                                                   |
-| `scene_restore`  | brings back a version, or one file of it (§3d)                                                                                               |
-| `scene_diff`     | what changed in a file between a version and now                                                                                             |
-| `scene_use`      | turns the scene look on or off (`StationLook`, a setting for every project): only when the user asks, like `station_look`                    |
+> This project's scene is the folder `<absolute path>/.dashboard/scene/` (entry: `index.html`). Change it with your
+> file tools. After a change, call `scene_check` and fix what it reports before you go on. Every change is kept:
+> `scene_versions` and `scene_restore` bring back an earlier one. The protocol and the helper: (short version of §5
+> and §7).
 
-Writes go through `store.ts` helpers into the project folder; each one takes a version (§3a), bumps `sceneAt` and
-emits `scene`, so open tabs load the new version.
+| Tool             | What it does                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `scene_check`    | takes a version of the folder now if it changed, waits for an open tab to load it, and says how it went (below)           |
+| `scene_look`     | a picture of the scene as the open Station shows it (§6a)                                                                 |
+| `scene_logs`     | the scene's last errors and logs (the last 200, from the open tab), and whether a tab is showing it (§6b)                 |
+| `scene_versions` | the scene's versions (§3d); with `version` and `path`, that file's text as it was then                                    |
+| `scene_restore`  | writes a version, or one file of it, back into the folder (§3d)                                                           |
+| `scene_use`      | turns the scene look on or off (`StationLook`, a setting for every project): only when the user asks, like `station_look` |
 
-Guards in `scene_write`: no removing `index.html` and no empty `index.html`; text files must be valid UTF-8; the size
-limits of §2.
+None of them asks for approval (see Decisions).
 
-**A write answers with how it loads.** When a tab shows the scene, `scene_write` waits (up to 12 s, like `world_look`)
-for the load report of §3b and returns it: "Loads fine", or "Doesn't load: TypeError: … (index.html:212). The Station
-shows the version from 3:05 pm instead; fix it, or scene_restore". With no tab showing it, it says so. A builder
-writing several files in a row can pass `wait: false` on all but the last.
+**`scene_check` answers with how it loads.** When a tab shows the scene, it waits (up to 12 s, like `world_look`) for
+the load report of §3b and returns it: "Loads fine", or "Doesn't load: TypeError: … (index.html:212). The Station
+shows the version from 3:05 pm instead; fix it, or scene_restore". It also says what it found wrong in the folder
+without loading it: no `index.html`, an empty one, files over the limits of §2, file types the scene route won't serve.
+With no tab showing the scene it says so (and still checks the folder).
 
-The Brain gets the same tools. Today it has JSON actions (`server/overseer.ts`: `station_look`, `background`); the
-Brain-on-agent-tools change (`BRAIN_ON_AGENT_TOOLS_2026-11-16.md`) turns those into tools. Whichever is in `main` when
-this is built: `station_look` takes `"scene"`, and the Brain gets `scene_*` the way agents do.
+The folder has no guards of its own: anything can be written there. The limits are kept by what Athena does with it.
+The watcher doesn't take a version of a folder over the limits (it logs why, and `scene_check` says so), and the
+scene route serves only the file types it knows.
 
 ### 6a. Pictures (`scene_look`)
 
@@ -304,6 +320,35 @@ The helper forwards `window.onerror`, unhandled rejections and `console.error`/`
 to the server (`rpc.scene.log`, batched, rate-limited), which keeps a ring buffer per project in memory, each line
 with the version it came from. A scene that sends no `ready` within 10 seconds gets a line saying so (most often: an
 import failed).
+
+### 6c. Reaching the folder, without approvals
+
+Each engine gets the scene folder of the run's project (`withProject()`, never the active one), for agents that have
+the scene tools. Only `.dashboard/scene/`, not the rest of `.dashboard/` (`project.json` and the other saved files):
+
+- **Built-in tools** (`server/tools.ts`): `allowedRoots` gets the scene folder for reading and writing. `write_file`
+  and `edit_file` (and deleting a file there) take their risk from their arguments (`RiskOf`, like `board_tags`):
+  `none` inside a scene folder, `low` elsewhere as today. They also tell the history who wrote (§3a).
+- **Claude Code** (`server/engines/claude.ts`): `--add-dir <scene folder>` when it isn't inside the workspace, and
+  allow rules for it in `--allowedTools` (`Read`, `Edit`, `Write` on `<scene folder>/**`), so its "default" and
+  "auto" modes don't send scene edits to the permission prompt. To check while building: the rule syntax for an
+  absolute Windows path (Claude Code writes absolute paths in rules as `//c/Users/...`), and that a rule in
+  `--allowedTools` is enough for edits outside the working directory.
+- **Codex** (`server/engines/codex.ts`): in "auto" (workspace-write) the scene folder becomes a writable root
+  (`-c sandbox_workspace_write.writable_roots=[…]`). "Ask first" runs Codex read-only today, so it can't write
+  anywhere, the scene included. To check while building: whether "Ask first" can become workspace-write with only the
+  scene folder writable, or whether Codex agents on "Ask first" just can't build scenes (and the prompt says so).
+- **Other engines** (Hermes, Eve, opencode, pi) with their own file tools: the same, through each engine's way of
+  adding a folder and allowing writes in it. An engine that can't be given one gets a short note in the prompt instead
+  of the scene tools.
+- **"Full"** agents already write anywhere; nothing changes for them.
+
+**The Brain** only reads files on Claude Code and Codex ("changes go through its own tools", `server/engines/claude.ts`),
+and that stays. It gets `scene_use`, `scene_look`, `scene_check`, `scene_versions` and `scene_restore`, and hands the
+building to an agent: the Agent library gets a "Scene builder" agent. Today the Brain has JSON actions
+(`server/overseer.ts`: `station_look`, `background`); the Brain-on-agent-tools change
+(`BRAIN_ON_AGENT_TOOLS_2026-11-16.md`) turns those into tools. Whichever is in `main` when this is built:
+`station_look` takes `"scene"`, and the Brain gets its scene tools the same way.
 
 ---
 
@@ -346,8 +391,8 @@ Served from `/scene-lib/` (public, the same for everyone, `access-control-allow-
   commented, so agents learn the pattern from it.
 
 The `athena` skill (`skills/athena/`) gets a page on scenes: the protocol, the helper, the rules (no network, no
-`localStorage`, draw everything from `state`, keep ids, read what `scene_write` says about loading and fix or restore
-before moving on), and a checklist (handles empty projects, many agents, light and dark, reduced motion, pause).
+`localStorage`, draw everything from `state`, keep ids, call `scene_check` after a change and fix or restore before
+moving on), and a checklist (handles empty projects, many agents, light and dark, reduced motion, pause).
 
 ---
 
@@ -387,8 +432,8 @@ In `web/views/station.ts` the change is small; the rest goes in a new `web/scene
   load reports, the fallback bar, the swap through a hidden iframe; the Scene versions list.
 - `sceneAt` on projects, the `scene` event, reloading.
 - Tests:
-  - history: a write takes a version; an edit from outside is picked up by the watcher, once; a change while the
-    server was off is found on start; blobs are shared between versions; pruning keeps pinned versions and the newest
+  - history: a change in the folder is picked up by the watcher, once, and a quick run of edits makes one version; a
+    folder over the limits makes no version; a change while the server was off is found on start; blobs are shared between versions; pruning keeps pinned versions and the newest
     one that loads, and deletes unused blobs; a restore is a new version and can be undone;
   - serving: the CSP (with `sandbox` and `connect-src 'none'`); unknown tokens and versions get 404; a version serves
     its own bytes after the folder changed; paths not in the version get 404; the token is not the project id;
@@ -399,14 +444,22 @@ In `web/views/station.ts` the change is small; the rest goes in a new `web/scene
 
 ### Phase 2: agents make scenes
 
-- `scene_list`, `scene_read`, `scene_write` (with the load result), `scene_look`, `scene_logs`, `scene_versions`,
-  `scene_restore`, `scene_diff`, `scene_use`, and their prompt part.
-- The Brain: `station_look` `"scene"` and the scene tools.
+- Reaching the folder without approvals, per engine (§6c): `allowedRoots` and the arguments-based risk of the
+  built-in file tools; Claude Code's `--add-dir` and allow rules; Codex's writable root; the other engines.
+- `scene_check`, `scene_look`, `scene_logs`, `scene_versions`, `scene_restore`, `scene_use`, and their prompt part
+  with the folder's path.
+- The Brain: `station_look` `"scene"`, its scene tools, and a "Scene builder" agent in the Agent library.
 - `events`: `run-start`/`run-end`, `tool`, `handoff`, `message`, `needs`, `brain`.
 - Backups take the scene and its history (§3a).
 - The `athena` skill's scene page.
-- Tests: tool limits and refusals; `scene_write` reports "loads" and "doesn't load" from a tab, and says when no tab
-  shows the scene; `scene_look` with and without an open tab; the logs ring buffer; backup round trip with history.
+- Tests:
+  - reach: an agent with the scene tools can read and write its run's project's scene folder (not another project's,
+    and not the rest of `.dashboard/`); `write_file`/`edit_file` there are risk `none`, elsewhere `low`; the Claude
+    Code and Codex arguments carry the folder and its rules;
+  - history: a built-in tool's write is put on its agent and run; with one run going on, a change from outside is put
+    on it;
+  - `scene_check` reports "loads" and "doesn't load" from a tab, the folder's problems, and says when no tab shows
+    the scene; `scene_look` with and without an open tab; the logs ring buffer; backup round trip with history.
 
 ### Phase 3: better scenes
 
@@ -443,9 +496,8 @@ It's a good test of the protocol, because nothing in it was made for us. It shou
 
 ## 11. Open questions
 
-- **History in the project folder or in `data/`.** In the project folder (the plan) it moves with the project and
-  survives a reinstall, but it makes the folder bigger and could end up in the user's git repo. In `data/` it stays on
-  this computer. Leaning project folder, with a `.gitignore` entry.
+- **Codex on "Ask first".** It runs read-only today, so it can't build scenes. Make an exception (workspace-write
+  with only the scene folder writable, if Codex allows that), or leave it and say so in the prompt?
 - **Labels.** Phase 1 lets the scene draw everything, names included. If scenes end up with labels that are hard to
   read, `anchors` moves up to Phase 2.
 - **One scene per project, or a shared library of scenes** a project picks from (like a world can be shared between
