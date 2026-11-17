@@ -42,6 +42,9 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   if (!name) throw bad('Name it.');
   if (req.as === 'prefab' ? findPrefab(w, name) : findObject(w, name))
     throw bad(`There's already ${req.as === 'prefab' ? 'a prefab' : 'an object'} called "${name}".`);
+  // (the same cap as a prefab made or copied in any other way)
+  if (req.as === 'prefab' && w.prefabs.length >= WORLD_LIMITS.prefabs)
+    throw bad(`This world has ${WORLD_LIMITS.prefabs} prefabs, the most it can hold.`);
   const st = fs.statSync(req.file);
   if (!st.isFile() || st.size > 64 * 1024 * 1024) throw bad('That is not a .vox file this can read (up to 64 MB).');
   const size = req.voxelSize === undefined ? (req.as === 'prefab' ? 0.1 : w.voxelSize) : Number(req.voxelSize);

@@ -1311,6 +1311,7 @@ Completed reviews:
 - Trigger/evidence: import another .vox prefab after 300. Exchange omits WORLD_LIMITS.prefabs, unlike ordinary creation and library import.
 - Impact/expected: capacity grows past the stated limit through one entrypoint while others refuse. Enforce one invariant.
 - Limits: practical performance effects unmeasured; no import executed.
+- Fixed: a .vox imported as a prefab keeps to the world's prefab cap, as other ways of making one do. Test in `tests/server/voxel-limits.test.ts`.
 
 ### BH-146 — Script-backed world builds ignore Stop during sandbox initialization
 
@@ -1319,6 +1320,7 @@ Completed reviews:
 - Trigger/evidence: Stop a first script-backed build while loadSandbox() awaits. Tool's entry guard already passed, and build runs unconditionally when initialization finishes.
 - Impact/expected: stopped request can execute/persist a world build. Recheck run cancellation after sandbox loading.
 - Limits: initialization/Stop timing not exercised; no script executed.
+- Fixed: a script-backed world build checks Stop again once the sandbox has started, and builds nothing if it came meanwhile. No test of its own.
 
 ### BH-147 — Late artifact responses replace the new project's list
 
