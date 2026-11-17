@@ -1326,7 +1326,7 @@ Completed reviews:
 - Trigger/evidence: Stop a first script-backed build while loadSandbox() awaits. Tool's entry guard already passed, and build runs unconditionally when initialization finishes.
 - Impact/expected: stopped request can execute/persist a world build. Recheck run cancellation after sandbox loading.
 - Limits: initialization/Stop timing not exercised; no script executed.
-- Fixed: a script-backed world build checks Stop again once the sandbox has started, and builds nothing if it came meanwhile. No test of its own.
+- Fixed: a script-backed world build checks Stop again once the sandbox has started, and builds nothing if it came meanwhile. Test in `tests/server/voxel-script-stop.test.ts`.
 
 ### BH-147 — Late artifact responses replace the new project's list
 
