@@ -357,3 +357,19 @@ describe("the Brain's own 3D model", () => {
     expect(fs.readFileSync(path.join(project.brainPath, '.dashboard', 'brain-model.ply')).equals(ply)).toBe(true);
   });
 });
+
+describe('a backup bigger than its reader takes', () => {
+  it('is refused when made, saying so, rather than written unreadable', async () => {
+    const { encodeBackup, decodeBackup, packProject } = await import('../../server/backup.ts');
+    const p = await createProject({
+      name: 'Too big to back up',
+      mode: 'new',
+      folder: path.join(os.homedir(), 'projects', 'too-big'),
+    });
+    const b = packProject(p);
+    const size = Buffer.byteLength(JSON.stringify(b));
+    // (the reader's real limit is 512 MB: here one just under and just over this backup)
+    expect(decodeBackup(encodeBackup(b, size)).project.name).toBe('Too big to back up');
+    expect(() => encodeBackup(b, size - 1)).toThrow(/too big to back up whole/);
+  });
+});

@@ -500,14 +500,14 @@ export function packProject(p: Project): BackupData {
   return data;
 }
 
-/** The bytes of a backup file. */
-export function encodeBackup(b: BackupData): Buffer {
+/** The bytes of a backup file. (max: what its reader takes; smaller only in tests) */
+export function encodeBackup(b: BackupData, max = UNPACKED_MAX): Buffer {
   const head = `${MAGIC} ${FORMAT}\n${JSON.stringify(summarize(b))}\n`;
   const body = JSON.stringify(b);
   // (each kind fits its own limit, but all of them together may not: a backup that couldn't be read back isn't made)
-  if (Buffer.byteLength(body) > UNPACKED_MAX)
+  if (Buffer.byteLength(body) > max)
     throw new Error(
-      `This project is too big to back up whole (${Math.round(Buffer.byteLength(body) / 1024 / 1024)} MB unpacked; a backup holds ${UNPACKED_MAX / 1024 / 1024} MB). Make its world, team pictures or knowledge smaller first.`,
+      `This project is too big to back up whole (${Math.round(Buffer.byteLength(body) / 1024 / 1024)} MB unpacked; a backup holds ${Math.round(max / 1024 / 1024)} MB). Make its world, team pictures or knowledge smaller first.`,
     );
   return Buffer.concat([Buffer.from(head, 'utf8'), zlib.gzipSync(body)]);
 }
