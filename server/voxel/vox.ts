@@ -200,6 +200,8 @@ export function voxToGrid(
   name: string,
   voxelSize: number,
   newId: () => string,
+  /** told the voxels' lowest and highest corner in the grid before it is filled: throws to refuse */
+  fits?: (min: [number, number, number], max: [number, number, number]) => void,
 ): { grid: Grid; materials: VoxelMaterial[]; colorOf: Map<number, number>; count: number } {
   const voxels = voxVoxels(f);
   const used = [...new Set(voxels.map((v) => v[3]))].sort((a, b) => a - b);
@@ -239,6 +241,8 @@ export function voxToGrid(
   }
   const cx = Math.floor((minX + maxX) / 2);
   const cy = Math.floor((minY + maxY) / 2);
+  // (where it will lie, told before any chunk is made: one spread far apart could otherwise take gigabytes to refuse)
+  if (voxels.length) fits?.([minX - cx, 0, -(maxY - cy)], [maxX - cx, maxZ - minZ, -(minY - cy)]);
   const vol: Volume = newVolume(voxelSize);
   for (const [x, y, z, ci] of voxels) setVoxel(vol, x - cx, z - minZ, -(y - cy), colorOf.get(ci)!);
   return { grid: { id: newId(), voxelSize, vol }, materials, colorOf, count: voxels.length };

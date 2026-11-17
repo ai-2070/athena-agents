@@ -1285,6 +1285,7 @@ Completed reviews:
 - Trigger/evidence: import colors then immediately undo. Import adds palette entries but omits history materials; undo reclaims additions only through mine.materials.
 - Impact/expected: repeatedly trying/undoing models exhausts the 255-material palette despite geometry removal. Record/reclaim imported materials like ordinary builds.
 - Limits: no import/undo executed.
+- Fixed: a .vox import keeps the palette places it added with its undo entry, as builds do, so undoing it gives them back. Test in `tests/server/voxel-exchange.test.ts` (as an object and as a prefab).
 
 ### BH-142 — Finishing-pass inspections bypass voxel work budgets
 
@@ -1309,6 +1310,7 @@ Completed reviews:
 - Trigger/evidence: allowed .vox scene spreads placements into distinct chunks ultimately outside reach. voxToGrid materializes first; one-million-voxel allowance can allocate roughly 4 GB in 4,096-byte chunks.
 - Impact/expected: even 64 MB input guard cannot prevent memory exhaustion on an import that must fail. Validate extent/allocation before materialization.
 - Limits: no import, large allocation or crash attempted.
+- Fixed: the size and reach checks run on where the voxels will lie before any chunk is made (`voxToGrid` takes a `fits` check), so a model spread far apart is refused without laying it out; within reach it is at most 512³ voxels (about 128 MB of chunks). Test in `tests/server/voxel-exchange.test.ts` (the check is told the bounds first; the memory saved isn't measured).
 
 ### BH-145 — Voxel-file imports bypass the world prefab-count cap
 
