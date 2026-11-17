@@ -346,6 +346,27 @@ export function nesting(
   return out;
 }
 
+/** How deep `id` sits inside other prefabs at most: the longest chain of prefabs holding it (0: none does). */
+export function heldAbove(w: VoxelWorld, id: string): number {
+  const parents = new Map<string, string[]>();
+  for (const p of w.prefabs)
+    for (const c of new Set((readPrefab(w.id, p.id)?.instances || []).map((i) => i.prefab)))
+      parents.set(c, [...(parents.get(c) || []), p.id]);
+  const memo = new Map<string, number>();
+  const up = (x: string, path: Set<string>): number => {
+    const known = memo.get(x);
+    if (known !== undefined) return known;
+    if (path.has(x)) return 0;
+    path.add(x);
+    let n = 0;
+    for (const q of parents.get(x) || []) n = Math.max(n, up(q, path) + 1);
+    path.delete(x);
+    memo.set(x, n);
+    return n;
+  };
+  return up(id, new Set());
+}
+
 /**
  * How many copies these copies draw, counting the copies inside them all the way down (the page and a .glb
  * draw every one). `override` stands in for a prefab's copies before they are saved.
@@ -457,6 +478,7 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   const grids = loadGrids(data);
   const palette = [...w.palette];
   if (req.units !== undefined && req.units !== 'map' && req.units !== 'voxels') throw bad('units is "map" or "voxels"');
+  let above: number | undefined;
   const outcome = runBuild({
     units: req.drive || req.units === 'map' ? 'map' : 'voxels',
     drive: req.drive,
@@ -476,7 +498,10 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
       if (kind !== 'prefab') return null;
       const n = nesting(w, id, t.id);
       if (id === t.id || n.holds) return `a prefab can't be placed inside itself ("${t.name}")`;
-      if (n.depth + 1 >= WORLD_LIMITS.nesting) return `prefabs nest at most ${WORLD_LIMITS.nesting} deep`;
+      // (the prefabs holding this one count too: a copy of the outermost, placed in an object, is drawn only so deep)
+      above ??= heldAbove(w, t.id);
+      if (above + n.depth + 1 >= WORLD_LIMITS.nesting)
+        return `prefabs nest at most ${WORLD_LIMITS.nesting} deep${above ? `, counting the ${above === 1 ? 'prefab' : `${above} prefabs`} "${t.name}" is placed in` : ''}`;
       return null;
     },
   });

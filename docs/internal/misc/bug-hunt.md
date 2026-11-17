@@ -1227,6 +1227,7 @@ Completed reviews:
 - Trigger/evidence: place a valid four-level prefab chain, then add a child to its existing leaf. Validation checks new child depth, not edited prefab's ancestors; drawnCheck counts work, not nesting.
 - Impact/expected: successful persistent fifth-level geometry disappears because rendering stops at four. Validate resulting graph through holders.
 - Limits: producer/render cutoff inspected; no scene built.
+- Fixed: a part placed into a prefab counts the longest chain of prefabs holding that prefab too (`heldAbove()`), so a copy of the outermost placed in an object never nests past the 4 levels the page draws; the refusal says how many prefabs hold it. Test in `tests/server/voxel-limits.test.ts`.
 
 ### BH-135 — Short path segments do not advance prefab placement spacing
 
