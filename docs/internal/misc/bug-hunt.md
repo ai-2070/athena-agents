@@ -937,7 +937,7 @@ Completed reviews:
 - Trigger/evidence: a limits read captures old values and is pending when a reset is consumed. Post-reset `force: true` bypasses completed cache but still returns `cache.running`.
 - Impact/expected: reset response/UI install old usage and credit counts as fresh and may announce the wrong remaining resets. Order refresh after reset consumption.
 - Limits: request overlap not executed; no Codex reset or process invoked.
-- Fixed: a forced limits read (after a reset) waits for a read already going and then reads again, instead of returning that older read. No test of its own (there is no fake Codex app server).
+- Fixed: a forced limits read (after a reset) waits for a read already going and then reads again, instead of returning that older read. Test in `tests/server/codexlimits-force.test.ts` (a fake Codex app server).
 
 ### BH-102 — Handed-document access crosses private conversation boundaries
 
