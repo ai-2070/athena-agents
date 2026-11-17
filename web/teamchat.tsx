@@ -215,11 +215,25 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
       turned: new Set<string>(),
       ended: new Set<string>(),
     };
+    // (only the latest look at the team counts)
+    let teamAsks = 0;
     const off = onEvent((ev) => {
       if (!alive) return;
       // (another project's events: a copied project has a team, agents and chats with the same ids)
       const mine = projectId || state.data?.project?.id;
       if (ev.projectId && mine && ev.projectId !== mine) return;
+      // the team was edited (members, lead, name): who can be mentioned and whose model the box sets follow it
+      if (ev.type === 'workflows' && (!ev.id || ev.id === teamId)) {
+        const asked = ++teamAsks;
+        void rpcAt(projectAt(projectId))
+          .workflows.get({ id: teamId })
+          .then((t) => {
+            if (!alive || asked !== teamAsks) return;
+            c.team = t;
+            bump();
+          })
+          .catch(() => {});
+      }
       if (ev.type === 'team' && ev.teamId === teamId) {
         const e = ev.event as TeamEvent;
         if (e.kind === 'message' && !c.messages.some((m) => m.id === e.message.id))
@@ -299,11 +313,13 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
         turned: new Set(),
         ended: new Set(),
       });
+      const teamAt = teamAsks;
       rpcAt(projectAt(projectId))
         .teams.chat({ id: teamId })
         .then((r) => {
           if (!alive || now !== early) return;
-          c.team = r.team;
+          // (the team edited while this loaded was looked at again since: that is newer)
+          if (teamAt === teamAsks) c.team = r.team;
           c.others = r.others || [];
           // (again: the saved chat stands, with what came in while it loaded)
           c.messages = mergeSnapshot(

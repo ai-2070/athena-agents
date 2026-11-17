@@ -96,6 +96,9 @@ beforeEach(() => {
       });
     // (a fresh stream for each ask, as the server does: React's dev mode mounts twice and asks again)
     if (url === '/api/agents/maker/chats/maker-chat/stream') return (live = uiStream()).response();
+    // (the team as edited: Maker leads now)
+    if (url === '/api/workflows/t1')
+      return json({ id: 't1', name: 'Thumbs', members: ['lead', 'maker'], lead: 'maker', steps: [] });
     if (url === '/api/teams/t1/queue') return json({ queued: { id: 'q1', text: 'then the banner', ts: 5 } });
     // a queued message changed: "gone" was posted meanwhile, "boom" can't be saved
     if (init.method === 'PUT' && url.startsWith('/api/teams/t1/queue/')) {
@@ -149,6 +152,26 @@ describe('team chat box', () => {
     await settle();
     expect(requests).toContain('PUT /api/agents/lead');
     expect(bodies['/api/agents/lead']).toMatchObject({ engine: 'claude-code', model: 'haiku' });
+  });
+
+  it('a team edited while its chat is open: the lead model control follows the new lead (BH-133)', async () => {
+    for (const a of state.data!.agents) Object.assign(a, { engine: 'claude-code', model: 'sonnet' });
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    await act(async () =>
+      FakeSocket.last!.onmessage!({ data: JSON.stringify({ type: 'workflows', id: 't1', ts: 0 }) }),
+    );
+    await settle();
+    await act(async () => el.querySelector<HTMLButtonElement>('.model-chip')!.click());
+    const haiku = [...document.querySelectorAll<HTMLButtonElement>('.model-menu .st-menu-item')].find((button) =>
+      button.textContent?.includes('Haiku (latest)'),
+    );
+    await act(async () => haiku!.click());
+    await settle();
+    expect(requests).toContain('PUT /api/agents/maker');
+    expect(requests).not.toContain('PUT /api/agents/lead');
   });
 
   it('every "5m ago" shares one timer', () => {

@@ -1222,6 +1222,7 @@ Completed reviews:
 - Trigger/evidence: edit membership/lead while chat stays open. C.team loads once; subscription handles no workflow update. App-state refresh retains chat contents and does not replace that object.
 - Impact/expected: removed members remain mention targets, new ones are absent, and lead-model control edits former lead. Reconcile roster/lead on updates.
 - Limits: server routing reads fresh members; no UI scenario run.
+- Fixed: an open team chat looks the team up again when it is edited (the `workflows` event), so its members to mention and the lead whose model the box sets follow the change; a first load that comes back later doesn't put the old team back. Test in `tests/web/teamchat-turns.test.tsx` (the lead model control).
 
 ### BH-134 — Editing a nested prefab can exceed ancestors' render depth
 
