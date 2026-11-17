@@ -5,6 +5,7 @@ import { fromBase64 } from '../../shared/voxel.ts';
 import { cleanMaterial } from './ops.ts';
 import { nesting, ownsObject } from './build.ts';
 import { readObject, readPrefab } from './store.ts';
+import { agents, workflows } from '../store.ts';
 import type { VoxelMaterial, VoxelObjectData, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
 /** Someone else's object or prefab a change would reach. */
@@ -107,7 +108,8 @@ export function materialUsers(w: VoxelWorld, by: WorldBuilder, materials: string
   return out;
 }
 
-/** Other builders' objects and prefabs with copies of this prefab (or of a prefab that holds it). */
+/** Other builders' objects and prefabs with copies of this prefab (or of a prefab that holds it), and others' looks
+ *  made of it. */
 export function copiesByOthers(w: VoxelWorld, by: WorldBuilder, prefabId: string): OthersWork[] {
   if (by.kind !== 'agent') return [];
   const memo = new Map<string, { holds: boolean; depth: number }>();
@@ -124,6 +126,19 @@ export function copiesByOthers(w: VoxelWorld, by: WorldBuilder, prefabId: string
   for (const p of w.prefabs)
     if (p.id !== prefabId && p.instances && !ownsObject(by, p) && has(readPrefab(w.id, p.id)))
       out.push({ by: p.by, where: `the prefab "${p.name}"` });
+  // worn as a look, it changes how someone looks: theirs to allow, as changing their look directly is (an agent's
+  // is the agent's; a team's the builder isn't in, and the Brain's, are the user's)
+  const worn = (id: string | undefined) => !!id && holders.has(id);
+  const user: WorldBuilder = { kind: 'user', name: 'You' };
+  for (const [id, s] of Object.entries(w.skins.agents))
+    if (id !== by.id && (worn(s.character) || worn(s.desk))) {
+      const name = agents.get(id)?.name || 'an agent';
+      out.push({ by: { kind: 'agent', id, name }, where: `${name}'s look` });
+    }
+  for (const [id, s] of Object.entries(w.skins.teams))
+    if ((worn(s.platform) || worn(s.hub)) && !(workflows.get(id)?.members || []).includes(by.id || ''))
+      out.push({ by: user, where: `the look of the team ${workflows.get(id)?.name || id}` });
+  if (worn(w.skins.brain?.shell)) out.push({ by: user, where: "the Brain's look" });
   return out;
 }
 

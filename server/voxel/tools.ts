@@ -286,7 +286,12 @@ export function worldApprovalChecks(name: string, args: ToolArgs, ctx: ToolConte
       break;
     case 'world_prefab':
       if (args.action === 'save' && args.replace) check = othersCheck(ctx, args.from, 'change');
-      if (args.action === 'change') check = othersCheck(ctx, args.prefab, 'change the prefab', 'prefab');
+      // (a new pivot moves every copy already placed: asked like a rebuild when others placed some)
+      if (args.action === 'change')
+        return [
+          othersCheck(ctx, args.prefab, 'change the prefab', 'prefab'),
+          args.pivot !== undefined ? copiesCheck(ctx, args.prefab) : null,
+        ].filter((c): c is WorldApprovalCheck => !!c);
       if (args.action === 'publish') check = publishCheck(ctx, args.prefab);
       break;
     case 'world_animate':
@@ -616,7 +621,8 @@ export function worldTools(gate: Gate, files: FileAccess): ToolDef[] {
               };
             }
             case 'change': {
-              const refused = await othersFirst(ctx, args, a.prefab, 'change the prefab', 'prefab');
+              // (whose prefab it is, and with a new pivot whose copies of it it moves: the same checks as planned)
+              const refused = await checksFirst(ctx, args, worldApprovalChecks('world_prefab', args, ctx));
               if (refused) return refused;
               return {
                 text: changePrefab({

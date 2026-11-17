@@ -1263,6 +1263,7 @@ Completed reviews:
 - Trigger/evidence: B places A's prefab in B's object; A changes pivot under auto autonomy. Planner/executor check creator only, unlike rebuild copiesCheck, although pivot moves existing copies.
 - Impact/expected: another builder's geometry changes without the established copy-owner approval. Apply copy reach/ownership checks to pivot mutations.
 - Limits: not unrestricted full autonomy; no mutation executed.
+- Fixed: a new pivot for a prefab other builders placed copies of asks first, like a rebuild (it moves every copy); `world_prefab` change runs the same checks it is planned with. Test in `tests/server/voxel-reach.test.ts`.
 
 ### BH-139 — Prefab reach checks omit worn skins
 
@@ -1271,6 +1272,7 @@ Completed reviews:
 - Trigger/evidence: A's prefab becomes B's character/desk or shared team/Brain skin; A rebuilds it. Reach scans object/prefab instances only, not w.skins, despite direct skin changes requiring approval.
 - Impact/expected: appearance/shared geometry changes bypass direct ownership boundary unless also referenced elsewhere. Account for affected skins or explicitly define delegated authority.
 - Limits: rendering consumes prefab geometry/animation; no skin/build run.
+- Fixed: the copy checks count a prefab worn as a look too: another agent's look is theirs to allow, a team the builder isn't in and the Brain are the user's, as changing that look directly is. Test in `tests/server/voxel-reach.test.ts`.
 
 ### BH-140 — Object undo restores references to already-deleted prefabs
 
