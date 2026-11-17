@@ -1431,7 +1431,7 @@ Completed reviews:
 - Trigger/evidence: PATH resolves npm .cmd or ComfyUI override names portable .bat. launchDetached uses raw spawn rather than existing Windows-aware spawnCommand; asynchronous errors are discarded.
 - Impact/expected: valid script targets fail or report Started misleadingly. Use a supported launcher and surface failure.
 - Limits: runtime/Node version determines error delivery; no command launched. Distinct from terminal-specific quoting BH-088.
-- Fixed: `launch_program` starts a program through `spawnCommand()` (an npm shim directly, another .cmd or .bat through cmd.exe with its checks) and waits for it to start, so a failure is said instead of "Started". No test of its own.
+- Fixed: `launch_program` starts a program through `spawnCommand()` (an npm shim directly, another .cmd or .bat through cmd.exe with its checks) and waits for it to start, so a failure (thrown at once, or reported after) is said instead of "Started". Test in `tests/server/launch-risk.test.ts`.
 
 ### BH-159 — Windows lookup cannot resolve already-suffixed executable names
 

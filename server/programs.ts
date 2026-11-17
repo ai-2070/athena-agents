@@ -1494,7 +1494,13 @@ export async function launchProgram(
   if (target.exe !== undefined) {
     // (a .cmd or .bat goes the way the rest of the dashboard starts those; a program that can't start says so)
     await new Promise<void>((resolve, reject) => {
-      const child = spawnCommand(target.exe, extra, { detached: true, stdio: 'ignore', windowsHide: false });
+      let child: ReturnType<typeof spawnCommand>;
+      try {
+        child = spawnCommand(target.exe, extra, { detached: true, stdio: 'ignore', windowsHide: false });
+      } catch (e) {
+        // (Windows can refuse a file that isn't a program right away)
+        return reject(new Error(`${target.name} didn't start: ${(e as Error).message}`));
+      }
       child.once('spawn', () => {
         child.unref();
         resolve();

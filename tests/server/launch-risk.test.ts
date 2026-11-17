@@ -57,3 +57,21 @@ describe('a program path set in Settings', () => {
     }
   });
 });
+
+describe('a program that cannot start', () => {
+  it('says so instead of "Started"', async () => {
+    const { saveSettings } = await import('../../server/store.ts');
+    const { launchProgram } = await import('../../server/programs.ts');
+    const dir = ensureDir(dataPath('fake-broken'));
+    // (not a program at all, only named like one, and not runnable)
+    const exe = path.join(dir, process.platform === 'win32' ? 'blender-broken.exe' : 'blender-broken');
+    fs.writeFileSync(exe, 'not a program');
+    if (process.platform !== 'win32') fs.chmodSync(exe, 0o644);
+    saveSettings({ paths: { blender: exe } });
+    try {
+      await expect(launchProgram('blender')).rejects.toThrow(/didn't start/);
+    } finally {
+      saveSettings({ paths: { blender: '' } });
+    }
+  });
+});
