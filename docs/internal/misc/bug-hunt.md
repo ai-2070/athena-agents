@@ -6,7 +6,7 @@ Investigation only: no application code changed. This is an accumulating concern
 
 ## Fix status
 
-Fixed so far: all 22 high, 133 of 142 medium and both low findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does). Still open, medium: BH-010, BH-063, BH-064, BH-065, BH-071, BH-072, BH-091, BH-092, BH-127. Left on purpose for now: BH-063 (decided: left as it is for now), BH-010 (team reference files across copies and backups needs a larger change: relocated paths and their bytes in backups), BH-091/BH-092 (need the Hermes, OpenClaw and opencode command lines checked), BH-064/BH-065 (Tauri updater internals; a readiness handshake that can't be run here), BH-071/BH-072 (the Brain's steering and helper bookkeeping need a careful pass; the Brain changed a lot in #229), BH-127 (an older ComfyUI can't be told to stop one prompt only).
+Fixed so far: all 22 high, 141 of 142 medium and both low findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does). Still open: BH-063 (decided: left as it is for now).
 
 ## Evidence and verification
 
