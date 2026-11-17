@@ -1125,7 +1125,7 @@ Completed reviews:
 - Trigger/evidence: API caller supplies empty positive/negative text to clear saved content. Schema and runner distinguish empty from omitted, but API adapter converts empty strings to undefined.
 - Impact/expected: saved prompt runs unchanged instead of being cleared. Forward optional strings without truthiness conversion.
 - Limits: current Programs UI itself omits empty positive text; direct API consumers affected. No request executed.
-- Fixed: the API passes an empty prompt or negative on as empty (it clears the saved text) instead of dropping it. No test of its own.
+- Fixed: the API passes an empty prompt or negative on as empty (it clears the saved text) instead of dropping it. Test in `tests/server/rpc-comfy-run.test.ts`.
 
 ### BH-123 — ComfyUI cancellation POSTs are unbounded
 
@@ -1134,7 +1134,7 @@ Completed reviews:
 - Trigger/evidence: POST /queue stalls before headers. Cancellation awaits it before checking running job; POST /interrupt also has no bounded signal. Only intervening GET has a ten-second timeout.
 - Impact/expected: GPU job and stopped tool can remain pending instead of reaching Stopped. Bound cancellation requests.
 - Limits: network-dependent; no stalled connection and no assumption about runtime default fetch timeout.
-- Fixed: cancelling a ComfyUI job gives each POST a 10 s limit. No test of its own.
+- Fixed: cancelling a ComfyUI job gives each POST a 10 s limit. Test in `tests/server/comfyui-cancel.test.ts` (a ComfyUI that never answers).
 
 ### BH-124 — Combined conditioning traversal omits later branches
 
