@@ -52,3 +52,31 @@ describe('a terminal viewer that falls behind', () => {
     expect(slow.closed).toBe(4008);
   });
 });
+
+describe('closing a terminal that never printed anything', () => {
+  it('ends its program', async () => {
+    const { createTerminal, closeTerminal, terminalPid } = await import('../../server/terminals.ts');
+    // (a program that prints nothing and waits a minute)
+    const t = createTerminal({
+      kind: 'command',
+      command: process.execPath,
+      args: ['-e', 'setTimeout(() => {}, 60000)'],
+    });
+    // (its process id comes a moment after it starts, before it prints anything)
+    for (let i = 0; i < 50 && !terminalPid(t.id); i++) await new Promise((r) => setTimeout(r, 100));
+    const pid = terminalPid(t.id)!;
+    expect(pid).toBeGreaterThan(0);
+    const alive = () => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    expect(alive()).toBe(true);
+    closeTerminal(t.id);
+    for (let i = 0; i < 100 && alive(); i++) await new Promise((r) => setTimeout(r, 100));
+    expect(alive()).toBe(false);
+  }, 30_000);
+});

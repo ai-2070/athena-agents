@@ -49,6 +49,9 @@ export function send(ws: Pick<WebSocket, 'readyState' | 'bufferedAmount' | 'clos
   ws.send(d);
 }
 
+/** A terminal's process id (for checks that it really ended). */
+export const terminalPid = (id: string): number | null => sessions.get(id)?.pty.pid ?? null;
+
 export function listTerminals(): Terminal[] {
   return [...sessions.values()].map(({ id, title, agentId, createdAt, exited, exitCode, command, projectId }) => ({
     id,
@@ -241,8 +244,8 @@ export function closeTerminal(id: string): boolean {
   } catch {
     /* gone */
   }
-  // (on Windows the terminal's own kill waits until it has printed something: one that never does would be left
-  // running unseen, so it and what it started are ended by its process id too)
+  // (on Windows the terminal's own kill waits until it has printed something. ConPTY prints its own setup at once,
+  // so that comes; it and what it started are ended by its process id as well, in case)
   if (IS_WIN && !s.exited && s.pty.pid)
     try {
       spawn('taskkill', ['/pid', String(s.pty.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore' }).on(

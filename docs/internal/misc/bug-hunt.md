@@ -874,7 +874,7 @@ Completed reviews:
 - Trigger/evidence: close before first output, especially a silent long-running command. PTY `kill()` queues until `_isReady`, set by first output; app removes the session and reports closed immediately.
 - Impact/expected: if no initialization/output arrives, process remains alive untracked. Closing should actually cancel an unready process.
 - Limits: whether ConPTY reliably emits initial data for silent commands is unverified; no process run.
-- Fixed: closing a terminal on Windows also ends its process tree by process id (`taskkill /t /f`), so one that never printed anything is not left running. No test of its own (it needs a real Windows terminal).
+- Fixed: checked: ConPTY sends its own setup output (`ESC[?9001h ESC[?1004h`) about 40 ms after a program starts, even one that never prints, so the queued kill does run; a terminal closed that soon was gone within 2 s. Closing on Windows still also ends the process tree by process id (`taskkill /t /f`). Test in `tests/server/terminal-command.test.ts` (closing a silent terminal ends its program; it passes without the `taskkill` too, as the finding's case did not happen).
 
 ### BH-095 — Terminal runtime files collide across projects and sessions
 
