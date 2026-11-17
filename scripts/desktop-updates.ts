@@ -77,7 +77,7 @@ export function updaterManifest({
   parts: UpdaterPart[];
   now?: Date;
 }): UpdaterManifest {
-  if (!/^v\d+\.\d+\.\d+/.test(tag)) throw new Error(`"${tag}" isn't a version tag like v0.1.0`);
+  if (!/^v\d+\.\d+\.\d+/.test(tag)) throw new Error(`"${tag}" isn't a version tag like v1.0.0`);
   const empty = parts.filter((p) => !Object.keys(p.platforms).length).map((p) => p.target);
   if (!parts.length || empty.length)
     throw new Error(`No signed updates for ${empty.join(', ') || 'any target'}: was TAURI_SIGNING_PRIVATE_KEY set?`);

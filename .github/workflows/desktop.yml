@@ -1,7 +1,7 @@
 name: Desktop apps
 
 # Builds the desktop app's installers for Windows, macOS and Linux (x64 and arm64).
-# Pushing a tag like v0.1.0 also puts them in a draft GitHub release; the tag must match
+# Pushing a tag like v1.0.0 also puts them in a draft GitHub release; the tag must match
 # package.json's version. Run it by hand from the Actions tab to just get the installers.
 # Releases also carry signed updates and latest.json, which installed apps check for updates
 # (needs the TAURI_SIGNING_PRIVATE_KEY secret: see docs/desktop.md).
