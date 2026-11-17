@@ -1204,6 +1204,7 @@ Completed reviews:
 - Trigger/evidence: miss a thread switch during outage; reconnect while same member works in new thread. Merge spreads refreshed sessions first, then old cached sessions, overwriting current ownership.
 - Impact/expected: live view follows old conversation or omits actual work. Refreshed mapping should win except for events received during that request.
 - Limits: normal connected switch clears mapping correctly; no outage run.
+- Fixed: after events come back, the team chat takes the sessions from the fresh snapshot; only a turn that started while it loaded keeps the session its event named (before, the sessions from before the drop overwrote the fresh ones). Test in `tests/web/teamchat-turns.test.tsx`.
 
 ### BH-132 — Delayed team snapshots resurrect ended live turns
 
@@ -1212,6 +1213,7 @@ Completed reviews:
 - Trigger/evidence: GET captures working member; turn-end arrives before response is applied. Handler removes turning member, then snapshot re-adds stale working entries. early.state guards working list, not turning set.
 - Impact/expected: finished turn appears live or duplicates its saved reply until another event/reload. Preserve intervening turn ends over older snapshots.
 - Limits: existing tests cover stale state events, not delayed GET after turn end; no browser scenario.
+- Fixed: a turn that ends while the team chat loads is not brought back by the snapshot taken before it ended. Test in `tests/web/teamchat-turns.test.tsx`.
 
 ### BH-133 — Open team chats retain outdated member/lead controls
 

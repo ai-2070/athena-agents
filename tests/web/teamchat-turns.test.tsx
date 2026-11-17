@@ -42,6 +42,9 @@ let requests: string[];
 // messages the chat got while the event socket was down
 let missed: object[] = [];
 let bodies: Record<string, unknown>;
+// the snapshot's sessions, and a load the test answers only when it lets it go
+let snapshotSessions: Record<string, string>;
+let holdLoad: Promise<void> | null = null;
 const settle = () => act(() => new Promise((r) => setTimeout(r, 40)));
 
 beforeAll(() => {
@@ -53,6 +56,8 @@ beforeEach(() => {
   requests = [];
   bodies = {};
   missed = [];
+  snapshotSessions = { lead: 'lead-chat', maker: 'maker-chat' };
+  holdLoad = null;
   live = uiStream();
   state.data = {
     engines: { 'claude-code': { installed: true, loggedIn: true } },
@@ -69,6 +74,7 @@ beforeEach(() => {
     const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
     // (the page's state, loaded again when the event socket comes back)
     if (url === '/api/state') return json(state.data);
+    if (url === '/api/teams/t1/chat' && holdLoad) await holdLoad;
     if (url === '/api/teams/t1/chat')
       return json({
         team: { id: 't1', name: 'Thumbs', members: ['lead', 'maker'], lead: 'lead', steps: [] },
@@ -86,7 +92,7 @@ beforeEach(() => {
         ],
         working: ['maker'],
         queued: [],
-        sessions: { lead: 'lead-chat', maker: 'maker-chat' },
+        sessions: snapshotSessions,
       });
     // (a fresh stream for each ask, as the server does: React's dev mode mounts twice and asks again)
     if (url === '/api/agents/maker/chats/maker-chat/stream') return (live = uiStream()).response();
@@ -396,6 +402,36 @@ describe('team chat turns', () => {
     await teamEvent({ kind: 'turn', agentId: 'maker', state: 'start', chatId: 'maker-chat' });
     await settle();
     expect(el.querySelector('.tc-live')).not.toBeNull();
+  });
+
+  it('a turn that ends while the chat loads stays ended when the load comes back (BH-132)', async () => {
+    let letLoad = () => {};
+    holdLoad = new Promise<void>((r) => (letLoad = r));
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    // the server's snapshot (Maker working) was taken, and then Maker's turn ended, before it arrives
+    await teamEvent({ kind: 'turn', agentId: 'maker', state: 'end' });
+    letLoad();
+    for (let i = 0; i < 20 && !el.textContent?.includes('Make a thumbnail'); i++) await settle();
+    expect(el.textContent).toContain('Make a thumbnail');
+    expect(el.querySelector('.tc-live')).toBeNull();
+  });
+
+  it('coming back after events dropped follows the session the server has now, not the one from before (BH-131)', async () => {
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    for (let i = 0; i < 100 && !el.querySelector('.tc-live'); i++) await settle();
+    // (the first connection: after it, an open is a reconnect)
+    await act(async () => FakeSocket.last!.onopen!());
+    // while events were down, the team moved to another conversation: Maker works in a new session
+    snapshotSessions = { lead: 'lead-chat', maker: 'maker-chat-2' };
+    requests = [];
+    await act(async () => FakeSocket.last!.onopen!());
+    for (let i = 0; i < 20 && !requests.some((r) => r.includes('maker-chat-2')); i++) await settle();
+    expect(requests).toContain('GET /api/agents/maker/chats/maker-chat-2/stream');
   });
 
   it('clearing the chat takes the live turns away with the sessions', async () => {
