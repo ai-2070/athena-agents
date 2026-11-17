@@ -1335,7 +1335,7 @@ Completed reviews:
 - Trigger/evidence: A's list request starts, switch to B, B finishes reload, then A arrives. All responses unconditionally setAll without project/request validation.
 - Impact/expected: A's artifact list/previews/Open reappear under B. Ignore obsolete responses.
 - Limits: response ordering not reproduced.
-- Fixed: the Artifacts page keeps only the answer to its latest list request, so a late one from before another project opened is dropped. No test of its own.
+- Fixed: the Artifacts page keeps only the answer to its latest list request, so a late one from before another project opened is dropped. Test in `tests/web/artifacts.test.ts`.
 
 ### BH-148 — Same-named loose attachments collapse into one sent path
 

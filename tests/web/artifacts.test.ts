@@ -137,4 +137,38 @@ describe('the Artifacts page', () => {
     await settle();
     expect(el.textContent).toContain('Nothing yet.');
   });
+
+  it('keeps the latest list when an older answer comes late (another project opened meanwhile)', async () => {
+    class FakeSocket {
+      static last: FakeSocket;
+      onmessage: ((m: { data: string }) => void) | null = null;
+      onclose: (() => void) | null = null;
+      onopen: (() => void) | null = null;
+      constructor() {
+        FakeSocket.last = this;
+      }
+    }
+    vi.stubGlobal('WebSocket', FakeSocket);
+    connectEvents();
+    // the first list (the old project's) answers only after the second
+    let releaseFirst = () => {};
+    const firstHeld = new Promise<void>((r) => (releaseFirst = r));
+    let asked = 0;
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (url !== '/api/artifacts') return new Response('{}');
+      const n = ++asked;
+      if (n === 1) {
+        await firstHeld;
+        return new Response(JSON.stringify([list[0]]));
+      }
+      return new Response(JSON.stringify([list[1]]));
+    });
+    await act(async () => page.render(el));
+    await act(async () => FakeSocket.last.onmessage!({ data: JSON.stringify({ type: 'project', ts: 0 }) }));
+    await settle();
+    expect(titles()).toEqual(['Weekly numbers']);
+    releaseFirst();
+    await settle();
+    expect(titles()).toEqual(['Weekly numbers']);
+  });
 });
