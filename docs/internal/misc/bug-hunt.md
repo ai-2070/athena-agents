@@ -70,7 +70,7 @@ Completed reviews:
 - Trigger/evidence: while streaming `sub/victim.txt`, replace ancestor `sub` with a symlink/junction to an outside directory containing another `victim.txt`. Post-stream checks reject it, but catch cleanup still removes `tmp` and `target` through those unsafe pathnames.
 - Impact/expected: rejection can delete a server-writable outside file. Cleanup must stay within the reservation.
 - Limits: requires concurrent filesystem control, link rights and destination permissions; not unauthenticated cross-site HTTP access. OS timing untested.
-- Fixed: cleanup removes the temporary file and the reservation only while their folder is still inside uploads/ and the name still points at the file this upload created (same device and inode). Test in `tests/server/uploads.test.ts` (skipped on Windows, which cannot move a folder with an open file).
+- Fixed: cleanup removes the temporary file and the reservation only while their folder is still inside uploads/ and the name still points at the file this upload created (same device and inode). Test in `tests/server/uploads.test.ts` (skipped on Windows, which cannot move a folder with an open file; run on Linux in Docker).
 
 ### BH-004 — Batch creation follows a dangling uploads `.gitignore` link
 
@@ -626,7 +626,7 @@ Completed reviews:
 - Trigger/evidence: macOS/Linux interactive login profile blocks beyond five seconds. `recv_timeout()` abandons receiver, while detached thread remains in `Command::output()` without terminating shell/children.
 - Impact/expected: retries can accumulate processes surviving app quit; dashboard child ownership does not cover them. Timeout should bound subprocess lifetime.
 - Limits: no blocking shell launched; documented trayless/Linux and other packaging limitations were not classified as bugs.
-- Fixed: the login shell asked for PATH runs as its own process group and is killed with what it started when it takes over 5 s, instead of being left running. Compiled for Linux in a standalone check of the function; not run, and the full desktop crate was not built here.
+- Fixed: the login shell asked for PATH runs as its own process group and is killed with what it started when it takes over 5 s, instead of being left running. Run on Linux in Docker as a standalone build of the function: a normal shell gives PATH in 5 ms; a profile that hangs (and starts a `sleep` of its own) gives up at 5 s, with no process left. The full desktop crate was not built here.
 
 ### BH-067 — Delegation from private conversations creates incorrectly owned chats
 
