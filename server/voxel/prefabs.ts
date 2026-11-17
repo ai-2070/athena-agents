@@ -19,7 +19,7 @@ import {
   findPrefab,
   nesting,
   ownsObject,
-  pivotOf as pivotFrom,
+  prefabPivot,
   placedCopies,
   prefabSize,
   remember,
@@ -43,8 +43,9 @@ const fmt = (n: number) => n.toLocaleString('en-US');
 const count = (p: { volumes: { count: number }[] }) => p.volumes.reduce((n, v) => n + v.count, 0);
 const copiesText = (n: number) => `${fmt(n)} ${n === 1 ? 'copy' : 'copies'}`;
 
-function pivotOf(p: VoxelPrefabMeta): void {
-  Object.assign(p, pivotFrom(p.volumes, p.pivotAt));
+// (from all of it, copies inside included; it must be in w.prefabs with its data written)
+function pivotOf(w: VoxelWorld, p: VoxelPrefabMeta): void {
+  Object.assign(p, prefabPivot(w, p));
 }
 
 function uniqueName(w: VoxelWorld, want: string): string {
@@ -186,9 +187,9 @@ function savePrefabFromIn(w: VoxelWorld, req: SaveFrom): { prefab: VoxelPrefabMe
     throw bad(
       `The copies in that part already nest ${deepest + 1} deep; prefabs nest at most ${WORLD_LIMITS.nesting} deep, so they can't go inside a new prefab. Stamp some of them into voxels first.`,
     );
-  pivotOf(meta);
   writePrefab(w.id, meta.id, { ...saveGrids(taken), ...(instances.length ? { instances } : {}) });
   w.prefabs.push(meta);
+  pivotOf(w, meta);
   let note = '';
   if (req.replace) {
     // the part becomes a copy of the new prefab, standing where it stood
@@ -268,7 +269,7 @@ function changePrefabIn(
     ((p.tags = req.tags.map((t) => String(t).toLowerCase()).slice(0, 12)), changed.push('tags'));
   if (req.pivot !== undefined) {
     p.pivotAt = cleanPivot(req.pivot);
-    pivotOf(p);
+    pivotOf(w, p);
     p.voxelsAt = Date.now();
     changed.push(`pivot (now ${p.pivot.join(', ')}; copies already placed now stand and turn on it)`);
   }
@@ -551,9 +552,9 @@ function importPrefabIn(
     updatedAt: Date.now(),
     voxelsAt: Date.now(),
   };
-  pivotOf(meta);
   writePrefab(w.id, meta.id, data);
   w.prefabs.push(meta);
+  pivotOf(w, meta);
   w.built = true;
   remember(w.id, {
     by: req.by,

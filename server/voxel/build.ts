@@ -405,7 +405,19 @@ export function pivotOf(
   volumes: VoxelVolumeMeta[],
   at: VoxelPrefabMeta['pivotAt'] = 'bottom',
 ): { pivot: Vec3; size: Vec3 } {
-  const b = objectBox({ volumes });
+  return pivotIn(objectBox({ volumes }), at);
+}
+
+/** A prefab's pivot and size from all of it, the copies placed inside included (one made only of parts has no
+ *  voxels of its own to stand on). It must be in w.prefabs, with its data written. */
+export function prefabPivot(w: VoxelWorld, p: VoxelPrefabMeta): { pivot: Vec3; size: Vec3 } {
+  return pivotIn(prefabBox(w, p.id) ?? objectBox(p), p.pivotAt);
+}
+
+function pivotIn(
+  b: { min: Vec3; max: Vec3 } | null,
+  at: VoxelPrefabMeta['pivotAt'] = 'bottom',
+): { pivot: Vec3; size: Vec3 } {
   if (!b) return { pivot: Array.isArray(at) ? at : [0, 0, 0], size: [0, 0, 0] };
   const r = (n: number) => Math.round(n * 1000) / 1000;
   const y = at === 'top' ? b.max[1] : at === 'center' ? (b.min[1] + b.max[1]) / 2 : b.min[1];
@@ -552,11 +564,9 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   if (kind === 'prefab') {
     const p = t as VoxelPrefabMeta;
     if (pivotAt !== undefined) p.pivotAt = pivotAt;
-    Object.assign(p, pivotOf(volumes, p.pivotAt));
     if (created) w.prefabs.push(p);
     // (copies placed inside count too: a character made of parts has no voxels of its own)
-    const full = prefabBox(w, p.id);
-    if (full) p.size = full.max.map((n, a) => Math.round((n - full.min[a]) * 1000) / 1000) as Vec3;
+    Object.assign(p, prefabPivot(w, p));
     if (req.description !== undefined) p.description = String(req.description).slice(0, 300);
     if (Array.isArray(req.tags))
       p.tags = [...new Set(req.tags.map((x) => String(x).trim().toLowerCase()).filter(Boolean))].slice(0, 12);

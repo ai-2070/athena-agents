@@ -1245,6 +1245,7 @@ Completed reviews:
 - Trigger/evidence: prefab consists only of placed parts; choose top/center/bottom. Pivot calculation considers voxel volumes only, returning origin for empty volumes, although size later includes nested parts.
 - Impact/expected: assemblies rotate/stand/hang around the wrong point and named changes may do nothing. Use complete bounds for named pivots.
 - Limits: explicit-coordinate workaround exists; no rendering executed.
+- Fixed: a named pivot (top, center, bottom) and the size come from the whole prefab, copies placed inside included (`prefabPivot()`), when it is built, made from part of an object, brought from the library or given a new pivot. Test in `tests/server/voxel-prefabs.test.ts` (a prefab made only of parts).
 
 ### BH-137 — Extracted prefabs bypass ordinary side-size limits
 
