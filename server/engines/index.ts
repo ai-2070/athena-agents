@@ -526,6 +526,11 @@ const agentRuns = () => [...active.entries()].filter(([, r]) => r.agentId !== BR
 // a change seen in a project's scene folder is put on the run going on there (server/scene/tools.ts)
 takeSceneRunsFrom(() => activeRuns());
 
+/** The projects a Brain turn is going on in (the scene look shows the Brain thinking). */
+export const brainThinking = (): string[] => [
+  ...new Set([...active.values()].filter((r) => r.agentId === BRAIN_ID).map((r) => r.projectId)),
+];
+
 export function activeRuns(): ActiveRun[] {
   return agentRuns().map(([id, r]) => ({
     id,

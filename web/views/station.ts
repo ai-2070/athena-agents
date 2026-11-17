@@ -1371,6 +1371,7 @@ function sceneState() {
     approvals: d?.approvals || [],
     questions: d?.questions || [],
     runs: d?.runs || [],
+    brainThinking: !!d?.project && (d.brainThinking || []).includes(d.project.id),
     now: (id) => (S ? nowText(id).text : ''),
     teamColor: (i) => wfColor({}, i),
   });

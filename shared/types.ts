@@ -2071,6 +2071,8 @@ export interface AppState {
   /** questions from agents waiting for your answer (in the Outbox) */
   questions: AgentQuestion[];
   runs: ActiveRun[];
+  /** the projects a Brain turn is going on in (runs leaves the Brain's own turns out); an older server: missing */
+  brainThinking?: string[];
   engines: EngineStatus;
   engineList: EngineInfo[];
   toolGroups: ToolGroup[];

@@ -50,6 +50,7 @@ export function appState(): AppState {
       ).length,
     questions: questions.waitingQuestions(),
     runs: engines.activeRuns(),
+    brainThinking: engines.brainThinking(),
     engines: engines.engineStatus(),
     engineList: engines.ENGINE_LIST,
     toolGroups: tools.TOOL_GROUPS,

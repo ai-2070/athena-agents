@@ -36,6 +36,15 @@ export const READY_MS = 10_000;
 export const SETTLE_MS = 5_000;
 /** No frame rate from the shown scene for this long (while it is visible): it froze the tab. */
 export const FREEZE_MS = 15_000;
+const FREEZE_EVERY_MS = 5000;
+
+/** What one tick of the freeze check finds. `late`: the tick itself came late (the PC slept, a debugger or a long
+ *  stall held the page), so frames missed meanwhile say nothing about the scene and the wait starts over. `frozen`:
+ *  the page ran on time but the scene sent no frame rate for FREEZE_MS. */
+export function freezeCheck(now: number, lastTick: number, lastFps: number): 'late' | 'frozen' | 'fine' {
+  if (now - lastTick > FREEZE_EVERY_MS * 2) return 'late';
+  return now - lastFps > FREEZE_MS ? 'frozen' : 'fine';
+}
 const STATE_EVERY_MS = 250;
 const QUALITY: SceneQuality[] = ['low', 'medium', 'high'];
 const LOGS_KEPT = 200;
@@ -49,6 +58,8 @@ export interface SceneSource {
   approvals: Approval[];
   questions: AgentQuestion[];
   runs: ActiveRun[];
+  /** a Brain turn is going on in this project (runs leaves the Brain's own turns out) */
+  brainThinking: boolean;
   /** what the map says an agent is doing */
   now: (agentId: string) => string;
   /** a colour for a team without one */
@@ -87,7 +98,7 @@ export function sceneStateFrom(src: SceneSource): SceneState {
     }));
   return {
     project: { id: src.project.id, name: src.project.name },
-    brain: { name: 'Brain', status: needs(BRAIN) ? 'needs' : working(BRAIN) ? 'thinking' : 'idle' },
+    brain: { name: 'Brain', status: needs(BRAIN) ? 'needs' : src.brainThinking ? 'thinking' : 'idle' },
     teams,
     agents,
     needsYou: src.approvals.length + src.questions.length,
@@ -607,12 +618,17 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
     );
   }
 
+  let lastTick = Date.now();
   const freezeTimer = setInterval(() => {
+    const now = Date.now();
+    const found = freezeCheck(now, lastTick, shown?.lastFps ?? now);
+    lastTick = now;
     const f = shown;
     if (!f?.readyAt || paused || f.version === 'starter' || f.error) return;
-    if (Date.now() - f.lastFps > FREEZE_MS)
+    if (found === 'late') f.lastFps = now;
+    else if (found === 'frozen')
       broke(f, `The scene stopped drawing (no frames for ${FREEZE_MS / 1000} seconds): it may be stuck in a loop.`);
-  }, 5000);
+  }, FREEZE_EVERY_MS);
 
   const showVersions = () => showSceneVersions(opts.projectId);
 

@@ -1,7 +1,7 @@
 // The scene look in the Station (web/scene/host.ts): what a scene is sent, which version is shown, and how the
 // host reads (and ignores) what a sandboxed scene says, against a stand-in server.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chooseVersion, createSceneHost, sceneStateFrom } from '../../web/scene/host.ts';
+import { chooseVersion, createSceneHost, FREEZE_MS, freezeCheck, sceneStateFrom } from '../../web/scene/host.ts';
 import type { SceneSource } from '../../web/scene/host.ts';
 import type { Agent, SceneVersion, SceneVersions, TeamListing } from '../../shared/types.ts';
 
@@ -17,6 +17,7 @@ const source = (over: Partial<SceneSource> = {}): SceneSource => ({
   approvals: [],
   questions: [],
   runs: [],
+  brainThinking: false,
   now: () => 'Reading files',
   teamColor: (i) => `#00000${i}`,
   ...over,
@@ -26,7 +27,8 @@ describe('what a scene is sent', () => {
   it('is the map: agents with their status and teams, no Brain among the agents', () => {
     const s = sceneStateFrom(
       source({
-        runs: [{ agentId: 'a1' }, { agentId: 'brain' }] as SceneSource['runs'],
+        runs: [{ agentId: 'a1' }] as SceneSource['runs'],
+        brainThinking: true,
         approvals: [{ agentId: 'a2' }] as SceneSource['approvals'],
       }),
     );
@@ -39,6 +41,18 @@ describe('what a scene is sent', () => {
     expect(s.teams[0]).toMatchObject({ color: '#112233', emoji: '🚀', working: ['a1'], queued: ['a2'], lead: 'a1' });
     expect(s.teams[1].color).toBe('#000001');
     expect(s.needsYou).toBe(1);
+    // (runs never has the Brain's own turns: brainThinking says it)
+    expect(sceneStateFrom(source()).brain.status).toBe('idle');
+  });
+});
+
+describe('the freeze check', () => {
+  it('counts a scene as frozen only when the page itself kept running on time', () => {
+    const t = 1_000_000;
+    expect(freezeCheck(t, t - 5000, t - 2000)).toBe('fine');
+    expect(freezeCheck(t, t - 5000, t - FREEZE_MS - 1)).toBe('frozen');
+    // back from sleep (or a debugger, or a long stall): the tick is late, so the missing frames don't count
+    expect(freezeCheck(t, t - 3_600_000, t - 3_600_000)).toBe('late');
   });
 });
 
