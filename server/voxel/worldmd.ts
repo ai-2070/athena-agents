@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { emit } from '../store.ts';
 import { ensureDir } from '../util.ts';
 import { keepVersion } from '../versions.ts';
-import { getWorld, worldDir } from './store.ts';
+import { getWorld, worldDir, worldWritePath } from './store.ts';
 import type { WorldMdInfo } from '../../shared/types.ts';
 
 export const WORLD_MD = 'WORLD.md';
@@ -102,6 +102,8 @@ export function writeWorldMd(worldId: string, text: unknown): WorldMdInfo {
   const file = fileOf(worldId);
   const before = readWorldMd(worldId);
   if (before === next && worldMdStamp(worldId)) return worldMdInfo(worldId);
+  // (no link anywhere on the way: refused before its old text is kept as a version)
+  worldWritePath(worldId, WORLD_MD);
   const dir = ensureDir(path.dirname(file));
   if (fs.lstatSync(dir).isSymbolicLink() || (plainFile(file) === null && fs.existsSync(file)))
     throw bad('WORLD.md is not a plain file; not writing through it.');

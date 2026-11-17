@@ -6,7 +6,7 @@ Investigation only: no application code changed. This is an accumulating concern
 
 ## Fix status
 
-Fixed so far: all 22 high and 110 of 142 medium findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does). Still open, medium: BH-010, BH-031, BH-032, BH-042, BH-061–BH-065, BH-071, BH-072, BH-091, BH-092, BH-119, BH-124, BH-127, BH-130–BH-134, BH-136, BH-138–BH-144, BH-152–BH-154; low: BH-005, BH-050. Left on purpose for now: BH-124 (whether one prompt should replace every combined branch is a product call), BH-091/BH-092 (need the Hermes, OpenClaw and opencode command lines checked), BH-064/BH-065 (Tauri updater internals; a readiness handshake that can't be run here), BH-071/BH-072 (the Brain's steering and helper bookkeeping need a careful pass), BH-127 (an older ComfyUI can't be told to stop one prompt only).
+Fixed so far: all 22 high, 133 of 142 medium and both low findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does). Still open, medium: BH-010, BH-063, BH-064, BH-065, BH-071, BH-072, BH-091, BH-092, BH-127. Left on purpose for now: BH-063 (decided: left as it is for now), BH-010 (team reference files across copies and backups needs a larger change: relocated paths and their bytes in backups), BH-091/BH-092 (need the Hermes, OpenClaw and opencode command lines checked), BH-064/BH-065 (Tauri updater internals; a readiness handshake that can't be run here), BH-071/BH-072 (the Brain's steering and helper bookkeeping need a careful pass; the Brain changed a lot in #229), BH-127 (an older ComfyUI can't be told to stop one prompt only).
 
 ## Evidence and verification
 
@@ -88,6 +88,7 @@ Completed reviews:
 - Trigger/evidence: plant `escape` as a link/junction in an existing batch, then upload `escape/new/sub/file.txt`. Recursive directory creation runs before containment validation.
 - Impact/expected: a refused request creates outside directory trees; refusal should precede filesystem effects.
 - Limits: known batch, planted link, accepted upload and target permissions required. Random batch names constrain advance planting; later validation prevents ordinary file-content writes. Not reproduced.
+- Fixed: an upload checks that no folder on its path inside the batch is a link before it makes any folder, so a refused one creates nothing outside. Test in `tests/server/uploads.test.ts` (a junction on Windows).
 
 ### BH-006 — Stored ZIP entries evade the unpacked-size limit
 
@@ -320,6 +321,7 @@ Completed reviews:
 - Trigger/evidence: edit/add an album part while claimed document verification awaits I/O. Source holds affect pending files only; the file is already sending and Telegram does not compare delivery versions afterward.
 - Impact/expected: superseded output is delivered instead of held for review. Slack/Discord have version guards (`slack.ts:565,582,596`; `discord.ts:618,703`).
 - Limits: existing test edits before claiming (`tests/server/gateway-outgoing.test.ts:239-253`); no platform/race execution.
+- Fixed: Telegram notes the source message's delivery version before it reads and checks a document, and sends nothing if it changed meanwhile (an edit, an album part added), as Slack and Discord do. Test in `tests/server/gateway-telegram.test.ts` (the change is simulated through the version, not a real edit mid-read).
 
 ### BH-032 — Startup download drain can starve unrelated gateway work
 
@@ -328,6 +330,7 @@ Completed reviews:
 - Trigger/evidence: recovery has pending downloads and ongoing arrivals keep the drain busy. Worker awaits that evolving drain before starting dispatcher/replies.
 - Impact/expected: unrelated text and saved native/Outbox replies wait indefinitely. Independent consumers should not await a continuously replenished backlog.
 - Limits: startup/drain inspected; no backlog run.
+- Fixed: a gateway starts its saved-download loop without waiting for it, so replies, Outbox posts and messages without files go on while downloads are still being saved (a message waiting for its files isn't dispatched until they are). Test in `tests/server/gateway-worker.test.ts`; two older tests that assumed start waited for downloads now wait for them.
 
 ### BH-033 — Codex starts after Stop during status lookup
 
@@ -417,6 +420,7 @@ Completed reviews:
 - Trigger/evidence: preserve a decision with New chat, then search/read an earlier result. Archives move to `past-chats`; search/read inspect only active `teamMessages()`. References identify team, not thread.
 - Impact/expected: retained decisions disappear from search and old references fail until reopening, if advertised earlier-conversation search includes archived team history.
 - Limits: no archive exclusion documented; source/test inspection only.
+- Fixed: `search_conversations` and `read_conversation` cover a team's past conversations (kept by New chat) as well as the open one; a hit from a past one says so in its title. Message ids are unique, so a reference keeps working after New chat. Test in `tests/server/conversation-search.test.ts`.
 
 ### BH-043 — Always-allow consent follows unstable MCP aliases
 
@@ -488,6 +492,7 @@ Completed reviews:
 - Trigger/evidence: A's question is removed through an accepted unscoped request with B open. Dismissal enters A, returns, then collection removal resolves in B.
 - Impact/expected: success is reported but A retains the dismissed record. Keep ownership through deletion.
 - Limits: stale A headers are rejected; this is current-project/no-header path. Answer/dismissal themselves preserve ownership; not reproduced.
+- Fixed: removing a question runs in its own project throughout (dismissal and removal), so one removed from another project's Overview pane is gone from that project. Test in `tests/server/questions.test.ts`.
 
 ### BH-051 — In-flight answers overwrite question closure/deletion
 
@@ -586,6 +591,7 @@ Completed reviews:
 - Trigger/evidence: oversized unrestricted steer reaches compaction. Steering calls `eveMessage()` without ordinary `messageTokens()`/`currentLimit` validation; compaction uses the capped tail budget and cuts its middle.
 - Impact/expected: chat accepts intact instructions that model memory later shortens. Apply ordinary admission budget to steers.
 - Limits: ordinary limit is `min(20000, remainingThreshold / 2)`; existing coverage addresses ordinary input, not this steer edge. No compaction run.
+- Fixed: a message sent into an Eve turn is held to the same input limit as the run's own message (kept when the run was admitted; after a restart, 20,000 tokens): a bigger one is refused before it is saved or sent, and then goes the ordinary way, which says it is too big. Test in `tests/server/eve-steer.test.ts`.
 
 ### BH-062 — Retention deletes native results before application settlement
 
@@ -594,6 +600,7 @@ Completed reviews:
 - Trigger/evidence: crash after final projection but before application completion, restart over 30 days later. Startup tidies first; fully projected native record is removed without checking unsettled execution receipt.
 - Impact/expected: success becomes interrupted, losing successful handoff/callback outcome although answer remains visible. Retain receipts until application completion is reconciled.
 - Limits: existing retention tests omit unsettled execution receipts; no long-retention restart run.
+- Fixed: the 30-day sweep keeps an Eve run whose execution receipt the app hasn't settled yet (a restart came before its handoff or callback was settled), so the restart can still settle it from that record; it goes once settled. Test in `tests/server/eve-retention.test.ts`.
 
 ### BH-063 — Saved Eve steers without delivery receipts are never reconciled
 
@@ -602,6 +609,7 @@ Completed reviews:
 - Trigger/evidence: crash after persisting steer with `deliveryId: null`, before POST reaches Eve. Chat already contains it; recovery ignores saved steers and `lateSteers()` excludes missing delivery IDs.
 - Impact/expected: a visible persisted instruction stays permanently unsent. Preserve resend eligibility or explicitly expose unresolved delivery.
 - Limits: interrupted-pre-ack durability policy needs confirmation; exact encoded attachment bytes are not persisted. No crash run.
+- Decided: left as it is for now (2026-11-17). A message saved for Eve just before a crash, whose delivery is unknown, is neither sent again nor flagged.
 
 ### BH-064 — Failed Windows installer launch leaves desktop ownership dismantled
 
@@ -1099,6 +1107,7 @@ Completed reviews:
 - Trigger/evidence: generate on A, switch configured ComfyUI to B, reopen chat. Persisted relative references contain only file/subfolder/type; proxy/model reads resolve the currently selected server.
 - Impact/expected: images disappear or display B's same-named output; changing during model capture can give the wrong image. Bind origin server or retain local bytes.
 - Limits: later contents determine result; no image request/server change executed.
+- Fixed: a ComfyUI result link carries a fingerprint of the address of the ComfyUI that made it (a hash: nothing is fetched from what a link says). Showing it, or reading it for a model, refuses when another ComfyUI is set now (410, saying to set that one again) instead of showing that server's file of the same name. Links from before have none and work as before. The same ComfyUI reached at another address counts as another. Test in `tests/server/comfyui-run.test.ts`.
 
 ### BH-120 — ComfyUI discovery accepts unrelated servers returning 404
 
@@ -1143,6 +1152,7 @@ Completed reviews:
 - Trigger/evidence: sampler receives ConditioningCombine with two encoders. Traversal follows first matching input; both encoders are excluded as independent starts, so second branch is never updated.
 - Impact/expected: replacement prompt mixes with saved text if top-level override should replace all conditioning branches.
 - Limits: whether only first branch is intentional needs confirmation; tests cover linear helpers, no branching run.
+- Fixed: kept as it was by choice: a new prompt replaces the first text branch of a combined conditioning, and the others stay as saved (often a style the workflow means to keep). That is now said: `findPromptNodes()` reports the other branches' text inputs (`promptAlso`, `negativeAlso`, shown by comfyui_describe_workflow; its description stays as it was, within the tool size budget), and a run that sets the prompt warns which text was kept and how to set it by key. Test in `tests/server/comfyui-run.test.ts`.
 
 ### BH-125 — Linked seed inputs bypass randomization and reporting
 
@@ -1195,6 +1205,7 @@ Completed reviews:
 - Trigger/evidence: local member finishes while its other-team request is outstanding, then /queue or a held message is eligible. Queue idle/release checks only local running/queued/pending work, unlike isTeamBusy and relay completion.
 - Impact/expected: later instructions overlap incomplete work despite “whole team is done” ordering. Include relay/delegate work in queue eligibility.
 - Limits: no team/delegate execution.
+- Fixed: a team's `/queue` message, the next held one and its `/loop` wait until the team is done including members' background work and their questions to other teams still unanswered (as `isTeamBusy()` counts them); when those finish the team settles again and the queue goes on. Test in `tests/server/crossteam.test.ts`.
 
 ### BH-131 — Team reconnect merges obsolete sessions over the refreshed conversation
 
@@ -1203,6 +1214,7 @@ Completed reviews:
 - Trigger/evidence: miss a thread switch during outage; reconnect while same member works in new thread. Merge spreads refreshed sessions first, then old cached sessions, overwriting current ownership.
 - Impact/expected: live view follows old conversation or omits actual work. Refreshed mapping should win except for events received during that request.
 - Limits: normal connected switch clears mapping correctly; no outage run.
+- Fixed: after events come back, the team chat takes the sessions from the fresh snapshot; only a turn that started while it loaded keeps the session its event named (before, the sessions from before the drop overwrote the fresh ones). Test in `tests/web/teamchat-turns.test.tsx`.
 
 ### BH-132 — Delayed team snapshots resurrect ended live turns
 
@@ -1211,6 +1223,7 @@ Completed reviews:
 - Trigger/evidence: GET captures working member; turn-end arrives before response is applied. Handler removes turning member, then snapshot re-adds stale working entries. early.state guards working list, not turning set.
 - Impact/expected: finished turn appears live or duplicates its saved reply until another event/reload. Preserve intervening turn ends over older snapshots.
 - Limits: existing tests cover stale state events, not delayed GET after turn end; no browser scenario.
+- Fixed: a turn that ends while the team chat loads is not brought back by the snapshot taken before it ended. Test in `tests/web/teamchat-turns.test.tsx`.
 
 ### BH-133 — Open team chats retain outdated member/lead controls
 
@@ -1219,6 +1232,7 @@ Completed reviews:
 - Trigger/evidence: edit membership/lead while chat stays open. C.team loads once; subscription handles no workflow update. App-state refresh retains chat contents and does not replace that object.
 - Impact/expected: removed members remain mention targets, new ones are absent, and lead-model control edits former lead. Reconcile roster/lead on updates.
 - Limits: server routing reads fresh members; no UI scenario run.
+- Fixed: an open team chat looks the team up again when it is edited (the `workflows` event), so its members to mention and the lead whose model the box sets follow the change; a first load that comes back later doesn't put the old team back. Test in `tests/web/teamchat-turns.test.tsx` (the lead model control).
 
 ### BH-134 — Editing a nested prefab can exceed ancestors' render depth
 
@@ -1227,6 +1241,7 @@ Completed reviews:
 - Trigger/evidence: place a valid four-level prefab chain, then add a child to its existing leaf. Validation checks new child depth, not edited prefab's ancestors; drawnCheck counts work, not nesting.
 - Impact/expected: successful persistent fifth-level geometry disappears because rendering stops at four. Validate resulting graph through holders.
 - Limits: producer/render cutoff inspected; no scene built.
+- Fixed: a part placed into a prefab counts the longest chain of prefabs holding that prefab too (`heldAbove()`), so a copy of the outermost placed in an object never nests past the 4 levels the page draws; the refusal says how many prefabs hold it. Test in `tests/server/voxel-limits.test.ts`.
 
 ### BH-135 — Short path segments do not advance prefab placement spacing
 
@@ -1244,6 +1259,7 @@ Completed reviews:
 - Trigger/evidence: prefab consists only of placed parts; choose top/center/bottom. Pivot calculation considers voxel volumes only, returning origin for empty volumes, although size later includes nested parts.
 - Impact/expected: assemblies rotate/stand/hang around the wrong point and named changes may do nothing. Use complete bounds for named pivots.
 - Limits: explicit-coordinate workaround exists; no rendering executed.
+- Fixed: a named pivot (top, center, bottom) and the size come from the whole prefab, copies placed inside included (`prefabPivot()`), when it is built, made from part of an object, brought from the library or given a new pivot. Test in `tests/server/voxel-prefabs.test.ts` (a prefab made only of parts).
 
 ### BH-137 — Extracted prefabs bypass ordinary side-size limits
 
@@ -1261,6 +1277,7 @@ Completed reviews:
 - Trigger/evidence: B places A's prefab in B's object; A changes pivot under auto autonomy. Planner/executor check creator only, unlike rebuild copiesCheck, although pivot moves existing copies.
 - Impact/expected: another builder's geometry changes without the established copy-owner approval. Apply copy reach/ownership checks to pivot mutations.
 - Limits: not unrestricted full autonomy; no mutation executed.
+- Fixed: a new pivot for a prefab other builders placed copies of asks first, like a rebuild (it moves every copy); `world_prefab` change runs the same checks it is planned with. Test in `tests/server/voxel-reach.test.ts`.
 
 ### BH-139 — Prefab reach checks omit worn skins
 
@@ -1269,6 +1286,7 @@ Completed reviews:
 - Trigger/evidence: A's prefab becomes B's character/desk or shared team/Brain skin; A rebuilds it. Reach scans object/prefab instances only, not w.skins, despite direct skin changes requiring approval.
 - Impact/expected: appearance/shared geometry changes bypass direct ownership boundary unless also referenced elsewhere. Account for affected skins or explicitly define delegated authority.
 - Limits: rendering consumes prefab geometry/animation; no skin/build run.
+- Fixed: the copy checks count a prefab worn as a look too: another agent's look is theirs to allow, a team the builder isn't in and the Brain are the user's, as changing that look directly is. Test in `tests/server/voxel-reach.test.ts`.
 
 ### BH-140 — Object undo restores references to already-deleted prefabs
 
@@ -1277,6 +1295,7 @@ Completed reviews:
 - Trigger/evidence: delete object with copies, delete now-unused prefab, undo object deletion. Undo checks later edits to object ID but not referenced prefab availability.
 - Impact/expected: success restores invisible missing parts. Restore dependencies or refuse atomically.
 - Limits: ordinary prefab deletion checks current uses, not undo history; no undo run.
+- Fixed: undo refuses, before changing anything, to put back copies of a prefab that has been deleted since, saying to undo that deletion first. Test in `tests/server/voxel-prefabs.test.ts`.
 
 ### BH-141 — Undoing imports leaks their added palette slots
 
@@ -1285,6 +1304,7 @@ Completed reviews:
 - Trigger/evidence: import colors then immediately undo. Import adds palette entries but omits history materials; undo reclaims additions only through mine.materials.
 - Impact/expected: repeatedly trying/undoing models exhausts the 255-material palette despite geometry removal. Record/reclaim imported materials like ordinary builds.
 - Limits: no import/undo executed.
+- Fixed: a .vox import keeps the palette places it added with its undo entry, as builds do, so undoing it gives them back. Test in `tests/server/voxel-exchange.test.ts` (as an object and as a prefab).
 
 ### BH-142 — Finishing-pass inspections bypass voxel work budgets
 
@@ -1293,6 +1313,7 @@ Completed reviews:
 - Trigger/evidence: repeated no-change finishes, such as zero-chance weathering, scan chunks/occupied cells without tick(); only writes are budgeted. Allowed sparse reach can hold 32,768 chunks, about 134 million scanned cells per pass.
 - Impact/expected: synchronous operations monopolize server beyond advertised 20-million-inspected-spots guard; script deadlines cannot interrupt a host operation. Budget inspections themselves.
 - Limits: accounting/arithmetic inspected; duration/memory not measured.
+- Fixed: snow_cover, overgrow and weather count what they look at toward the 20,000,000-spot limit (every cell of each chunk scanned, and each voxel's look up or around), not only what they write, so passes that change nothing can't run on unchecked. A pass over an object spread across thousands of chunks may now be refused; giving it an "in" box helps. Test in `tests/server/voxel-scene.test.ts`.
 
 ### BH-143 — Linked world roots are rejected only after object writes/deletions
 
@@ -1301,6 +1322,7 @@ Completed reviews:
 - Trigger/evidence: replace linked project's world directory with a junction/symlink to a world-shaped outside directory. Metadata read checks final file; writeData checks immediate object directory/file; saveWorld rejects root after effects.
 - Impact/expected: a refused build/delete can already change outside files or corrupt another world. Check full destination before any data mutation.
 - Limits: pre-existing filesystem control/target permissions required; not unauthenticated HTTP. No link or operation executed.
+- Fixed: every write and delete in a world (its objects, prefabs, world.json, undo history and WORLD.md) checks the whole path from the data folder for links first (`worldWritePath()`), so a world folder swapped for a link is refused before anything is changed through it. Test in `tests/server/voxel-linked-world.test.ts` (a junction on Windows; before the fix a refused build had already written two files outside).
 
 ### BH-144 — Voxel import allocates sparse chunks before rejecting spatial extent
 
@@ -1309,6 +1331,7 @@ Completed reviews:
 - Trigger/evidence: allowed .vox scene spreads placements into distinct chunks ultimately outside reach. voxToGrid materializes first; one-million-voxel allowance can allocate roughly 4 GB in 4,096-byte chunks.
 - Impact/expected: even 64 MB input guard cannot prevent memory exhaustion on an import that must fail. Validate extent/allocation before materialization.
 - Limits: no import, large allocation or crash attempted.
+- Fixed: the size and reach checks run on where the voxels will lie before any chunk is made (`voxToGrid` takes a `fits` check), so a model spread far apart is refused without laying it out; within reach it is at most 512³ voxels (about 128 MB of chunks). Test in `tests/server/voxel-exchange.test.ts` (the check is told the bounds first; the memory saved isn't measured).
 
 ### BH-145 — Voxel-file imports bypass the world prefab-count cap
 
@@ -1380,6 +1403,7 @@ Completed reviews:
 - Trigger/evidence: streaming names two outputs, only one exists. One preview makes box visible; expiry only retries wholly hidden boxes, so redraw reuses it forever.
 - Impact/expected: second output never gets a lookup after it appears. Track unresolved paths independently.
 - Limits: existing retry test covers wholly missing boxes; no file generation executed.
+- Fixed: a preview box that found only some of the files it names is looked up again after the same 15 s as one that found none, until all are there. Test in `tests/web/filepreview.test.ts`.
 
 ### BH-153 — Model-preview fallbacks promise download without a download link
 
@@ -1388,6 +1412,7 @@ Completed reviews:
 - Trigger/evidence: ordinary chat previews unsupported/oversized/unparseable model. Model branch bypasses FileCard; toolbar has server-side Reveal only, while fallback tells user to download.
 - Impact/expected: browser user cannot follow recovery instruction. Expose the file URL/download alongside model fallback.
 - Limits: artifact cards have separate Open links; no model/browser run.
+- Fixed: every message a model preview gives instead of the model (too big, no 3D in this browser, can't be read) comes with a Download link to the file. Test in `tests/web/filepreview.test.ts` (the too-big case; the others use the same code).
 
 ### BH-154 — Removed model previews lack observer/model disposal
 
@@ -1396,6 +1421,7 @@ Completed reviews:
 - Trigger/evidence: replace/remove previews or evict cache repeatedly. IntersectionObserver handle is not retained/disconnected and retained model is not disposed; visibility cleanup releases renderer only.
 - Impact/expected: observer/model retention can grow across previews. Propagate explicit disposal through owners/cache eviction.
 - Limits: actual browser retention/resource growth unmeasured; no browser execution.
+- Fixed: a 3D model viewer, when released, disconnects its observer, stops drawing and disposes its model (geometry, materials, textures). Release goes down from the owner (`web/release.ts`): `DomNode` releases what it made when it is made again or goes (not when StrictMode remounts it), a preview box unmounts its cards, and the preview cache releases a box it replaces or drops. Tests in `tests/web/release.test.tsx` (the cache dropping a box isn't tested on its own).
 
 ### BH-155 — Versioned/windowed interpreters bypass launch approval classification
 

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
-import { agents, chats, listProjects, withProject, workflows } from '../store.ts';
+import { chats, listProjects, withProject, workflows } from '../store.ts';
+import { findAgent } from '../liveagents.ts';
 import { teamWorkServers } from '../mcp.ts';
 import { listFiles } from '../util.ts';
 import { privateDataPath } from '../private.ts';
@@ -210,7 +211,7 @@ export function transcriptContext(id: string): {
   const project = listProjects().find((item) => item.id === binding.projectId);
   if (!project) throw new Error('The session project no longer exists.');
   return withProject(project, () => {
-    const agent = agents.get(binding.agentId);
+    const agent = findAgent(binding.agentId);
     const chat = chats.get(binding.agentId, binding.chatId);
     if (
       !agent ||

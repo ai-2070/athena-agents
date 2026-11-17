@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useSyncExternalStore
 import type { CSSProperties, DependencyList, ReactNode } from 'react';
 import { createAppRoot } from './root.tsx';
 import { h, mount, onEvent, onState, state } from '../core.ts';
+import { release } from '../release.ts';
 import type { AppState, ServerEvent } from '../../shared/types.ts';
 
 /** Draws a React page into the router's page element. unmount() when you leave the page. */
@@ -58,6 +59,18 @@ export function DomNode({
 }) {
   const node = useMemo(make, deps);
   const ref = useCallback((el: HTMLElement | null) => void (el && el.replaceChildren(...(node ? [node] : []))), [node]);
+  // a piece made again, or gone with its page, lets go of what it holds (a 3D model, an observer). Not at once:
+  // StrictMode takes effects down and up again, and the same piece is still shown then
+  const shown = useRef<Node | null>(null);
+  useEffect(() => {
+    shown.current = node;
+    return () => {
+      shown.current = null;
+      queueMicrotask(() => {
+        if (shown.current !== node) release(node);
+      });
+    };
+  }, [node]);
   return as === 'span' ? <span ref={ref} className={className} /> : <div ref={ref} className={className} />;
 }
 

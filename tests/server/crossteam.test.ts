@@ -5,10 +5,13 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { newAgent } from '../../server/library.ts';
 import { saveSettings, workflows } from '../../server/store.ts';
-import { getThread, otherTeams, postUserMessage, stopTeam, teamState } from '../../server/teams.ts';
+import { getThread, otherTeams, postUserMessage, queueUserMessage, stopTeam, teamState } from '../../server/teams.ts';
 import { fromTeam, parseTeamRefs, teamFrom } from '../../shared/teams.ts';
 import type { Team, TeamMessage } from '../../shared/types.ts';
 
+// (the Pantry's clerk answers only when the test lets it)
+let letClerkAnswer = () => {};
+const clerkMayAnswer = new Promise<void>((r) => (letClerkAnswer = r));
 // a fake OpenAI-compatible model; each agent answers by its name (and what it was just told)
 let server: http.Server;
 beforeAll(async () => {
@@ -28,7 +31,12 @@ beforeAll(async () => {
     else if (system.includes('You are Designer')) reply = 'Logo done for #Studio: logo.png';
     else if (system.includes('You are Painter')) reply = 'Banner painted: banner.png';
     else if (system.includes('You are Slowpoke')) await new Promise((r) => setTimeout(r, 1500));
-    else if (system.includes('You are Norther'))
+    else if (system.includes('You are Cook'))
+      reply = /#Pantry answered/.test(last) ? 'Dinner is cooked.' : 'Need stock. #Pantry please check.';
+    else if (system.includes('You are Clerk')) {
+      await clerkMayAnswer;
+      reply = 'Stock is fine for #Kitchen.';
+    } else if (system.includes('You are Norther'))
       reply = /#East answered/.test(last) ? 'North done.' : 'Need numbers. #East please help.';
     else if (system.includes('You are Easter'))
       reply = /#South answered/.test(last) ? 'Numbers for #North: 42.' : '#South please count.';
@@ -155,6 +163,30 @@ describe('one team asks another', () => {
       'Painter: Banner painted: banner.png',
     ]);
     expect(getThread(banners.id).messages[0].relay).toMatchObject({ by: 'user', byName: 'the user' });
+  });
+
+  it('a /queue message waits while a member waits on another team, then goes after its answer (BH-130)', async () => {
+    const cook = agent('Cook');
+    const clerk = agent('Clerk');
+    const kitchen = team('Kitchen', cook.id);
+    const pantry = team('Pantry', clerk.id);
+    await postUserMessage(kitchen.id, 'Make dinner');
+    // the cook has asked the pantry and is done for now; the pantry is still on it
+    for (let t = 0; t < 8000 && !teamState(pantry.id).working.length; t += 50)
+      await new Promise((r) => setTimeout(r, 50));
+    expect(teamState(kitchen.id).working).toEqual([]);
+    const queued = await queueUserMessage(kitchen.id, 'Then wash up');
+    expect('queued' in queued).toBe(true);
+    letClerkAnswer();
+    await settle([kitchen.id, pantry.id], () => getThread(kitchen.id).messages.some((m) => m.text === 'Then wash up'));
+    const names = { [cook.id]: 'Cook', [teamFrom(pantry.id)]: '#Pantry' };
+    expect(lines(getThread(kitchen.id).messages, names).slice(0, 5)).toEqual([
+      'user: Make dinner',
+      'Cook: Need stock. #Pantry please check.',
+      '#Pantry: Stock is fine for #Kitchen.',
+      'Cook: Dinner is cooked.',
+      'user: Then wash up',
+    ]);
   });
 
   it("won't ask a team that waits on this one: that would leave them waiting for each other", async () => {

@@ -94,6 +94,15 @@ describe('receiving files', () => {
     },
   );
 
+  it('a refused upload through a linked folder makes no folders outside (BH-005)', async () => {
+    const { batch, dir } = newBatch();
+    const outside = fs.mkdtempSync(path.join(path.dirname(uploadsRoot()), 'outside-dirs-'));
+    // (a junction on Windows needs no admin rights)
+    fs.symlinkSync(outside, path.join(dir, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+    await expect(receive(body('x'), batch, 'escape/new/sub/file.txt')).rejects.toThrow('Bad upload path');
+    expect(fs.readdirSync(outside)).toEqual([]);
+  });
+
   it('saves a file into its batch, and a folder file under its folder', async () => {
     const { batch, dir } = newBatch();
     expect(dir.startsWith(uploadsRoot() + path.sep)).toBe(true);

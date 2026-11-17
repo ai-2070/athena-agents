@@ -240,6 +240,22 @@ describe('prefab graphs', () => {
     expect(() => build({ by: A, prefab: 'D', steps: [{ place: 'B' }] })).toThrow(/nest at most 4 deep/);
   });
 
+  it('a copy added deep inside counts the prefabs holding it too (BH-134)', () => {
+    fresh();
+    // B > A > C > L: four levels, the most a copy of B placed in an object is drawn
+    build({ by: A, prefab: 'L', steps: [{ box: [1, 1, 1], use: 'stone' }] });
+    build({ by: A, prefab: 'C', steps: [{ place: 'L' }] });
+    build({ by: A, prefab: 'A', steps: [{ place: 'C' }] });
+    build({ by: A, prefab: 'B', steps: [{ place: 'A' }] });
+    build({ by: A, prefab: 'Pebble', steps: [{ box: [1, 1, 1], use: 'stone' }] });
+    // a part put into L would be a fifth level inside B
+    expect(() => build({ by: A, prefab: 'L', steps: [{ place: 'Pebble', at: [3, 0, 0] }] })).toThrow(
+      /nest at most 4 deep, counting the 3 prefabs "L" is placed in/,
+    );
+    // in A it is still four deep: fine
+    expect(build({ by: A, prefab: 'A', steps: [{ place: 'Pebble', at: [3, 0, 0] }] }).created).toBe(false);
+  });
+
   it('a stamp checks the copies it brings like placing them (finding 49)', () => {
     fresh();
     build({ by: A, prefab: 'Q', steps: [{ box: [1, 1, 1], use: 'stone' }] });

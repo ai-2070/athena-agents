@@ -11,7 +11,16 @@ import { parseVox, voxToGrid, gridToVox } from './vox.ts';
 import { toGlb } from './gltf.ts';
 import { readObject, readPrefab, saveWorld, writeObject, writePrefab, worldVoxels } from './store.ts';
 import { changeWorld, shownWorld } from './link.ts';
-import { WORLD_LIMITS, cleanAnchor, findObject, findPrefab, pivotOf, remember, volumesMeta } from './build.ts';
+import {
+  WORLD_LIMITS,
+  cleanAnchor,
+  findObject,
+  findPrefab,
+  paletteChanges,
+  pivotOf,
+  remember,
+  volumesMeta,
+} from './build.ts';
 import { stockMaterial } from './materials.ts';
 import type { Vec3, VoxelObjectMeta, VoxelPrefabMeta, VoxelWorld, WorldBuilder } from '../../shared/types.ts';
 
@@ -50,7 +59,24 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   const size = req.voxelSize === undefined ? (req.as === 'prefab' ? 0.1 : w.voxelSize) : Number(req.voxelSize);
   if (!Number.isFinite(size) || size < 0.05 || size > 4) throw bad('voxel_size is from 0.05 to 4 map units');
   const vox = parseVox(new Uint8Array(fs.readFileSync(req.file)));
-  const { grid, materials, count } = voxToGrid(vox, name, size, () => uid('v'));
+  // it stands on y = 0, centred on x and z: every voxel must be within the build tools' reach, or it can't be edited
+  // (checked before the voxels are laid out, which takes memory for every part of space they spread over)
+  const R = LIMITS.reach;
+  let span: number[] = [0, 0, 0];
+  const fits = (min: number[], max: number[]) => {
+    span = max.map((n, a) => n - min[a] + 1);
+    if (span.some((n) => n > R * 2))
+      throw bad(
+        `That model is ${span.join('×')} voxels; the most is ${R * 2} a side. Bring it in at a bigger voxel size.`,
+      );
+    if (min.some((n) => n < -R) || max.some((n) => n >= R))
+      throw bad(
+        `That model is ${span.join('×')} voxels and stands on its base, so it reaches past ${R} voxels from its middle (the most the build tools can edit). Bring it in at a bigger voxel size.`,
+      );
+  };
+  const { grid, materials, count } = voxToGrid(vox, name, size, () => uid('v'), fits);
+  // what the palette was: the colours this adds are kept with the undo, so undoing it gives their places back
+  const paletteBefore = structuredClone(w.palette);
   // its colours become materials of the world's palette ("<name> 12"), reused when they are there already
   const map = new Map<number, number>();
   materials.forEach((m, i) => {
@@ -65,20 +91,11 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   });
   for (const c of grid.vol.chunks.values()) for (let i = 0; i < c.length; i++) if (c[i]) c[i] = map.get(c[i]) ?? c[i];
   const volumes = volumesMeta([grid]);
-  const span =
-    volumes[0]?.min && volumes[0]?.max ? volumes[0].max.map((n, a) => n - volumes[0].min![a] + 1) : [0, 0, 0];
-  if (span.some((n) => n > LIMITS.reach * 2))
-    throw bad(
-      `That model is ${span.join('×')} voxels; the most is ${LIMITS.reach * 2} a side. Bring it in at a bigger voxel size.`,
-    );
-  // it stands on y = 0, centred on x and z: every voxel must be within the build tools' reach, or it can't be edited
-  const R = LIMITS.reach;
-  const v0 = volumes[0];
-  if (v0?.min && v0.max && (v0.min.some((n) => n < -R) || v0.max.some((n) => n >= R)))
-    throw bad(
-      `That model is ${span.join('×')} voxels and stands on its base, so it reaches past ${R} voxels from its middle (the most the build tools can edit). Bring it in at a bigger voxel size.`,
-    );
   if (worldVoxels(w) + count > WORLD_LIMITS.voxels) throw bad(`The world has no room for ${fmt(count)} more voxels.`);
+  const madeMaterials = () => {
+    const changed = paletteChanges(paletteBefore, w.palette);
+    return changed.length ? { materials: changed } : {};
+  };
   const now = Date.now();
   const colours = `${materials.length} colours${materials.length ? `, as the materials "${materials[0].name}"${materials.length > 1 ? ` to "${materials[materials.length - 1].name}"` : ''} (recolour them with {"material": …} steps)` : ''}`;
   if (req.as === 'prefab') {
@@ -110,6 +127,7 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
       what: `brought in the prefab ${name} from a .vox file`,
       objectId: p.id,
       metaBefore: null,
+      ...madeMaterials(),
     });
     saveWorld(w, { prefabs: [p.id], by: req.by.name });
     return `Brought "${path.basename(req.file)}" in as the prefab "${name}": ${fmt(count)} voxels at voxel size ${size}, ${p.size.join('×')} map units, ${colours}. Place copies with {"place": "${name}"}.`;
@@ -132,7 +150,13 @@ function importVoxIn(w: VoxelWorld, req: ImportRequest): string {
   writeObject(w.id, o.id, saveGrids([grid]));
   w.objects.push(o);
   w.built = true;
-  remember(w.id, { by: req.by, what: `brought in ${name} from a .vox file`, objectId: o.id, metaBefore: null });
+  remember(w.id, {
+    by: req.by,
+    what: `brought in ${name} from a .vox file`,
+    objectId: o.id,
+    metaBefore: null,
+    ...madeMaterials(),
+  });
   saveWorld(w, { objects: [o.id], by: req.by.name, builder: req.by, added: count });
   return `Brought "${path.basename(req.file)}" in as the object "${name}": ${fmt(count)} voxels at voxel size ${size}, ${colours}, at ${o.position.join(', ')}.`;
 }

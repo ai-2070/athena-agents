@@ -486,6 +486,35 @@ describe('prefabs: undo, skins and limits', () => {
     expect(shownWorld().world!.prefabs.some((p) => p.name === 'Post')).toBe(true);
   });
 
+  it("won't bring back an object's copies of a prefab deleted since", () => {
+    build({ by: me, prefab: 'Lamp', steps: [{ box: [1, 2, 1], use: 'wood' }] });
+    build({
+      by: me,
+      object: 'Lamp row',
+      steps: [
+        { place: 'Lamp', at: [0, 0, 0] },
+        { place: 'Lamp', at: [2, 0, 0] },
+      ],
+    });
+    changeObject({ by: me, object: 'Lamp row', delete: true });
+    // (someone else deletes the prefab: nothing uses it now)
+    deletePrefab({ by: { kind: 'user', name: 'You' }, prefab: 'Lamp' });
+    expect(() => undo(me)).toThrow(/copies of a prefab deleted since/);
+    expect(shownWorld().world!.objects.some((o) => o.name === 'Lamp row')).toBe(false);
+  });
+
+  it('a prefab made only of parts stands on them: top, center and bottom come from the parts (BH-136)', () => {
+    build({ by: me, prefab: 'Leg', steps: [{ box: [1, 4, 1], use: 'wood' }] });
+    const leg = shownWorld().world!.prefabs.find((p) => p.name === 'Leg')!;
+    const legTop = leg.size[1];
+    build({ by: me, prefab: 'Stool', pivot: 'top', steps: [{ place: 'Leg', at: [8, 0, 0] }] });
+    const stool = () => shownWorld().world!.prefabs.find((p) => p.name === 'Stool')!;
+    expect(stool().pivot[1]).toBeCloseTo(legTop, 3);
+    expect(stool().pivot[0]).not.toBe(0);
+    changePrefab({ by: me, prefab: 'Stool', pivot: 'center' });
+    expect(stool().pivot[1]).toBeCloseTo(legTop / 2, 3);
+  });
+
   it("can't delete a prefab the Brain, a team or an agent wears", () => {
     build({ by: me, prefab: 'Shell', steps: [{ box: [3, 3, 3], use: 'glass', hollow: true }] });
     setSkin({ by: me, to: 'brain', fields: { shell: 'Shell' } });

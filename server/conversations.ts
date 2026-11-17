@@ -1,6 +1,6 @@
 // Search saved originals, including entries that the agent's current model memory has compacted.
 import { agents, chats } from './store.ts';
-import { listTeams, teamMessages } from './teams.ts';
+import { listTeams, teamHistory } from './teams.ts';
 import { privateTeams } from './private-conversations.ts';
 import type {
   ChatItem,
@@ -74,12 +74,15 @@ export function searchConversations(
     const teams = memberTeams(agentId, args.teamId, conversationId);
     if (args.teamId && !teams.length) throw new Error('That team conversation is not available to you.');
     for (const team of teams) {
-      for (const m of teamMessages(team.id)) {
-        match(
-          { source: 'team', conversationId: team.id, title: team.name, messageId: m.id, author: m.from, ts: m.ts },
-          `${m.text}${m.attachments?.length ? `\nAttached: ${m.attachments.join(', ')}` : ''}`,
-        );
-      }
+      // (its past conversations too, kept by New chat: a decision made there is still found)
+      for (const thread of teamHistory(team.id))
+        for (const m of thread.messages) {
+          const title = thread.past ? `${team.name} (past conversation: ${thread.title || 'untitled'})` : team.name;
+          match(
+            { source: 'team', conversationId: team.id, title, messageId: m.id, author: m.from, ts: m.ts },
+            `${m.text}${m.attachments?.length ? `\nAttached: ${m.attachments.join(', ')}` : ''}`,
+          );
+        }
     }
   }
   hits.sort(
@@ -177,7 +180,9 @@ export function readConversation(
   } else if (args.source === 'team') {
     const team = memberTeams(agentId, args.conversationId, conversationId)[0];
     if (!team) throw new Error('That conversation message is not available to you.');
-    const message = teamMessages(team.id).find((m) => m.id === args.messageId);
+    const message = teamHistory(team.id)
+      .flatMap((thread) => thread.messages)
+      .find((m) => m.id === args.messageId);
     if (!message) throw new Error('That conversation message is not available to you.');
     text = `${message.text}${message.attachments?.length ? `\nAttached: ${message.attachments.join(', ')}` : ''}`;
     title = team.name;

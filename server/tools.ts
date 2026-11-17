@@ -433,7 +433,7 @@ const TOOLS: ToolDef[] = [
     group: 'core',
     risk: 'none',
     description:
-      'Search saved original messages and tool results across your own past chats and the shared conversations of teams you belong to, in this project only. All search words must match the same entry, ignoring case. Returns message references and excerpts; use read_conversation for the original text. Cleared or deleted chats are not searched.',
+      'Search saved original messages and tool results across your own past chats and the shared conversations of teams you belong to (their past conversations too), in this project only. All search words must match the same entry, ignoring case. Returns message references and excerpts; use read_conversation for the original text. Cleared or deleted chats are not searched.',
     parameters: obj(
       {
         query: str('Words to find'),

@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import { Chat } from 'chat';
 import type { Logger } from 'chat';
 import type { TelegramUpdate } from '@chat-adapter/telegram';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { saveGatewayCredentials, saveGatewayInstance } from '../../server/gateways/instances.ts';
 import { GatewayStateAdapter } from '../../server/gateways/state.ts';
 import { GatewayInbox } from '../../server/gateways/inbox.ts';
@@ -242,6 +242,28 @@ describe('Telegram durable intake', () => {
       f.adapter.replyDocument(f.inbox.list()[0], f.inbox.list()[0].outgoing![0], signal),
     ).rejects.toMatchObject({ outcome: 'failed' });
     expect(f.calls.filter((call) => call.method === 'sendDocument')).toHaveLength(1);
+  });
+
+  it('holds a document back when the message it answers changes while the file is checked (BH-031)', async () => {
+    const f = await fixture();
+    f.batches.push([update(1)]);
+    await f.chat.initialize();
+    await expect.poll(() => f.inbox.list().length).toBe(1);
+    const signal = new AbortController().signal;
+    const event = f.inbox.claimNext()!;
+    f.inbox.beginDispatch(event.id, event.operationId!, await gatewayConversation(event, signal));
+    const target = path.join(ensureBrain(), `${f.instance.id}-race.txt`);
+    fs.writeFileSync(target, 'document bytes');
+    await selectGatewayDocuments(f.inbox, event.id, { paths: [target] }, signal);
+    f.inbox.finishDispatch(event.id, event.operationId!, 'Here is your document.');
+    // (the source is edited, or an album part added, while the file is read and checked)
+    let asked = 0;
+    const real = f.inbox.deliveryVersion.bind(f.inbox);
+    vi.spyOn(f.inbox, 'deliveryVersion').mockImplementation((id: string) => `${real(id)}${asked++ ? ':edited' : ''}`);
+    await expect(
+      f.adapter.replyDocument(f.inbox.list()[0], f.inbox.list()[0].outgoing![0], signal),
+    ).rejects.toMatchObject({ outcome: 'failed' });
+    expect(f.calls.filter((call) => call.method === 'sendDocument')).toHaveLength(0);
   });
 
   it.each([

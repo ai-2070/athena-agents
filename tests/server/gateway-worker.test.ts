@@ -61,6 +61,10 @@ describe('gateway intake lifecycle', () => {
     });
     workers.push(worker);
     await worker.start();
+    // (downloads go on beside the rest: wait for both files)
+    await expect
+      .poll(() => saved!.list().every((event) => event.files?.every((file) => file.status === 'saved')))
+      .toBe(true);
     const ids = saved!.list().map((event) => event.id);
     expect(submissions).toBe(0);
     expect(worker.groupAlbum(ids[0], { eventIds: ids })).toEqual({ leaderId: ids[0] });
@@ -323,7 +327,7 @@ describe('gateway intake lifecycle', () => {
     });
     workers.push(worker);
     await worker.start();
-    expect(saved!.list()[0].files![0].status).toBe('failed');
+    await expect.poll(() => saved!.list()[0].files?.[0]?.status).toBe('failed');
     fail = false;
     worker.retryFiles(saved!.list()[0].id);
     await expect.poll(() => saved!.list()[0].status).toBe('queued');
@@ -333,6 +337,43 @@ describe('gateway intake lifecycle', () => {
     expect(new GatewayInbox(state).list()[0].files![0].file!.size).toBe(5);
     await state.disconnect();
   });
+  it('connects and replies while a download is still going (BH-032)', async () => {
+    const instance = saveGatewayInstance(gatewayConfig(String(account++)));
+    let saved: GatewayInbox | undefined;
+    let letDownload = () => {};
+    const downloading = new Promise<void>((r) => (letDownload = r));
+    const worker = new GatewayWorker(instance.id, {
+      execution: { submit: async () => ({}), poll: () => ({ state: 'pending' }) },
+      transport: (_state, inbox) => {
+        saved = inbox;
+        return {
+          start: async () => {
+            inbox.accept({
+              ...gatewayInput('slow'),
+              accountId: instance.accountId,
+              text: '',
+              media: [{ kind: 'file', fileId: 'slow-file', name: 'big.bin' }],
+            });
+          },
+          stop: async () => {},
+          alive: () => true,
+          reply: async () => 'confirmed',
+          download: async () => {
+            await downloading;
+            return { source: Readable.from([Buffer.from('hello')]) };
+          },
+        };
+      },
+    });
+    workers.push(worker);
+    // (it would wait for the download before: the test would time out here)
+    await worker.start();
+    expect(worker.health().status).toBe('connected');
+    letDownload();
+    await expect.poll(() => saved!.list()[0].files?.[0]?.status).toBe('saved');
+    await worker.stop();
+  });
+
   it('retries transport startup with redacted health and stops future attempts when closed', async () => {
     const instance = saveGatewayInstance(gatewayConfig(String(account++)));
     let starts = 0;

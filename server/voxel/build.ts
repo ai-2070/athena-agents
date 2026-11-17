@@ -6,7 +6,16 @@ import { listFiles, readPlain, uid, writeJSON } from '../util.ts';
 import { decodeChunk, countVoxels, newVolume, volumeBounds } from '../../shared/voxel.ts';
 import { BuildError, loadGrids, runBuild, saveGrids, VOXEL_SIZE_MAX, VOXEL_SIZE_MIN } from './ops.ts';
 import type { BuildInput, BuildOutcome, Grid } from './ops.ts';
-import { readObject, readPrefab, saveWorld, worldDir, writeObject, writePrefab, worldVoxels } from './store.ts';
+import {
+  readObject,
+  readPrefab,
+  saveWorld,
+  worldDir,
+  worldWritePath,
+  writeObject,
+  writePrefab,
+  worldVoxels,
+} from './store.ts';
 import { changeWorld } from './link.ts';
 import type {
   AgentSkin,
@@ -175,9 +184,10 @@ export function remember(worldId: string, h: Omit<HistoryEntry, 'id' | 'at'>): v
   const all = history(worldId);
   // strictly after the last one, even in the same millisecond: undo goes by this order
   const e: HistoryEntry = { id: uid('h'), at: Math.max(Date.now(), (all[0]?.at ?? 0) + 1), ...h };
-  writeJSON(worldDir(worldId, 'history', `${e.id}.json`), e);
+  writeJSON(worldWritePath(worldId, 'history', `${e.id}.json`), e);
   // the new one is newest, so it is kept
-  for (const old of all.slice(HISTORY_KEPT - 1)) fs.rmSync(worldDir(worldId, 'history', old.file), { force: true });
+  for (const old of all.slice(HISTORY_KEPT - 1))
+    fs.rmSync(worldWritePath(worldId, 'history', old.file), { force: true });
 }
 
 // ---------- building ----------
@@ -336,6 +346,27 @@ export function nesting(
   return out;
 }
 
+/** How deep `id` sits inside other prefabs at most: the longest chain of prefabs holding it (0: none does). */
+export function heldAbove(w: VoxelWorld, id: string): number {
+  const parents = new Map<string, string[]>();
+  for (const p of w.prefabs)
+    for (const c of new Set((readPrefab(w.id, p.id)?.instances || []).map((i) => i.prefab)))
+      parents.set(c, [...(parents.get(c) || []), p.id]);
+  const memo = new Map<string, number>();
+  const up = (x: string, path: Set<string>): number => {
+    const known = memo.get(x);
+    if (known !== undefined) return known;
+    if (path.has(x)) return 0;
+    path.add(x);
+    let n = 0;
+    for (const q of parents.get(x) || []) n = Math.max(n, up(q, path) + 1);
+    path.delete(x);
+    memo.set(x, n);
+    return n;
+  };
+  return up(id, new Set());
+}
+
 /**
  * How many copies these copies draw, counting the copies inside them all the way down (the page and a .glb
  * draw every one). `override` stands in for a prefab's copies before they are saved.
@@ -374,7 +405,19 @@ export function pivotOf(
   volumes: VoxelVolumeMeta[],
   at: VoxelPrefabMeta['pivotAt'] = 'bottom',
 ): { pivot: Vec3; size: Vec3 } {
-  const b = objectBox({ volumes });
+  return pivotIn(objectBox({ volumes }), at);
+}
+
+/** A prefab's pivot and size from all of it, the copies placed inside included (one made only of parts has no
+ *  voxels of its own to stand on). It must be in w.prefabs, with its data written. */
+export function prefabPivot(w: VoxelWorld, p: VoxelPrefabMeta): { pivot: Vec3; size: Vec3 } {
+  return pivotIn(prefabBox(w, p.id) ?? objectBox(p), p.pivotAt);
+}
+
+function pivotIn(
+  b: { min: Vec3; max: Vec3 } | null,
+  at: VoxelPrefabMeta['pivotAt'] = 'bottom',
+): { pivot: Vec3; size: Vec3 } {
   if (!b) return { pivot: Array.isArray(at) ? at : [0, 0, 0], size: [0, 0, 0] };
   const r = (n: number) => Math.round(n * 1000) / 1000;
   const y = at === 'top' ? b.max[1] : at === 'center' ? (b.min[1] + b.max[1]) / 2 : b.min[1];
@@ -447,6 +490,7 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   const grids = loadGrids(data);
   const palette = [...w.palette];
   if (req.units !== undefined && req.units !== 'map' && req.units !== 'voxels') throw bad('units is "map" or "voxels"');
+  let above: number | undefined;
   const outcome = runBuild({
     units: req.drive || req.units === 'map' ? 'map' : 'voxels',
     drive: req.drive,
@@ -466,7 +510,10 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
       if (kind !== 'prefab') return null;
       const n = nesting(w, id, t.id);
       if (id === t.id || n.holds) return `a prefab can't be placed inside itself ("${t.name}")`;
-      if (n.depth + 1 >= WORLD_LIMITS.nesting) return `prefabs nest at most ${WORLD_LIMITS.nesting} deep`;
+      // (the prefabs holding this one count too: a copy of the outermost, placed in an object, is drawn only so deep)
+      above ??= heldAbove(w, t.id);
+      if (above + n.depth + 1 >= WORLD_LIMITS.nesting)
+        return `prefabs nest at most ${WORLD_LIMITS.nesting} deep${above ? `, counting the ${above === 1 ? 'prefab' : `${above} prefabs`} "${t.name}" is placed in` : ''}`;
       return null;
     },
   });
@@ -517,11 +564,9 @@ function buildIn(w: VoxelWorld, req: BuildRequest): BuildReport {
   if (kind === 'prefab') {
     const p = t as VoxelPrefabMeta;
     if (pivotAt !== undefined) p.pivotAt = pivotAt;
-    Object.assign(p, pivotOf(volumes, p.pivotAt));
     if (created) w.prefabs.push(p);
     // (copies placed inside count too: a character made of parts has no voxels of its own)
-    const full = prefabBox(w, p.id);
-    if (full) p.size = full.max.map((n, a) => Math.round((n - full.min[a]) * 1000) / 1000) as Vec3;
+    Object.assign(p, prefabPivot(w, p));
     if (req.description !== undefined) p.description = String(req.description).slice(0, 300);
     if (Array.isArray(req.tags))
       p.tags = [...new Set(req.tags.map((x) => String(x).trim().toLowerCase()).filter(Boolean))].slice(0, 12);
@@ -785,6 +830,16 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
         `The material "${m.after.name}" was changed again after that. Change it back yourself with {"material": "${m.after.name}", …}.`,
         409,
       );
+  // copies it gives back must be of prefabs still there: one deleted since would come back as nothing to see
+  const gives = mine.instancesBefore ?? (mine.dataBefore ? mine.dataBefore.instances : undefined) ?? [];
+  const gone = [...new Set(gives.map((i) => i.prefab))].filter(
+    (id) => id !== mine.prefabMade && !w.prefabs.some((p) => p.id === id),
+  );
+  if (gone.length)
+    throw bad(
+      `Undoing it would put back copies of ${gone.length === 1 ? 'a prefab' : `${gone.length} prefabs`} deleted since. Undo that deletion first, or build it again.`,
+      409,
+    );
   // a prefab the change made goes away with it, unless it is in use now
   const made = mine.prefabMade || (mine.kind === 'prefab' && !mine.metaBefore ? mine.objectId : '');
   if (made) {
@@ -830,7 +885,7 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
       if (before) list[id] = before;
       else delete list[id];
     }
-    fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
+    fs.rmSync(worldWritePath(w.id, 'history', head.file), { force: true });
     saveWorld(w, { skins: true, undone: true, by: by.name });
     return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
   }
@@ -842,7 +897,7 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
       if (i >= 0) list.splice(i, 1);
       if (mine.sceneBefore) list.push(mine.sceneBefore as WorldLight & WorldEffect);
     }
-    fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
+    fs.rmSync(worldWritePath(w.id, 'history', head.file), { force: true });
     saveWorld(w, { [mine.kind === 'environment' ? 'environment' : `${mine.kind}s`]: true, undone: true, by: by.name });
     return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
   }
@@ -890,7 +945,7 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
     }
     putBack(mine.metaBefore);
   }
-  fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
+  fs.rmSync(worldWritePath(w.id, 'history', head.file), { force: true });
   saveWorld(w, { [isPrefab ? 'prefabs' : 'objects']: [mine.objectId], undone: true, by: by.name });
   return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
 }

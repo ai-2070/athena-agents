@@ -6,7 +6,7 @@ import { newAgent } from '../../server/library.ts';
 import { activeProject, agents, chats, setActiveProject, withProject, workflows } from '../../server/store.ts';
 import { createProject } from '../../server/projects.ts';
 import { cloneProject } from '../../server/backup.ts';
-import { clearThread, teamMessages } from '../../server/teams.ts';
+import { clearThread, newTeamThread, teamMessages } from '../../server/teams.ts';
 import { dataPath, writeJSON } from '../../server/util.ts';
 import { callTool, toolsForAgent } from '../../server/tools.ts';
 import { readConversation, searchConversations } from '../../server/conversations.ts';
@@ -181,6 +181,18 @@ describe('conversation search tools', () => {
     expect(() =>
       readConversation(me.id, { source: 'team', conversationId: team.id, messageId: 'stable-message' }),
     ).toThrow('not available');
+  });
+
+  it("finds a team's past conversations too (kept by New chat), and reads from them (BH-042)", () => {
+    const { me, team } = setup();
+    newTeamThread(team.id);
+    // the decision is in the conversation filed away; the open one is new and empty
+    expect(teamMessages(team.id)).toEqual([]);
+    const found = searchConversations(me.id, { query: 'orchid decision', scope: 'team' });
+    expect(found.hits).toHaveLength(1);
+    expect(found.hits[0]).toMatchObject({ source: 'team', conversationId: team.id, messageId: 'stable-message' });
+    expect(found.hits[0].title).toMatch(/^Shared work \(past conversation/);
+    expect(readConversation(me.id, { ...found.hits[0] }).text).toBe('Shared ORCHID decision.');
   });
 
   it("keeps a cloned project's private and shared history separate", async () => {

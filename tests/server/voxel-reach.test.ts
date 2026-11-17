@@ -8,6 +8,7 @@ import { decide, listApprovals, setReviewer } from '../../server/approvals.ts';
 import { saveSettings } from '../../server/store.ts';
 import { shownWorld } from '../../server/voxel/link.ts';
 import { libraryList } from '../../server/voxel/prefabs.ts';
+import { setSkin } from '../../server/voxel/characters.ts';
 import { worldApprovalChecks } from '../../server/voxel/tools.ts';
 import { redefinedInScript, redefinedInSteps } from '../../server/voxel/reach.ts';
 
@@ -207,6 +208,39 @@ describe('changes that reach other builders’ work', () => {
     expect(listApprovals().map((x) => x.detail)).toEqual(['Ada wants to change the prefab "Bo lamp", which Bo built.']);
     decide(listApprovals()[0].id, { approved: false });
     await theirs;
+  });
+
+  it('a new pivot for a prefab others placed copies of asks first: it moves every copy (BH-138)', async () => {
+    const pending = callTool(bo, 'world_prefab', { action: 'change', prefab: 'Bo lamp', pivot: 'top' });
+    await tick();
+    const [a] = listApprovals();
+    expect(a?.detail).toMatch(/placed copies of: "Tea house" \(Ada\)/);
+    decide(a.id, { approved: false });
+    expect((await pending).isError).toBe(true);
+    // a new name moves nothing: it doesn't ask
+    expect(
+      worldApprovalChecks('world_prefab', { action: 'change', prefab: 'Bo lamp', name: 'Bo light' }, { agent: bo }),
+    ).toEqual([]);
+  });
+
+  it("rebuilding a prefab worn as another agent's look asks first (BH-139)", async () => {
+    expect(
+      (await callTool(bo, 'world_build', { prefab: 'Bo statue', steps: [{ box: [1, 2, 1], use: 'stone' }] })).isError,
+    ).toBe(false);
+    const statue = shownWorld().world!.prefabs.find((p) => p.name === 'Bo statue')!;
+    setSkin({ by: { kind: 'user', name: 'You' }, to: 'agent', id: ada.id, fields: { character: statue.id } });
+    const checks = worldApprovalChecks('world_build', { prefab: 'Bo statue', steps: [] }, { agent: bo });
+    expect(checks).toEqual([
+      expect.objectContaining({ name: 'world_change_others', detail: expect.stringContaining("Ada's look (Ada)") }),
+    ]);
+    // the Brain's look is the user's
+    setSkin({ by: { kind: 'user', name: 'You' }, to: 'agent', id: ada.id, fields: { character: null } });
+    setSkin({ by: { kind: 'user', name: 'You' }, to: 'brain', fields: { shell: statue.id } });
+    expect(worldApprovalChecks('world_build', { prefab: 'Bo statue', steps: [] }, { agent: bo })[0]?.detail).toContain(
+      "the Brain's look (You)",
+    );
+    setSkin({ by: { kind: 'user', name: 'You' }, to: 'brain', fields: { shell: null } });
+    expect(worldApprovalChecks('world_build', { prefab: 'Bo statue', steps: [] }, { agent: bo })).toEqual([]);
   });
 
   it('publishing under a name someone else published asks first, and a no keeps their entry', async () => {

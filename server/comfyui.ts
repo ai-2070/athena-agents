@@ -603,7 +603,12 @@ export function findPromptNodes(api: ApiWorkflow): PromptNodes {
       return field ? [`${String(v[0])}.${field}`] : [];
     });
   };
-  const trace = (from: [string | number, number], role: 'positive' | 'negative'): string | null => {
+  // (side: where the branches not followed go, e.g. a ConditioningCombine's second input: their text stays as saved)
+  const trace = (
+    from: [string | number, number],
+    role: 'positive' | 'negative',
+    side?: [string | number, number][],
+  ): string | null => {
     let id = String(from[0]);
     for (let i = 0; i < 20; i++) {
       const n = api[id];
@@ -612,33 +617,61 @@ export function findPromptNodes(api: ApiWorkflow): PromptNodes {
       if (role === 'negative' && n.class_type === 'ConditioningZeroOut') return null;
       if (TEXT_INPUTS.some((k) => typeof n.inputs?.[k] === 'string' || isLink(n.inputs?.[k]))) return id;
       const inputs = n.inputs || {};
-      const next = [role, 'conditioning', ...Object.keys(inputs).filter((k) => CONDITIONING_IN.test(k))]
+      const links = [...new Set([role, 'conditioning', ...Object.keys(inputs).filter((k) => CONDITIONING_IN.test(k))])]
         .map((k) => inputs[k])
-        .find(isLink);
+        .filter(isLink);
+      const next = links[0];
       if (!next) return null;
+      side?.push(...links.slice(1));
       id = String(next[0]);
     }
     return null;
   };
 
   const found = { positive: [] as string[], negative: [] as string[] };
+  const side = { positive: [] as [string | number, number][], negative: [] as [string | number, number][] };
   for (const [, n] of starts) {
     const pos = ['positive', 'conditioning', 'cond1'].map((k) => n.inputs[k]).find(isLink);
     const neg = n.inputs.negative;
-    const p = pos && trace(pos, 'positive');
-    const q = isLink(neg) ? trace(neg, 'negative') : null;
+    const p = pos && trace(pos, 'positive', side.positive);
+    const q = isLink(neg) ? trace(neg, 'negative', side.negative) : null;
     if (p && !found.positive.includes(p)) found.positive.push(p);
     if (q && !found.negative.includes(q)) found.negative.push(q);
   }
   // one text node feeding both is the prompt: setting the negative there would overwrite it
   const negative = found.negative.filter((id) => !found.positive.includes(id));
   const promptInputs = [...new Set(found.positive.flatMap(keysOf))];
+  const negativeInputs = [...new Set(negative.flatMap(keysOf))].filter((k) => !promptInputs.includes(k));
+  // the text of the branches mixed in beside the prompt (combined conditioning): kept as saved, and said so
+  const alsoOf = (links: [string | number, number][], role: 'positive' | 'negative', taken: string[]) => {
+    const out: string[] = [];
+    for (let i = 0; i < links.length && i < 50; i++) {
+      const id = trace(links[i]!, role, links);
+      if (id) for (const k of keysOf(id)) if (!taken.includes(k) && !out.includes(k)) out.push(k);
+    }
+    return out;
+  };
+  const promptAlso = alsoOf(side.positive, 'positive', [...promptInputs, ...negativeInputs]);
+  const negativeAlso = alsoOf(side.negative, 'negative', [...promptInputs, ...negativeInputs, ...promptAlso]);
   return {
     positive: found.positive[0] || null,
     negative: negative[0] || null,
     promptInputs,
-    negativeInputs: [...new Set(negative.flatMap(keysOf))].filter((k) => !promptInputs.includes(k)),
+    negativeInputs,
+    ...(promptAlso.length ? { promptAlso } : {}),
+    ...(negativeAlso.length ? { negativeAlso } : {}),
   };
+}
+
+// Text mixed in beside the prompt that a new prompt leaves as saved: what it says, and how to change it.
+function keptText(api: ApiWorkflow, keys: string[], what: 'prompt' | 'negative'): string {
+  const shown = keys.slice(0, 3).map((key) => {
+    const [id, ...rest] = key.split('.');
+    const v = api[id!]?.inputs?.[rest.join('.')];
+    const text = typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '';
+    return `${key} ("${text.length > 80 ? `${text.slice(0, 80)}…` : text}")`;
+  });
+  return `This workflow also mixes other text into its ${what} (a combined conditioning), which was kept as saved: ${shown.join(', ')}${keys.length > 3 ? ` and ${keys.length - 3} more` : ''}. To change it too, set it with inputs {"${keys[0]}": "..."}.`;
 }
 
 export function runWorkflow(opts: RunWorkflowOptions & { wait: false }): Promise<RunWorkflowQueued>;
@@ -672,10 +705,13 @@ export async function runWorkflow({
         'Could not find where the prompt text goes; set it with inputs {"<nodeId>.text": "..."} (see comfyui_describe_workflow).',
       );
     for (const key of p.promptInputs) setInput(api, key, prompt);
+    if (p.promptAlso?.length) warnings.push(keptText(api, p.promptAlso, 'prompt'));
   }
   if (negative != null) {
-    if (p.negativeInputs.length) for (const key of p.negativeInputs) setInput(api, key, negative);
-    else
+    if (p.negativeInputs.length) {
+      for (const key of p.negativeInputs) setInput(api, key, negative);
+      if (p.negativeAlso?.length) warnings.push(keptText(api, p.negativeAlso, 'negative'));
+    } else
       warnings.push(
         'This workflow has no negative prompt to set (its sampler or guider takes one conditioning, or an emptied one), so the negative text was not used.',
       );
@@ -757,7 +793,7 @@ export async function runWorkflow({
       return {
         promptId,
         workflow: w.name,
-        files: outputFiles(entry.outputs),
+        files: outputFiles(entry.outputs, url),
         seconds: Math.round((Date.now() - started) / 1000),
         seeds,
         warnings,
@@ -781,10 +817,15 @@ const FILE_KINDS = ['images', 'gifs', 'videos', 'audio', '3d'];
 const MODEL_3D = /\.(glb|gltf|obj|fbx|stl|usdz|ply|spz|splat|ksplat)$/i;
 // The files in a finished job's outputs. 3D nodes list theirs under "3d" (SaveGLB, Save3DAdvanced, the 3D
 // previews); the old Preview 3D node gives a path in its output folder as result[0], which its page loads from there.
-function outputFiles(outputs: Record<string, Record<string, unknown>>): ComfyResultFile[] {
+function outputFiles(outputs: Record<string, Record<string, unknown>>, server: string): ComfyResultFile[] {
   const files: ComfyResultFile[] = [];
   const add = (f: ComfyOutputFile, kind: string) => {
-    const q = new URLSearchParams({ filename: f.filename, subfolder: f.subfolder || '', type: f.type || 'output' });
+    const q = new URLSearchParams({
+      filename: f.filename,
+      subfolder: f.subfolder || '',
+      type: f.type || 'output',
+      server: serverTag(server),
+    });
     files.push({ ...f, kind, url: `/api/comfyui/view?${q}` });
   };
   for (const out of Object.values(outputs)) {
@@ -1012,9 +1053,22 @@ export async function queueStatus(): Promise<ComfyQueueStatus> {
   };
 }
 
+// A result link says which ComfyUI made it (a fingerprint of its address, never the address: nothing is fetched from
+// what a link says). Another server may have a file of the same name, so a result is only shown from its own.
+const serverTag = (url: string) =>
+  crypto.createHash('sha256').update(url.replace(/\/+$/, '')).digest('hex').slice(0, 12);
+const OTHER_SERVER = 'This result was made by another ComfyUI. Set that one again in Settings to see it.';
+const fromHere = (tag: string | null | undefined, url: string) => !tag || tag === serverTag(url);
+
 export async function proxyView(query: Record<string, string>, res: ServerResponse): Promise<void> {
   const url = await requireUrl();
-  const r = await fetch(`${url}/view?${new URLSearchParams(query)}`);
+  const { server, ...file } = query;
+  if (!fromHere(server, url)) {
+    res.writeHead(410, { 'content-type': 'text/plain; charset=utf-8', 'x-content-type-options': 'nosniff' });
+    res.end(OTHER_SERVER);
+    return;
+  }
+  const r = await fetch(`${url}/view?${new URLSearchParams(file)}`);
   const type = r.headers.get('content-type') || 'application/octet-stream';
   const inline = /^(image\/(png|jpeg|webp|gif)|video\/|audio\/)/.test(type);
   res.writeHead(r.status, {
@@ -1034,7 +1088,7 @@ export async function viewImage(link: string, max: number): Promise<{ mime: stri
   if (!m) return null;
   const q = new URLSearchParams(m[1]);
   const url = await comfyUrl();
-  if (!url || !q.get('filename')) return null;
+  if (!url || !q.get('filename') || !fromHere(q.get('server'), url)) return null;
   const r = await fetch(
     `${url}/view?${new URLSearchParams({ filename: q.get('filename') || '', subfolder: q.get('subfolder') || '', type: q.get('type') || 'output' })}`,
     { signal: AbortSignal.timeout(30000) },

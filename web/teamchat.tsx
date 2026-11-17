@@ -205,12 +205,35 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
     const c = (C.current = blank());
     // what arrived while a GET was on its way, so the snapshot can't undo it (fresh: those messages;
     // turned: whose turns started)
-    let early = { loading: true, cleared: false, state: false, fresh: new Set<string>(), turned: new Set<string>() };
+    // what came as events while the chat loads: it is newer than the snapshot that comes back (turns that started or
+    // ended, and whose sessions they were in)
+    let early = {
+      loading: true,
+      cleared: false,
+      state: false,
+      fresh: new Set<string>(),
+      turned: new Set<string>(),
+      ended: new Set<string>(),
+    };
+    // (only the latest look at the team counts)
+    let teamAsks = 0;
     const off = onEvent((ev) => {
       if (!alive) return;
       // (another project's events: a copied project has a team, agents and chats with the same ids)
       const mine = projectId || state.data?.project?.id;
       if (ev.projectId && mine && ev.projectId !== mine) return;
+      // the team was edited (members, lead, name): who can be mentioned and whose model the box sets follow it
+      if (ev.type === 'workflows' && (!ev.id || ev.id === teamId)) {
+        const asked = ++teamAsks;
+        void rpcAt(projectAt(projectId))
+          .workflows.get({ id: teamId })
+          .then((t) => {
+            if (!alive || asked !== teamAsks) return;
+            c.team = t;
+            bump();
+          })
+          .catch(() => {});
+      }
       if (ev.type === 'team' && ev.teamId === teamId) {
         const e = ev.event as TeamEvent;
         if (e.kind === 'message' && !c.messages.some((m) => m.id === e.message.id))
@@ -242,9 +265,13 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
         if (e.kind === 'turn' && e.state === 'start') {
           if (e.chatId) c.sessions = { ...c.sessions, [e.agentId]: e.chatId };
           c.turning = new Set(c.turning).add(e.agentId);
-          if (early.loading) early.turned.add(e.agentId);
+          if (early.loading) {
+            early.turned.add(e.agentId);
+            early.ended.delete(e.agentId);
+          }
         }
         if (e.kind === 'turn' && e.state === 'end') {
+          if (early.loading) early.ended.add(e.agentId);
           const { [e.agentId]: _gone, ...rest } = c.activity;
           c.activity = rest;
           const next = new Set(c.turning);
@@ -284,12 +311,15 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
         state: false,
         fresh: new Set(),
         turned: new Set(),
+        ended: new Set(),
       });
+      const teamAt = teamAsks;
       rpcAt(projectAt(projectId))
         .teams.chat({ id: teamId })
         .then((r) => {
           if (!alive || now !== early) return;
-          c.team = r.team;
+          // (the team edited while this loaded was looked at again since: that is newer)
+          if (teamAt === teamAsks) c.team = r.team;
           c.others = r.others || [];
           // (again: the saved chat stands, with what came in while it loaded)
           c.messages = mergeSnapshot(
@@ -299,12 +329,17 @@ function useTeamData(teamId: string, projectId?: string): [TeamChatData, () => v
           );
           // (cleared while it loaded: the snapshot's sessions and who was working are from before)
           if (!now.cleared) {
-            c.sessions = { ...(r.sessions || {}), ...c.sessions };
+            // the snapshot's sessions, but a turn that started while it loaded is in the session it says (one kept
+            // from before, while the socket was down, may be of a conversation since closed)
+            const started = Object.fromEntries(
+              Object.entries(c.sessions).filter(([id]) => now.turned.has(id)),
+            ) as typeof c.sessions;
+            c.sessions = { ...(r.sessions || {}), ...(again ? started : { ...c.sessions, ...started }) };
             // who was already working when this opened: their turns are going now (again: a turn that
-            // ended while the socket was down is not going any more)
+            // ended while the socket was down is not going any more; nor one that ended while this loaded)
             c.turning = new Set([
               ...(again ? [...c.turning].filter((id) => now.turned.has(id)) : c.turning),
-              ...r.working,
+              ...r.working.filter((id) => !now.ended.has(id)),
             ]);
           }
           if (!now.state && !now.cleared)

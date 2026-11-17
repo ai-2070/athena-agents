@@ -1,5 +1,6 @@
 // .vox in and out, glTF out, and pictures: voxels leaving and entering the world.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
@@ -168,6 +169,49 @@ describe('the tools', () => {
     expect((await callTool(a, 'world_import', { file: path.join('/', 'etc', 'hosts') })).text).toMatch(
       /outside the folders/,
     );
+  });
+});
+
+describe('undoing an import', () => {
+  it('gives back the palette places its colours took', async () => {
+    const workspace = fs.mkdtempSync(path.join(os.homedir(), 'importer-'));
+    const a = newAgent({ name: 'Importer', toolGroups: ['world', 'files'], autonomy: 'full', workspace });
+    const { g, palette } = grid([
+      { box: [2, 1, 1], use: 'stone' },
+      { box: [1, 1, 1], at: [0, 1, 0], use: 'red lacquer' },
+    ]);
+    const file = path.join(workspace, 'two-colours.vox');
+    fs.writeFileSync(file, gridToVox(g, palette));
+    const before = shownWorld().world!.palette.length;
+    for (const as of ['object', 'prefab'] as const) {
+      const r = await callTool(a, 'world_import', { file, name: `Tried ${as}`, as });
+      expect(r.isError, r.text).toBeFalsy();
+      expect(shownWorld().world!.palette.length).toBe(before + 2);
+      const u = await callTool(a, 'world_undo', {});
+      expect(u.isError, u.text).toBeFalsy();
+      expect(shownWorld().world!.palette.length).toBe(before);
+    }
+  });
+
+  it('refuses a model spread too far apart before laying out its voxels', () => {
+    // two voxels 400 apart: far past the reach, yet only two voxels
+    const { g, palette } = grid([
+      { box: [1, 1, 1], use: 'stone' },
+      { box: [1, 1, 1], at: [40, 0, 0], use: 'stone' },
+    ]);
+    g.vol.chunks.clear();
+    const vol = g.vol;
+    vol.chunks.set('0,0,0', Object.assign(new Uint8Array(4096), { 0: 1 }));
+    vol.chunks.set('25,0,0', Object.assign(new Uint8Array(4096), { 0: 1 }));
+    const file = parseVox(gridToVox(g, palette));
+    let told: number[][] = [];
+    expect(() =>
+      voxToGrid(file, 'Far', 0.1, newId, (min, max) => {
+        told = [min, max];
+        throw new Error('too far');
+      }),
+    ).toThrow('too far');
+    expect(told[1][0] - told[0][0] + 1).toBe(401);
   });
 });
 

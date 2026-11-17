@@ -5,7 +5,7 @@
 // engines/index.ts); in a team's turn the message comes back to be sent the ordinary way (missedSteers).
 import { eveRuntime } from './runtime.ts';
 import { eveClient } from './recovery.ts';
-import { eveMessage } from './admission.ts';
+import { eveMessage, inputLimitOf, messageTokens } from './admission.ts';
 import { lateSteers, readBinding, readRun, recordSteer, retireSession, updateSteer } from './state.ts';
 import type { EveSteer } from '../../shared/types.ts';
 
@@ -35,6 +35,10 @@ export async function sendSteer(
   if (!canSteer(runId)) throw new Error('This turn can no longer take a message.');
   // (read before anything is saved: a missing file sends nothing)
   const message = await eveMessage(steer.text, steer.attachments);
+  // (held to the space Eve keeps whole, as the run's own input was: a bigger one would be cut short in the model's
+  // memory. Refused, it goes the ordinary way, which says so)
+  if (messageTokens(message) > inputLimitOf(runId))
+    throw new Error('This message and its files exceed the space Eve keeps intact during compaction.');
   // reading attached documents takes a while, and the turn may have ended meanwhile: looked at again, and saved
   // with nothing awaited in between, so the end of the turn either finds the message or it is sent the ordinary way
   const run = readRun(runId);

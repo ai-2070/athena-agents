@@ -268,8 +268,12 @@ function dismissNow(id: string): AgentQuestion {
 }
 
 export function removeQuestion(id: string): void {
-  dismissQuestion(id);
-  questions.remove(id);
+  // (in the question's own project throughout: one of another project's Overview pane is removed there, not looked
+  // for again in the open one)
+  withProject(projectOfQuestion(id), () => {
+    dismissNow(id);
+    questions.remove(id);
+  });
 }
 
 /** The questions waiting for you in the open project, oldest first. */
