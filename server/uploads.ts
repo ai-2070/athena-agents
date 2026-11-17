@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type http from 'node:http';
-import { ensureDir, exists, isInside, realTarget } from './util.ts';
+import { ensureDir, exists, isInside, noLinksBelow, realTarget } from './util.ts';
 import { ensureBrain } from './projects.ts';
 import { DocumentError, documentAbout, documentHasText, isDocumentName, readDocumentFile } from './documents.ts';
 import type { Project, UploadedFile } from '../shared/types.ts';
@@ -149,8 +149,10 @@ export async function receiveSource(
   const parts = safeParts(rel);
   if (!parts.length) throw new UploadError(400, 'The file needs a name.');
   if (parts.length > MAX_DEPTH) throw new UploadError(400, 'That folder is nested too deep.');
+  // (no link on the way, checked before any folder is made: a refused upload makes nothing, inside or out)
+  if (!noLinksBelow(dir, path.dirname(path.join(dir, ...parts)))) throw new UploadError(400, 'Bad upload path.');
   ensureDir(path.dirname(path.join(dir, ...parts)));
-  // a folder in the path that is a link out of uploads/
+  // a folder in the path that is a link out of uploads/ (made one meanwhile)
   if (!inside(root, path.dirname(path.join(dir, ...parts)))) throw new UploadError(400, 'Bad upload path.');
   const target = reserveName(path.join(dir, ...parts));
   const reservation = identity(target);

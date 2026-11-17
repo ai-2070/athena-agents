@@ -88,6 +88,7 @@ Completed reviews:
 - Trigger/evidence: plant `escape` as a link/junction in an existing batch, then upload `escape/new/sub/file.txt`. Recursive directory creation runs before containment validation.
 - Impact/expected: a refused request creates outside directory trees; refusal should precede filesystem effects.
 - Limits: known batch, planted link, accepted upload and target permissions required. Random batch names constrain advance planting; later validation prevents ordinary file-content writes. Not reproduced.
+- Fixed: an upload checks that no folder on its path inside the batch is a link before it makes any folder, so a refused one creates nothing outside. Test in `tests/server/uploads.test.ts` (a junction on Windows).
 
 ### BH-006 — Stored ZIP entries evade the unpacked-size limit
 
