@@ -1000,7 +1000,7 @@ Completed reviews:
 - Trigger/evidence: Stop during read_file/read_document PDF work or slot waiting. `callTool()` has the run signal, but both `readDocumentPart()` calls omit it.
 - Impact/expected: stopped calls still occupy/wait for shared workers; multi-file loops can proceed to more files. Forward cancellation into the already-cancellable reader.
 - Limits: existing cancellation tests call reader directly, not these consumers; no Stop scenario.
-- Fixed: `read_file` and `read_document` pass the run's signal into the PDF reader, and a multi-file read stops before the next file. The test in `tests/server/document-tools.test.ts` checks the answer only: `callTool()` already answered "Stopped" before, so it does not show the worker being freed.
+- Fixed: `read_file` and `read_document` pass the run's signal into the PDF reader, and a multi-file read stops before the next file. Tests in `tests/server/document-tools.test.ts` (the answer) and `tests/server/document-stop-worker.test.ts` (with a reader thread that never answers: Stop ends it at once; before the fix it ran on until its time limit).
 
 ### BH-109 — PDF queue time is outside the attachment deadline
 
