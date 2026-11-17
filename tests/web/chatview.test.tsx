@@ -423,6 +423,47 @@ describe('the agent chat (AI SDK)', () => {
     expect(el.textContent).toContain('On the next one');
   });
 
+  it("a /loop's next turn starts as the turn before it ends, nothing queued: that turn streams in too", async () => {
+    const el = await open();
+    await wsEvent({
+      type: 'loop',
+      agentId: 'a1',
+      chatId: 'c1',
+      loop: { text: 'check CI', every: 60_000, times: 3, done: 0, next: null },
+    });
+    await type(el, 'go');
+    await settle();
+    await wsEvent({
+      type: 'run',
+      runId: 'r2',
+      agentId: 'a1',
+      chatId: 'c1',
+      event: { kind: 'start', text: 'check CI' },
+    });
+    chat.items.push(
+      { type: 'user', text: 'go' },
+      { type: 'assistant', text: 'Went.' },
+      { type: 'user', text: 'check CI' },
+    );
+    resumeStream = uiStream();
+    const s = sendStream!;
+    await act(async () => {
+      s.push({ type: 'start', messageId: 'run-r1' });
+      s.push({ type: 'finish' });
+      s.end();
+    });
+    await settle();
+    await settle();
+    expect(requests.some((r) => r.method === 'GET' && r.url.endsWith('/stream'))).toBe(true);
+    await act(async () => {
+      resumeStream!.push({ type: 'start', messageId: 'run-r2' });
+      resumeStream!.push({ type: 'text-start', id: 'b' });
+      resumeStream!.push({ type: 'text-delta', id: 'b', delta: 'CI is green' });
+    });
+    await settle();
+    expect(el.textContent).toContain('CI is green');
+  });
+
   it('/queue when nothing is working just sends it', async () => {
     const el = await open();
     await type(el, '/queue hello there');
