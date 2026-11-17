@@ -1111,6 +1111,11 @@ export function runBuild(input: BuildInput): BuildOutcome {
             if (!len) continue;
             const ux = (bx - ax) / len;
             const uz = (bz - az) / len;
+            // (a stretch shorter than what is left to the next copy only brings the next copy nearer)
+            if (carry > len) {
+              carry -= len;
+              continue;
+            }
             for (let t = carry; t <= len; t += every) {
               for (const side of sides === 2 ? [1, -1] : [1]) {
                 // left of the way the path goes is (uz, -ux)… seen from above with +z towards you; offset moves the copy sideways

@@ -1231,6 +1231,7 @@ Completed reviews:
 - Trigger/evidence: along-path segments are shorter than every/carry. carry updates only inside placement loop; skipped segments never subtract their length.
 - Impact/expected: densely sampled curves can get only initial copy instead of regularly spaced fences/lamps. Carry distance across every segment.
 - Limits: existing test uses one long segment; no operation run.
+- Fixed: along a path, a stretch shorter than the distance left to the next copy now brings that copy nearer, so a path drawn in many short steps still gets one every so far. Test in `tests/server/voxel-prefabs.test.ts`.
 
 ### BH-136 — Named prefab pivots ignore nested assembly geometry
 
