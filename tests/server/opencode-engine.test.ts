@@ -416,6 +416,24 @@ describe('the run config', () => {
     expect(rules.some((r) => (r.action === 'shell' || r.action === 'edit') && r.effect === 'allow')).toBe(false);
     expect(rules.at(-2)).toEqual({ action: 'dashboard_*', resource: '*', effect: 'allow' });
   });
+  it("a terminal starts on the agent's model and effort; without a model, on opencode's own (BH-092)", () => {
+    const read = (a: Agent) => {
+      const { env } = oc.terminalLaunch(a, 'brief', 'bh092');
+      return (
+        JSON.parse(fs.readFileSync(String(env.OPENCODE_CONFIG), 'utf8')) as {
+          agents: Record<string, { model?: string }>;
+        }
+      ).agents.athena!.model;
+    };
+    expect(read(coder({ model: 'openrouter/anthropic/claude-haiku-5.5', effort: 'high' }))).toBe(
+      'openrouter/anthropic/claude-haiku-5.5#high',
+    );
+    expect(read(coder({ model: 'openrouter/anthropic/claude-haiku-5.5', effort: '' }))).toBe(
+      'openrouter/anthropic/claude-haiku-5.5',
+    );
+    expect(read(coder({ model: '', effort: 'high' }))).toBeUndefined();
+  });
+
   it('the athena agent with the brief from a file, the bridge (its token stays out), and the agent’s own MCP servers', () => {
     const a = coder({ mcpServers: ['github', 'notes', 'off', 'missing'] });
     const cfg = oc.opencodeConfig(a, { briefFile: 'C:\\data\\brief.md', runId: 'r9' }) as {

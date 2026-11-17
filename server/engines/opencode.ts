@@ -167,7 +167,10 @@ export function mcpServers(agent: Agent, runId = ''): Record<string, McpEntry> {
 /** The config a run (or the terminal) starts opencode with. The servers' keys are in it: it is written to
  *  the data folder and removed after the run, never put in opencode's environment (its shell would hand
  *  that to every command it runs). */
-export function opencodeConfig(agent: Agent, { briefFile, runId = '' }: { briefFile: string; runId?: string }): object {
+export function opencodeConfig(
+  agent: Agent,
+  { briefFile, runId = '', model = '' }: { briefFile: string; runId?: string; model?: string },
+): object {
   return {
     $schema: 'https://opencode.ai/config.json',
     agents: {
@@ -176,6 +179,8 @@ export function opencodeConfig(agent: Agent, { briefFile, runId = '' }: { briefF
         description: `${agent.name} from Athena Agents`,
         system: `{file:${briefFile.replace(/\\/g, '/')}}`,
         permissions: permissionRules(agent),
+        // ("provider/model#variant": a terminal starts on it; a run sets its session's model itself)
+        ...(model ? { model } : {}),
       },
     },
     default_agent: AGENT,
@@ -189,12 +194,12 @@ interface RunFiles {
   cleanup: () => void;
 }
 /** Writes the brief and the config for a run (tag: its id) or the terminal. */
-export function writeRunFiles(agent: Agent, systemPrompt: string, tag: string, runId = ''): RunFiles {
+export function writeRunFiles(agent: Agent, systemPrompt: string, tag: string, runId = '', model = ''): RunFiles {
   const dir = ensureDir(dataPath('runtime', agent.id));
   const brief = path.join(dir, `opencode-${tag}.md`);
   const config = path.join(dir, `opencode-${tag}.json`);
   fs.writeFileSync(brief, systemPrompt);
-  fs.writeFileSync(config, JSON.stringify(opencodeConfig(agent, { briefFile: brief, runId }), null, 2));
+  fs.writeFileSync(config, JSON.stringify(opencodeConfig(agent, { briefFile: brief, runId, model }), null, 2));
   return { config, brief, cleanup: () => [config, brief].forEach((f) => fs.rmSync(f, { force: true })) };
 }
 
@@ -937,7 +942,11 @@ export function terminalLaunch(
   systemPrompt: string,
   tag = 'terminal',
 ): { args: string[]; env: NodeJS.ProcessEnv } {
-  const files = writeRunFiles(agent, systemPrompt, tag);
+  // the agent's model and effort, as a run would use them: the effort's own name as the variant (a run picks the
+  // nearest one the model has from opencode's list; without a model set, opencode's default is left as it is)
+  const effort = effortFor('opencode', agent.effort);
+  const model = modelRef(agent.model || '') ? `${agent.model}${effort ? `#${effort}` : ''}` : '';
+  const files = writeRunFiles(agent, systemPrompt, tag, '', model);
   return { args: ['--standalone'], env: { ...process.env, OPENCODE_CONFIG: files.config } };
 }
 

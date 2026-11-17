@@ -867,6 +867,7 @@ Completed reviews:
 - Trigger/evidence: open an OpenCode agent with nondefault model/effort. Terminal args/config carry instructions, permissions and MCP, but not those choices; ordinary run dispatch explicitly translates both.
 - Impact/expected: terminal can use another provider/model/reasoning default. Honor the Dashboard selection.
 - Limits: exact fallback depends on installed OpenCode configuration; no provider call.
+- Fixed: an opencode terminal starts on the agent's model with its effort (`"model": "provider/model#effort"` on the athena agent in its config, the form `opencode debug agents` 2.2.7 reads as model and variant); without a model set, opencode's default stays. A run still picks the nearest variant the model has; the terminal uses the effort's own name. Test in `tests/server/opencode-engine.test.ts`.
 
 ### BH-093 — Slow terminal viewers can accumulate unbounded queued output
 
