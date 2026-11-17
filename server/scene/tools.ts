@@ -3,9 +3,11 @@
 // file tools can't. scene_check (did the change load?), scene_look (a picture), scene_logs (what the scene said),
 // scene_versions and scene_restore (every change is kept), and scene_use (turn the scene look on).
 //
-// None of them asks first, and nor do file writes inside the scene folder: a builder changes a scene many times in a
-// row, the scene runs sandboxed, and every change is kept so a broken one is one call away from undone. (A
-// deliberate exception to "anything that runs code is high" in AGENTS.md.)
+// The scene ones don't ask first, and nor do file writes inside the scene folder: a builder changes a scene many times
+// in a row, the scene runs sandboxed, and every change is kept so a broken one is one call away from undone. That
+// covers scene_restore too: what it replaces or removes stays in the versions. (A deliberate exception to "anything
+// that deletes or runs code is high" in AGENTS.md: HTML_SCENE_PLAN.md, Decisions.) scene_use is low: it changes a
+// setting for every project, not the scene.
 import path from 'node:path';
 import { activeProject, getSettings, log, saveSettings } from '../store.ts';
 import { isInside } from '../util.ts';
@@ -118,6 +120,14 @@ function changes(v: SceneVersion, before: SceneVersion | undefined): string {
   );
 }
 
+/** Why the picture is of the version it is (scene_look): the newest may still be loading, not broken. */
+export function shownNote(shown: string, newest: SceneVersion | undefined): string {
+  if (!newest || shown === newest.id) return newest ? ' (the newest)' : '';
+  if (newest.loads === 'broken') return ` (not the newest, ${newest.id}: that one doesn't load)`;
+  if (!newest.loads) return ` (not the newest, ${newest.id}: that one hasn't loaded yet; scene_check waits for it)`;
+  return ` (not the newest, ${newest.id})`;
+}
+
 const lookOn = (): boolean => getSettings().look.stationLook === 'scene';
 const LOOK_OFF =
   "The Station isn't in the scene look, so no page loads the scene. Ask the user to turn it on (Settings › Appearance › Station look › Scene), or call scene_use if they asked to see the scene.";
@@ -207,10 +217,7 @@ export function sceneTools(): ToolDef[] {
           Math.max(200, Math.min(max, Number.isFinite(Number(n)) && Number(n) > 0 ? Number(n) : d));
         const r = await requestSceneLook(p.id, { width: clamp(width, 1280, 1920), height: clamp(height, 800, 1200) });
         if (!r.image) return { text: r.note || 'No picture came back.', isError: true };
-        const o = sceneOverview(p);
-        const shown = r.version
-          ? ` It shows version ${r.version}${r.version === o.newest ? ' (the newest)' : o.newest ? ` (not the newest, ${o.newest}: that one doesn't load)` : ''}.`
-          : '';
+        const shown = r.version ? ` It shows version ${r.version}${shownNote(r.version, sceneVersions(p)[0])}.` : '';
         return { text: `The scene as the Station shows it.${shown}`, images: [r.image] };
       },
     },
@@ -310,7 +317,7 @@ export function sceneTools(): ToolDef[] {
     {
       name: 'scene_use',
       group: 'scene',
-      risk: 'none',
+      risk: 'low',
       description:
         'Turns the Station\'s scene look on (look "scene") or back to the classic map ("classic"). A setting for every project: only when the user asks to see the scene, or to leave it.',
       parameters: obj({ look: { type: 'string', enum: ['scene', 'classic'], description: '"scene" or "classic"' } }, [

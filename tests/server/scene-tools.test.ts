@@ -20,7 +20,7 @@ import {
   takeVersion,
 } from '../../server/scene/history.ts';
 import { forgetSceneLook, setScenePages, addSceneLogs } from '../../server/scene/look.ts';
-import { forgetSceneWriters, sceneAuthor, scenePrompt } from '../../server/scene/tools.ts';
+import { forgetSceneWriters, sceneAuthor, scenePrompt, shownNote } from '../../server/scene/tools.ts';
 import { claudeArgs, claudePathRule } from '../../server/engines/claude.ts';
 import { codexArgs } from '../../server/engines/codex.ts';
 import { applyActions } from '../../server/overseer.ts';
@@ -156,10 +156,31 @@ describe('the scene tools', () => {
   });
 
   it('scene_use turns the scene look on and off', async () => {
-    await callTool(builder, 'scene_use', { look: 'scene' });
+    // (on "Ask first" it would wait for the user's OK: an agent on "Auto" doesn't)
+    const auto: ToolAgent = { ...builder, autonomy: 'auto' };
+    await callTool(auto, 'scene_use', { look: 'scene' });
     expect(getSettings().look.stationLook).toBe('scene');
-    await callTool(builder, 'scene_use', { look: 'classic' });
+    await callTool(auto, 'scene_use', { look: 'classic' });
     expect(getSettings().look.stationLook).toBe('classic');
+  });
+
+  it('scene_use asks on "Ask first" (a setting for every project); going back to a version does not', () => {
+    expect(riskOf('scene_use', { look: 'scene' })).toBe('low');
+    expect(riskOf('scene_restore', { version: 'starter' })).toBe('none');
+  });
+
+  it('scene_look says the newest version is still loading, not that it does not load', () => {
+    const v = (loads?: 'ok' | 'broken') => ({
+      id: 'sv-new',
+      at: 1,
+      by: { kind: 'outside' as const },
+      files: {},
+      loads,
+    });
+    expect(shownNote('sv-new', v())).toBe(' (the newest)');
+    expect(shownNote('sv-old', v())).toMatch(/hasn't loaded yet/);
+    expect(shownNote('sv-old', v('broken'))).toMatch(/doesn't load/);
+    expect(shownNote('sv-old', v('ok'))).toBe(' (not the newest, sv-new)');
   });
 });
 

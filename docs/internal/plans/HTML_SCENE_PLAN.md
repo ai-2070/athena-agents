@@ -339,7 +339,8 @@ given, with a prompt part (like `worldPrompt`) that says, in short:
 | `scene_restore`  | writes a version, or one file of it, back into the folder (§3d)                                                           |
 | `scene_use`      | turns the scene look on or off (`StationLook`, a setting for every project): only when the user asks, like `station_look` |
 
-None of them asks for approval (see Decisions).
+None of them asks for approval (see Decisions), except `scene_use` on "Ask first": it changes a setting for every
+project, not the scene.
 
 **`scene_check` answers with how it loads.** When a tab shows the scene, it waits (up to 12 s, like `world_look`) for
 the load report of §3b and returns it: "Loads fine", or "Doesn't load: TypeError: … (index.html:212). The Station
