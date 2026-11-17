@@ -595,6 +595,7 @@ Completed reviews:
 - Trigger/evidence: crash after final projection but before application completion, restart over 30 days later. Startup tidies first; fully projected native record is removed without checking unsettled execution receipt.
 - Impact/expected: success becomes interrupted, losing successful handoff/callback outcome although answer remains visible. Retain receipts until application completion is reconciled.
 - Limits: existing retention tests omit unsettled execution receipts; no long-retention restart run.
+- Fixed: the 30-day sweep keeps an Eve run whose execution receipt the app hasn't settled yet (a restart came before its handoff or callback was settled), so the restart can still settle it from that record; it goes once settled. Test in `tests/server/eve-retention.test.ts`.
 
 ### BH-063 — Saved Eve steers without delivery receipts are never reconciled
 

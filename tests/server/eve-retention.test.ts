@@ -18,6 +18,7 @@ import { EVE_RECEIPT_DAYS, removeOldEveReceipts } from '../../server/eve/retenti
 import { EveRuntime } from '../../server/eve/runtime.ts';
 import { privateDataPath } from '../../server/private.ts';
 import { writeJSON } from '../../server/util.ts';
+import { admitExecution, updateExecution } from '../../server/execution.ts';
 import type { EveToolOperation } from '../../shared/types.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -104,6 +105,31 @@ describe('removing old Eve receipts', () => {
     expect(kept('still-working') && kept('not-projected')).toBe(true);
     markProjected('not-projected', 1);
     expect(removeOldEveReceipts()).toEqual(['not-projected']);
+  });
+
+  it('keeps a run the app has not settled yet: a restart settles it from that record (BH-062)', () => {
+    const { agent, chat } = run('done-unsettled');
+    // (the app's receipt for it: the turn finished, but the restart came before its handoff or callback was settled)
+    admitExecution({
+      id: 'done-unsettled',
+      projectId: activeProject().id,
+      agentId: agent.id,
+      chatId: chat.id,
+      engine: 'eve',
+      parentRunId: null,
+      ownerChatId: chat.id,
+      ownerAgentId: agent.id,
+      depth: 0,
+      text: 'go',
+      from: null,
+      attachments: [],
+      startedAt: Date.now() - (EVE_RECEIPT_DAYS + 2) * DAY,
+      status: 'running',
+    });
+    expect(removeOldEveReceipts()).toEqual([]);
+    expect(kept('done-unsettled')).toBe(true);
+    updateExecution('done-unsettled', { status: 'completed', settled: true, endedAt: Date.now() });
+    expect(removeOldEveReceipts()).toEqual(['done-unsettled']);
   });
 
   it.each(['waiting', 'running', 'prepared', 'uncertain'] as const)('keeps a run with a %s operation', (status) => {
