@@ -6,7 +6,16 @@ import { listFiles, readPlain, uid, writeJSON } from '../util.ts';
 import { decodeChunk, countVoxels, newVolume, volumeBounds } from '../../shared/voxel.ts';
 import { BuildError, loadGrids, runBuild, saveGrids, VOXEL_SIZE_MAX, VOXEL_SIZE_MIN } from './ops.ts';
 import type { BuildInput, BuildOutcome, Grid } from './ops.ts';
-import { readObject, readPrefab, saveWorld, worldDir, writeObject, writePrefab, worldVoxels } from './store.ts';
+import {
+  readObject,
+  readPrefab,
+  saveWorld,
+  worldDir,
+  worldWritePath,
+  writeObject,
+  writePrefab,
+  worldVoxels,
+} from './store.ts';
 import { changeWorld } from './link.ts';
 import type {
   AgentSkin,
@@ -175,9 +184,10 @@ export function remember(worldId: string, h: Omit<HistoryEntry, 'id' | 'at'>): v
   const all = history(worldId);
   // strictly after the last one, even in the same millisecond: undo goes by this order
   const e: HistoryEntry = { id: uid('h'), at: Math.max(Date.now(), (all[0]?.at ?? 0) + 1), ...h };
-  writeJSON(worldDir(worldId, 'history', `${e.id}.json`), e);
+  writeJSON(worldWritePath(worldId, 'history', `${e.id}.json`), e);
   // the new one is newest, so it is kept
-  for (const old of all.slice(HISTORY_KEPT - 1)) fs.rmSync(worldDir(worldId, 'history', old.file), { force: true });
+  for (const old of all.slice(HISTORY_KEPT - 1))
+    fs.rmSync(worldWritePath(worldId, 'history', old.file), { force: true });
 }
 
 // ---------- building ----------
@@ -840,7 +850,7 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
       if (before) list[id] = before;
       else delete list[id];
     }
-    fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
+    fs.rmSync(worldWritePath(w.id, 'history', head.file), { force: true });
     saveWorld(w, { skins: true, undone: true, by: by.name });
     return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
   }
@@ -852,7 +862,7 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
       if (i >= 0) list.splice(i, 1);
       if (mine.sceneBefore) list.push(mine.sceneBefore as WorldLight & WorldEffect);
     }
-    fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
+    fs.rmSync(worldWritePath(w.id, 'history', head.file), { force: true });
     saveWorld(w, { [mine.kind === 'environment' ? 'environment' : `${mine.kind}s`]: true, undone: true, by: by.name });
     return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
   }
@@ -900,7 +910,7 @@ function undoIn(w: VoxelWorld, by: WorldBuilder, anyone: boolean): { world: Voxe
     }
     putBack(mine.metaBefore);
   }
-  fs.rmSync(worldDir(w.id, 'history', head.file), { force: true });
+  fs.rmSync(worldWritePath(w.id, 'history', head.file), { force: true });
   saveWorld(w, { [isPrefab ? 'prefabs' : 'objects']: [mine.objectId], undone: true, by: by.name });
   return { world: w, text: `Undid: ${mine.by.name} ${mine.what}.` };
 }

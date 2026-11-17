@@ -7,7 +7,7 @@
 // Worlds aren't inside a project: projects point at one (link.ts), and two projects can share one.
 import fs from 'node:fs';
 import path from 'node:path';
-import { dataPath, ensureDir, isPlainDir, listFiles, readPlain, uid, writeJSON } from '../util.ts';
+import { dataPath, ensureDir, isPlainDir, listFiles, noLinksBelow, readPlain, uid, writeJSON } from '../util.ts';
 import { emit } from '../store.ts';
 import { envPreset } from '../../shared/worldenv.ts';
 import type { VoxelObjectData, VoxelWorld } from '../../shared/types.ts';
@@ -22,6 +22,14 @@ const bad = (msg: string, status = 400) => Object.assign(new Error(msg), { statu
 export function worldDir(id: string, ...parts: string[]): string {
   if (!WORLD_ID.test(id)) throw bad('Not a world id');
   return dataPath('worlds', id, ...parts);
+}
+
+/** A path in a world to write or delete: refused when any folder on the way from the data folder is a link (a world
+ *  folder swapped for one would have a change land outside, or in another world), before anything is changed. */
+export function worldWritePath(id: string, ...parts: string[]): string {
+  const p = worldDir(id, ...parts);
+  if (!noLinksBelow(dataPath(), p)) throw bad('That world folder is a link; not writing through it.');
+  return p;
 }
 
 /** A world as stored, with anything missing filled in (an older or hand-edited file). */
@@ -77,8 +85,7 @@ export function saveWorld(w: VoxelWorld, event: Record<string, unknown> = {}): V
   saves.set(w.id, saveCount(w.id) + 1);
   w.updatedAt = Date.now();
   w.built = w.built || w.objects.length > 0;
-  if (isLink(worldDir(w.id))) throw bad('That world folder is a link; not writing through it.');
-  writeJSON(worldDir(w.id, 'world.json'), w);
+  writeJSON(worldWritePath(w.id, 'world.json'), w);
   emit('world', { world: w.id, ...event });
   return w;
 }
@@ -109,8 +116,8 @@ export function writeObject(worldId: string, objectId: string, data: VoxelObject
 
 function writeData(worldId: string, kind: 'objects' | 'prefabs', id: string, data: VoxelObjectData | null): void {
   if (!OBJECT_ID.test(id)) throw bad('Not an id');
-  const file = worldDir(worldId, kind, `${id}.json`);
-  if (isLink(path.dirname(file)) || isLink(file)) throw bad('That object file is a link; not writing through it.');
+  const file = worldWritePath(worldId, kind, `${id}.json`);
+  if (isLink(file)) throw bad('That object file is a link; not writing through it.');
   if (data) writeJSON(file, data);
   else fs.rmSync(file, { force: true });
 }

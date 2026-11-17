@@ -1303,6 +1303,7 @@ Completed reviews:
 - Trigger/evidence: replace linked project's world directory with a junction/symlink to a world-shaped outside directory. Metadata read checks final file; writeData checks immediate object directory/file; saveWorld rejects root after effects.
 - Impact/expected: a refused build/delete can already change outside files or corrupt another world. Check full destination before any data mutation.
 - Limits: pre-existing filesystem control/target permissions required; not unauthenticated HTTP. No link or operation executed.
+- Fixed: every write and delete in a world (its objects, prefabs, world.json, undo history and WORLD.md) checks the whole path from the data folder for links first (`worldWritePath()`), so a world folder swapped for a link is refused before anything is changed through it. Test in `tests/server/voxel-linked-world.test.ts` (a junction on Windows; before the fix a refused build had already written two files outside).
 
 ### BH-144 — Voxel import allocates sparse chunks before rejecting spatial extent
 
