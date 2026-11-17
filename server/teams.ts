@@ -21,7 +21,18 @@ import {
   listProjects,
 } from './store.ts';
 import { readJSON, writeJSON, uid, dataPath, settledWithin } from './util.ts';
-import { deleteThread, filePast, listThreads, newThreadId, pastHolds, reopenThread, startThread } from './pastchats.ts';
+import {
+  deleteThread,
+  filePast,
+  listThreads,
+  newThreadId,
+  pastHolds,
+  pastIds,
+  readPast,
+  reopenThread,
+  startThread,
+  threadTitle,
+} from './pastchats.ts';
 import type { ThreadMeta, ThreadPlace } from './pastchats.ts';
 import {
   askAgent,
@@ -201,6 +212,23 @@ function saveChat(teamId: string, c: TeamChat, pid?: string) {
 /** Full saved transcript. Callers must check team membership before exposing it to an agent. */
 export function teamMessages(teamId: string): TeamMessage[] {
   return loadChat(teamId).messages;
+}
+
+/** Every conversation of the team: the open one, then its past ones (kept by New chat), each with its messages.
+ *  Callers must check team membership before exposing it to an agent. */
+export function teamHistory(teamId: string): { past: boolean; title?: string; messages: TeamMessage[] }[] {
+  const owner = { kind: 'team' as const, id: teamId };
+  const past = pastIds(owner)
+    .map((id) => readPast<TeamChat>(owner, id))
+    .filter((t): t is TeamChat => !!t && Array.isArray(t.messages));
+  return [
+    { past: false, messages: loadChat(teamId).messages },
+    ...past.map((t) => ({
+      past: true,
+      title: threadTitle(t.messages.find((m) => m.from === 'user')?.text),
+      messages: t.messages,
+    })),
+  ];
 }
 
 /** The open conversation's id (none until something is said in it) and its full transcript. */

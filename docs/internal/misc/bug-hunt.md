@@ -420,6 +420,7 @@ Completed reviews:
 - Trigger/evidence: preserve a decision with New chat, then search/read an earlier result. Archives move to `past-chats`; search/read inspect only active `teamMessages()`. References identify team, not thread.
 - Impact/expected: retained decisions disappear from search and old references fail until reopening, if advertised earlier-conversation search includes archived team history.
 - Limits: no archive exclusion documented; source/test inspection only.
+- Fixed: `search_conversations` and `read_conversation` cover a team's past conversations (kept by New chat) as well as the open one; a hit from a past one says so in its title. Message ids are unique, so a reference keeps working after New chat. Test in `tests/server/conversation-search.test.ts`.
 
 ### BH-043 — Always-allow consent follows unstable MCP aliases
 
@@ -608,6 +609,7 @@ Completed reviews:
 - Trigger/evidence: crash after persisting steer with `deliveryId: null`, before POST reaches Eve. Chat already contains it; recovery ignores saved steers and `lateSteers()` excludes missing delivery IDs.
 - Impact/expected: a visible persisted instruction stays permanently unsent. Preserve resend eligibility or explicitly expose unresolved delivery.
 - Limits: interrupted-pre-ack durability policy needs confirmation; exact encoded attachment bytes are not persisted. No crash run.
+- Decided: left as it is for now (2026-11-17). A message saved for Eve just before a crash, whose delivery is unknown, is neither sent again nor flagged.
 
 ### BH-064 — Failed Windows installer launch leaves desktop ownership dismantled
 
