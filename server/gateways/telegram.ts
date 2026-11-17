@@ -210,12 +210,16 @@ export class TelegramIntakeAdapter extends TelegramAdapter {
   }
 
   async replyDocument(event: GatewayInboxEvent, file: GatewayOutgoingFile, signal: AbortSignal): Promise<string> {
+    // (the message it answers as it was when this began: one edited or added to while the file is read is held for
+    // review, not answered with this file, as on Slack and Discord)
+    const version = this.inbox.deliveryVersion(event.id);
     let bytes: Buffer;
     try {
       bytes = await verifyGatewayDocument(event, file, signal);
     } catch {
       throw new GatewaySendError('failed');
     }
+    if (version !== this.inbox.deliveryVersion(event.id)) throw new GatewaySendError('failed');
     const instance = getGatewayInstance(this.instanceId);
     if (
       event.route.instanceId !== this.instanceId ||

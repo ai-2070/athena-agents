@@ -321,6 +321,7 @@ Completed reviews:
 - Trigger/evidence: edit/add an album part while claimed document verification awaits I/O. Source holds affect pending files only; the file is already sending and Telegram does not compare delivery versions afterward.
 - Impact/expected: superseded output is delivered instead of held for review. Slack/Discord have version guards (`slack.ts:565,582,596`; `discord.ts:618,703`).
 - Limits: existing test edits before claiming (`tests/server/gateway-outgoing.test.ts:239-253`); no platform/race execution.
+- Fixed: Telegram notes the source message's delivery version before it reads and checks a document, and sends nothing if it changed meanwhile (an edit, an album part added), as Slack and Discord do. Test in `tests/server/gateway-telegram.test.ts` (the change is simulated through the version, not a real edit mid-read).
 
 ### BH-032 — Startup download drain can starve unrelated gateway work
 
