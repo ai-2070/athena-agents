@@ -859,6 +859,7 @@ Completed reviews:
 - Trigger/evidence: open an agent whose Dashboard instructions differ from its CLI profile. Those terminal branches never build/deliver `buildSystemPrompt(agent)`, unlike ordinary Dashboard runs.
 - Impact/expected: underlying profile starts without the advertised role/instructions/context. Terminal launch should supply them or accurately describe the limitation.
 - Limits: external profiles may contain overlapping instructions; no CLI launched.
+- Fixed: a Hermes agent's terminal starts with the agent's instructions as the session's first message, from a file of its own passed with `--query-file` (Hermes 0.21 seeds an interactive session with it on a real terminal; a run sends them the same way), removed when the terminal closes. OpenClaw (not installed here, so its terminal flags weren't checked): the Terminals page says an OpenClaw agent opens with that OpenClaw agent's own instructions. Tests in `tests/server/terminal-agent-brief.test.ts` (a stand-in pty: Hermes wasn't started) and `tests/web/terminals.test.tsx`.
 
 ### BH-092 — OpenCode terminals omit the selected model and effort
 

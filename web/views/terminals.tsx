@@ -199,6 +199,12 @@ function Launcher() {
               Runs the agent interactively with its instructions, model, tools and MCP servers. Great for long hands-on
               sessions.
             </p>
+            {agents.find((a) => a.id === agentId)?.engine === 'openclaw' ? (
+              <p className="hint openclaw-note mt-2">
+                An OpenClaw agent opens in OpenClaw's own chat screen, with that OpenClaw agent's own instructions, not
+                the ones set here.
+              </p>
+            ) : null}
             <div className="flex flex-wrap items-center gap-3 mt-4">
               <div className="w-75">
                 <SelectControl

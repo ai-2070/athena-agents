@@ -6,7 +6,7 @@ import type { WebSocket } from 'ws';
 import type { Agent, Terminal } from '../shared/types.ts';
 import fs from 'node:fs';
 import path from 'node:path';
-import { which, uid, IS_WIN, HOME, shimTarget, dataPath } from './util.ts';
+import { which, uid, IS_WIN, HOME, shimTarget, dataPath, ensureDir } from './util.ts';
 import { activeProject, emit, log } from './store.ts';
 import { prepareFiles, claudeArgs, claudeEnv } from './engines/claude.ts';
 import { hermesArgs } from './engines/hermes.ts';
@@ -138,6 +138,14 @@ export function createTerminal({
     } else if (agent.engine === 'hermes') {
       cmd = 'hermes';
       argv = hermesArgs(agent, { interactive: true });
+      // Hermes keeps its own system prompt: the agent's instructions start the session as its first message (as a run
+      // sends them), from a file of this terminal's own
+      const brief = path.join(ensureDir(dataPath('runtime', agent.id)), `hermes-${fileTag}.md`);
+      fs.writeFileSync(
+        brief,
+        `${buildSystemPrompt(agent)}\n\n---\n\n(These are your instructions for this session. Say in one line that you are ready, then wait for the user.)`,
+      );
+      argv.push('--query-file', brief);
     } else if (agent.engine === 'codex') {
       cmd = 'codex';
       const launch = codexLaunch(agent, {
