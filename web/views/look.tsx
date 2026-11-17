@@ -117,8 +117,14 @@ function StationScene() {
   const id = proj.id;
   // a template replaces the scene; the one before stays in its versions
   const start = async (template: SceneTemplate, label: string) => {
+    // asked now, not read from the page's state: an agent may have made the scene since the page loaded
+    // (and when the server can't say, asking is the safe side)
+    const has = await rpc.scene.versions({ project: id }).then(
+      (o) => o.present && o.versions.length > 0,
+      () => true,
+    );
     if (
-      proj.sceneAt &&
+      has &&
       !(await confirmBox(
         `Replace this project's scene with the ${label.toLowerCase()} scene? The scene you have now stays in its versions.`,
         { ok: 'Replace' },

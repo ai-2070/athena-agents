@@ -213,4 +213,46 @@ describe('Settings > Appearance', () => {
     expect(el.textContent).not.toContain('Picture opacity');
     expect(el.textContent).toContain('Map dots opacity');
   });
+
+  // (the page's sceneAt can be old: an agent may have made the scene since it loaded)
+  it.each([
+    [true, 'asks before replacing a scene the server has, whatever the page last heard'],
+    [false, 'starts from a template at once when there is no scene yet'],
+  ])('%s: %s', async (has) => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(String(url));
+        if (String(url).startsWith('/api/scene/versions'))
+          return Response.json({
+            versions: has ? [{ id: 'sv-1', at: 1, by: { kind: 'agent' }, files: {} }] : [],
+            newest: has ? 'sv-1' : null,
+            newestGood: null,
+            present: has,
+            problem: null,
+          });
+        return Response.json({ versions: [], newest: null, newestGood: null, present: true, problem: null });
+      }),
+    );
+    state.data = {
+      settings: { look: { ...DEFAULT_LOOK, stationLook: 'scene' } },
+      project: { id: 'p1', name: 'Launch', brainPath: '', repo: '', createdAt: 0, sceneAt: null },
+    } as unknown as AppState;
+    document.body.insertAdjacentHTML('afterbegin', '<div id="modal-root"></div>');
+    await act(async () => root.render(<LookTab />));
+    const garden = el.querySelector<HTMLButtonElement>('.look-scene-template')!;
+    await act(async () => garden.click());
+    await act(async () => vi.advanceTimersByTime(50));
+    expect(urls.some((u) => u.startsWith('/api/scene/versions'))).toBe(true);
+    const asked = document.querySelector('#modal-root .modal');
+    expect(!!asked && /Replace this project's scene/.test(asked.textContent || '')).toBe(has);
+    if (asked)
+      await act(async () =>
+        [...asked.querySelectorAll<HTMLButtonElement>('.modal-foot button')]
+          .find((b) => b.textContent === 'Cancel')!
+          .click(),
+      );
+    expect(urls.some((u) => u.startsWith('/api/scene/start'))).toBe(!has);
+  });
 });
