@@ -757,7 +757,7 @@ export async function runWorkflow({
       return {
         promptId,
         workflow: w.name,
-        files: outputFiles(entry.outputs),
+        files: outputFiles(entry.outputs, url),
         seconds: Math.round((Date.now() - started) / 1000),
         seeds,
         warnings,
@@ -781,10 +781,15 @@ const FILE_KINDS = ['images', 'gifs', 'videos', 'audio', '3d'];
 const MODEL_3D = /\.(glb|gltf|obj|fbx|stl|usdz|ply|spz|splat|ksplat)$/i;
 // The files in a finished job's outputs. 3D nodes list theirs under "3d" (SaveGLB, Save3DAdvanced, the 3D
 // previews); the old Preview 3D node gives a path in its output folder as result[0], which its page loads from there.
-function outputFiles(outputs: Record<string, Record<string, unknown>>): ComfyResultFile[] {
+function outputFiles(outputs: Record<string, Record<string, unknown>>, server: string): ComfyResultFile[] {
   const files: ComfyResultFile[] = [];
   const add = (f: ComfyOutputFile, kind: string) => {
-    const q = new URLSearchParams({ filename: f.filename, subfolder: f.subfolder || '', type: f.type || 'output' });
+    const q = new URLSearchParams({
+      filename: f.filename,
+      subfolder: f.subfolder || '',
+      type: f.type || 'output',
+      server: serverTag(server),
+    });
     files.push({ ...f, kind, url: `/api/comfyui/view?${q}` });
   };
   for (const out of Object.values(outputs)) {
@@ -1012,9 +1017,22 @@ export async function queueStatus(): Promise<ComfyQueueStatus> {
   };
 }
 
+// A result link says which ComfyUI made it (a fingerprint of its address, never the address: nothing is fetched from
+// what a link says). Another server may have a file of the same name, so a result is only shown from its own.
+const serverTag = (url: string) =>
+  crypto.createHash('sha256').update(url.replace(/\/+$/, '')).digest('hex').slice(0, 12);
+const OTHER_SERVER = 'This result was made by another ComfyUI. Set that one again in Settings to see it.';
+const fromHere = (tag: string | null | undefined, url: string) => !tag || tag === serverTag(url);
+
 export async function proxyView(query: Record<string, string>, res: ServerResponse): Promise<void> {
   const url = await requireUrl();
-  const r = await fetch(`${url}/view?${new URLSearchParams(query)}`);
+  const { server, ...file } = query;
+  if (!fromHere(server, url)) {
+    res.writeHead(410, { 'content-type': 'text/plain; charset=utf-8', 'x-content-type-options': 'nosniff' });
+    res.end(OTHER_SERVER);
+    return;
+  }
+  const r = await fetch(`${url}/view?${new URLSearchParams(file)}`);
   const type = r.headers.get('content-type') || 'application/octet-stream';
   const inline = /^(image\/(png|jpeg|webp|gif)|video\/|audio\/)/.test(type);
   res.writeHead(r.status, {
@@ -1034,7 +1052,7 @@ export async function viewImage(link: string, max: number): Promise<{ mime: stri
   if (!m) return null;
   const q = new URLSearchParams(m[1]);
   const url = await comfyUrl();
-  if (!url || !q.get('filename')) return null;
+  if (!url || !q.get('filename') || !fromHere(q.get('server'), url)) return null;
   const r = await fetch(
     `${url}/view?${new URLSearchParams({ filename: q.get('filename') || '', subfolder: q.get('subfolder') || '', type: q.get('type') || 'output' })}`,
     { signal: AbortSignal.timeout(30000) },

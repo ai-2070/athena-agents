@@ -8,7 +8,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { findPromptNodes, runWorkflow, saveApiWorkflow } from '../../server/comfyui.ts';
+import { findPromptNodes, runWorkflow, saveApiWorkflow, viewImage } from '../../server/comfyui.ts';
 import type { ApiWorkflow, ComfyNodeError } from '../../server/comfyui.ts';
 import { decodePng } from '../../server/png.ts';
 import { saveSettings } from '../../server/store.ts';
@@ -79,6 +79,11 @@ beforeAll(async () => {
       return json({ 'job-1': { status: { status_str: 'success', completed: true }, outputs } });
     if (route === '/queue' && req.method === 'POST') takenBack.push(JSON.parse(body.toString()));
     if (route === '/queue') return json({ queue_running: [], queue_pending: [] });
+    if (route === '/view') {
+      // (a tiny PNG: the signature is enough for the content type here)
+      res.writeHead(200, { 'content-type': 'image/png' });
+      return res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    }
     json({}, 404);
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
@@ -341,11 +346,14 @@ describe('what a run reports back', () => {
       ['3d', 'mesh_00001_.glb', '3d', 'output'],
       ['3d', 'preview3d_ab.glb', '3d', 'output'],
     ]);
-    expect(r.files[1].url).toBe('/api/comfyui/view?filename=mesh_00001_.glb&subfolder=3d&type=output');
+    // (with the server it came from: another ComfyUI may have a file of the same name)
+    expect(r.files[1].url).toMatch(
+      /^\/api\/comfyui\/view\?filename=mesh_00001_\.glb&subfolder=3d&type=output&server=[0-9a-f]{12}$/,
+    );
     // the tool's answer links what isn't a picture, so it can be opened or downloaded
     const said = await callTool(agent, 'comfyui_run', { workflow: 'img2img' });
     expect(said.text).toContain(
-      'mesh_00001_.glb (3d, output/3d): [download](/api/comfyui/view?filename=mesh_00001_.glb&subfolder=3d&type=output)',
+      'mesh_00001_.glb (3d, output/3d): [download](/api/comfyui/view?filename=mesh_00001_.glb&subfolder=3d&type=output&server=',
     );
     expect(said.text).toMatch(/out_00001_\.png \(images, output\)\n/);
   });
@@ -475,5 +483,19 @@ describe('finding the prompts', () => {
       promptInputs: ['20.value'],
       negativeInputs: ['7.text'],
     });
+  });
+
+  it('a result is shown only from the ComfyUI that made it, not one set since (BH-119)', async () => {
+    outputs = { '9': { images: [{ filename: 'out_00001_.png', subfolder: '', type: 'output' }] } };
+    const r = await runWorkflow({ workflow: 'img2img' });
+    const link = r.files[0].url;
+    expect(await viewImage(link, 1_000_000)).toMatchObject({ mime: 'image/png' });
+    // another ComfyUI is set now, with a file of the same name (here the same fake under another address)
+    saveSettings({ comfyui: { url: base.replace('127.0.0.1', 'localhost') } });
+    try {
+      expect(await viewImage(link, 1_000_000)).toBeNull();
+    } finally {
+      saveSettings({ comfyui: { url: base } });
+    }
   });
 });

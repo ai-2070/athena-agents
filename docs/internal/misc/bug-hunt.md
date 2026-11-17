@@ -1105,6 +1105,7 @@ Completed reviews:
 - Trigger/evidence: generate on A, switch configured ComfyUI to B, reopen chat. Persisted relative references contain only file/subfolder/type; proxy/model reads resolve the currently selected server.
 - Impact/expected: images disappear or display B's same-named output; changing during model capture can give the wrong image. Bind origin server or retain local bytes.
 - Limits: later contents determine result; no image request/server change executed.
+- Fixed: a ComfyUI result link carries a fingerprint of the address of the ComfyUI that made it (a hash: nothing is fetched from what a link says). Showing it, or reading it for a model, refuses when another ComfyUI is set now (410, saying to set that one again) instead of showing that server's file of the same name. Links from before have none and work as before. The same ComfyUI reached at another address counts as another. Test in `tests/server/comfyui-run.test.ts`.
 
 ### BH-120 — ComfyUI discovery accepts unrelated servers returning 404
 
