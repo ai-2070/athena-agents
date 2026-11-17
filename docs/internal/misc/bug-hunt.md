@@ -1299,6 +1299,7 @@ Completed reviews:
 - Trigger/evidence: repeated no-change finishes, such as zero-chance weathering, scan chunks/occupied cells without tick(); only writes are budgeted. Allowed sparse reach can hold 32,768 chunks, about 134 million scanned cells per pass.
 - Impact/expected: synchronous operations monopolize server beyond advertised 20-million-inspected-spots guard; script deadlines cannot interrupt a host operation. Budget inspections themselves.
 - Limits: accounting/arithmetic inspected; duration/memory not measured.
+- Fixed: snow_cover, overgrow and weather count what they look at toward the 20,000,000-spot limit (every cell of each chunk scanned, and each voxel's look up or around), not only what they write, so passes that change nothing can't run on unchecked. A pass over an object spread across thousands of chunks may now be refused; giving it an "in" box helps. Test in `tests/server/voxel-scene.test.ts`.
 
 ### BH-143 — Linked world roots are rejected only after object writes/deletions
 

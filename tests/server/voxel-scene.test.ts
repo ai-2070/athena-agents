@@ -51,6 +51,19 @@ describe('finishing passes', () => {
     expect([nameAt(r, 0, 1, 0), nameAt(r, 0, 2, 0), getVoxel(r.g, 4, 1, 0)]).toEqual(['snow', 'snow', 0]);
   });
 
+  it('a pass that changes nothing still counts what it looks at toward the work limit (BH-142)', () => {
+    // one voxel in each of 100 chunks, then weathering that never changes anything, over and over
+    const dots = Array.from({ length: 100 }, (_, i) => ({
+      box: [1, 1, 1],
+      at: [(i % 10) * 16, 0, Math.floor(i / 10) * 16],
+      use: 'stone',
+    }));
+    const passes = Array.from({ length: 60 }, () => ({ weather: { chance: 0 } }));
+    expect(() => run([...dots, ...passes])).toThrow(/too much to work out in one call/);
+    // a few passes are fine
+    expect(() => run([...dots, ...passes.slice(0, 5)])).not.toThrow();
+  });
+
   it('overgrow adds tufts on top and vines down walls', () => {
     const r = run([{ box: [8, 6, 8], use: 'brick' }, { seed: 2 }, { overgrow: { chance: 0.6, hang: 4 } }]);
     const moss = r.palette.findIndex((m) => m.name === 'moss') + 1;

@@ -874,7 +874,9 @@ export function runBuild(input: BuildInput): BuildOutcome {
         const inBox = (x: number, y: number, z: number) =>
           !box || (x >= o[0] && y >= o[1] && z >= o[2] && x < o[0] + box[0] && y < o[1] + box[1] && z < o[2] + box[2]);
         const cells: V3[] = [];
+        // (looking counts, not only writing: a pass that changes nothing still looks at every spot)
         for (const [k, c] of grid.vol.chunks) {
+          tick(c.length);
           const [cx, cy, cz] = k.split(',').map(Number);
           for (let i = 0; i < c.length; i++) {
             if (!c[i]) continue;
@@ -898,6 +900,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
           const depth = int(opts.depth, 'depth', { min: 1, max: 8, def: 1 });
           const sheltered = opts.sheltered === true;
           for (const [x, y, z] of cells) {
+            tick(sheltered ? 2 : 49);
             const v = getAbs(x, y, z);
             if (v === snow || kindOf(v) === 'water' || getAbs(x, y + 1, z) || !roll(x, y, z, 21)) continue;
             // only where the sky can see it (a ledge under an overhang stays bare), unless "sheltered"
@@ -910,6 +913,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
           const moss = step.use !== undefined ? matIndex(step.use) : matIndex('moss');
           const hang = int(opts.hang, 'hang', { min: 0, max: 32, def: 3 });
           for (const [x, y, z] of cells) {
+            tick(2 + 4 * (1 + 2 * hang));
             const v = getAbs(x, y, z);
             if (v === moss || kindOf(v) === 'water' || kindOf(v) === 'emissive') continue;
             // tufts on top
@@ -965,6 +969,7 @@ export function runBuild(input: BuildInput): BuildOutcome {
             return worn.get(v)!;
           };
           for (const [x, y, z] of cells) {
+            tick();
             const v = getAbs(x, y, z);
             const low = 1 - ((y - lo) / span) * 0.7;
             if (hash3(x, y, z, seed + 51) < chance * low) writes.push([x, y, z, wornOf(v)]);
