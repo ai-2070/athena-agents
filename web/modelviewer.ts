@@ -3,6 +3,7 @@
 // gives its graphics context back when it leaves, so a long chat of models doesn't run out of them.
 import { h } from './core.ts';
 import { domButtonLink } from './ui/dom.ts';
+import { onRelease } from './release.ts';
 import { fetchFile } from './client/http.ts';
 import type { Group, Object3D, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -68,6 +69,20 @@ function frame(THREE: Three, model: Object3D, camera: PerspectiveCamera, control
   camera.updateProjectionMatrix();
   controls.target.set(0, 0, 0);
   controls.update();
+}
+
+// (a model's geometry, materials and their textures hold memory until disposed)
+function disposeModel(model: Object3D): void {
+  model.traverse((o) => {
+    const mesh = o as Object3D & { geometry?: { dispose(): void }; material?: unknown };
+    mesh.geometry?.dispose();
+    for (const m of ([] as unknown[]).concat(mesh.material ?? [])) {
+      const mat = m as Record<string, unknown> & { dispose?: () => void };
+      for (const v of Object.values(mat))
+        if (v && typeof v === 'object' && 'isTexture' in v) (v as unknown as { dispose(): void }).dispose();
+      mat.dispose?.();
+    }
+  });
 }
 
 /** The viewer for one model file. Says so in words when the file can't be drawn (no 3D support, or a .gltf that is not self-contained). */
@@ -205,17 +220,28 @@ export function modelViewer(url: string, name: string, bytes = 0): HTMLElement {
     }
   }
 
+  let seen: IntersectionObserver | null = null;
   if (typeof IntersectionObserver === 'undefined') {
     visible = true;
     void load();
   } else {
-    new IntersectionObserver((entries) => {
+    seen = new IntersectionObserver((entries) => {
       visible = entries.some((e) => e.isIntersecting);
       if (visible) {
         if (model) void start();
         else void load();
       } else stop();
-    }).observe(box);
+    });
+    seen.observe(box);
   }
+  // let go of it all when the preview is done with: the observer, the live view and the model
+  onRelease(box, () => {
+    failed = true;
+    seen?.disconnect();
+    seen = null;
+    stop();
+    if (model) disposeModel(model);
+    model = null;
+  });
   return box;
 }

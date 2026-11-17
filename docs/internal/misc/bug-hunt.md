@@ -1407,6 +1407,7 @@ Completed reviews:
 - Trigger/evidence: replace/remove previews or evict cache repeatedly. IntersectionObserver handle is not retained/disconnected and retained model is not disposed; visibility cleanup releases renderer only.
 - Impact/expected: observer/model retention can grow across previews. Propagate explicit disposal through owners/cache eviction.
 - Limits: actual browser retention/resource growth unmeasured; no browser execution.
+- Fixed: a 3D model viewer, when released, disconnects its observer, stops drawing and disposes its model (geometry, materials, textures). Release goes down from the owner (`web/release.ts`): `DomNode` releases what it made when it is made again or goes (not when StrictMode remounts it), a preview box unmounts its cards, and the preview cache releases a box it replaces or drops. Tests in `tests/web/release.test.tsx` (the cache dropping a box isn't tested on its own).
 
 ### BH-155 — Versioned/windowed interpreters bypass launch approval classification
 

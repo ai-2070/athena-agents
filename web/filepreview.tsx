@@ -11,6 +11,7 @@ import { icon } from './icons.ts';
 import { isMac } from './shortcuts.ts';
 import { findFileMentions } from './mentions.ts';
 import { modelViewer } from './modelviewer.ts';
+import { onRelease, release } from './release.ts';
 import { fileUrl, pdfViewUrl, filesAt } from './client/connection.ts';
 import { rpcAt } from './client/rpc.ts';
 import { fetchFile } from './client/http.ts';
@@ -376,7 +377,10 @@ export function filePreviews(
   box.className = `hidden ${compact ? 'flex w-full max-w-[860px] flex-wrap gap-1.5' : 'flex w-full max-w-[860px] flex-wrap gap-2.5'}`;
   const list = [...new Set(paths)].filter(Boolean);
   if (!list.length) return box;
-  createAppRoot(box).render(
+  const root = createAppRoot(box);
+  // (released by its owner, e.g. the cache below: its cards let go of what they hold)
+  onRelease(box, () => root.unmount());
+  root.render(
     <Previews
       paths={list}
       compact={compact}
@@ -411,9 +415,15 @@ export function mentionPreviews(
   const hit = boxes.get(id);
   const incomplete = (b: HTMLDivElement) => b.classList.contains('hidden') || b.dataset.missing === '1';
   if (hit && !(incomplete(hit.box) && Date.now() - hit.at > MISSING_FOR)) return hit.box;
+  // (a box looked up again replaces the old one, which lets go of what it held)
+  if (hit) release(hit.box);
   const box = filePreviews(paths, { compact, project });
   boxes.set(id, { box, at: Date.now() });
   // (the oldest go once there are many)
-  if (boxes.size > 300) boxes.delete(boxes.keys().next().value!);
+  if (boxes.size > 300) {
+    const oldest = boxes.keys().next().value!;
+    release(boxes.get(oldest)?.box);
+    boxes.delete(oldest);
+  }
   return box;
 }
