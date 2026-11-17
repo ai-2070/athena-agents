@@ -1139,6 +1139,9 @@ export interface Project {
   mapDotsOpacity?: number;
   /** Which voxel world it uses (missing: none of its own yet, see ProjectWorldLink). */
   world?: ProjectWorldLink;
+  /** When its scene (.dashboard/scene/, the Station's scene look) last changed: its newest version; null = none.
+   *  Added by the server. */
+  sceneAt?: number | null;
   /** What the bottom of the sidebar last showed in this project; missing: Settings > Appearance's choice. */
   sidebar?: SidebarPanel;
 }
@@ -1148,6 +1151,7 @@ export type ProjectWithMedia = Project & {
   modelAt: number | null;
   modelExt: string | null;
   backgroundAt: number | null;
+  sceneAt: number | null;
 };
 /** What a project folder saved by the dashboard holds (its .dashboard/project.json), at a glance. */
 export interface ProjectPeek {
@@ -1263,6 +1267,8 @@ export interface BackupRestoreResult {
   paused: number;
   logo: boolean;
   background: boolean;
+  /** the Station's scene (.dashboard/scene/) and its versions came back (older backups: missing) */
+  scene?: boolean;
 }
 
 // ---------- chats ----------
@@ -1720,14 +1726,15 @@ export interface LookSetting {
   station: StationQuality;
   /** What the bottom of the sidebar shows: what's set up, or how much of your Claude and Codex plans is used. */
   sidebar: SidebarPanel;
-  /** The Station's look: the classic map, or the voxel world's light (sky, sun and shadows, glow). */
+  /** The Station's look: the classic map, the voxel world's light (sky, sun and shadows, glow), or the project's
+   *  scene (an HTML page agents write, docs/internal/plans/HTML_SCENE_PLAN.md). */
   stationLook: StationLook;
   /** How much the voxel world draws: shadows, glow and the miniature blur cost graphics power. */
   worldQuality: WorldQuality;
 }
 /** Light or dark pages, or following the computer's own setting (the default). */
 export type ThemeChoice = 'system' | 'light' | 'dark';
-export type StationLook = 'classic' | 'world';
+export type StationLook = 'classic' | 'world' | 'scene';
 export type WorldQuality = 'low' | 'medium' | 'high';
 
 export type StationQuality = 'smooth' | 'balanced' | 'saver';
@@ -3472,4 +3479,40 @@ export interface WorldLookView {
   zoom?: number;
   width: number;
   height: number;
+}
+
+// ---------- the scene look ----------
+/** Who changed a scene: an agent or the Brain (with its run), the user going back, a backup, or something outside
+ *  Athena (an editor, or an agent's own file tools while more than one run was going on). */
+export interface SceneAuthor {
+  kind: 'agent' | 'brain' | 'user' | 'outside' | 'backup';
+  id?: string;
+  name?: string;
+  runId?: string;
+}
+/** One kept version of a project's scene (server/scene/history.ts): its files, by path inside the scene folder. */
+export interface SceneVersion {
+  id: string;
+  at: number;
+  by: SceneAuthor;
+  /** "Restored the version from 3:05 pm", "Changed while Athena was closed" */
+  note?: string;
+  files: Record<string, { hash: string; size: number }>;
+  /** how it loaded in the Station; missing: not loaded yet */
+  loads?: 'ok' | 'broken';
+  /** the first error, when it doesn't load */
+  error?: string;
+  pinned?: boolean;
+}
+/** A project's scene versions, newest first, and what the Station should show. */
+export interface SceneVersions {
+  versions: SceneVersion[];
+  /** the newest version (null: the project has no scene) */
+  newest: string | null;
+  /** the newest version that loads (null: none has loaded yet) */
+  newestGood: string | null;
+  /** the project has a scene folder now (false: the Station shows the starter; the versions are still there) */
+  present: boolean;
+  /** why the folder's latest state isn't a version (over the limits, no index.html…), or null */
+  problem: string | null;
 }

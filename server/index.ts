@@ -52,6 +52,8 @@ import * as backup from './backup.ts';
 import { devPage, pageCsp, viteFromArgs } from './devpage.ts';
 import { saveToolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
+import { sceneResponse } from './scene/serve.ts';
+import { startSceneWatch } from './scene/history.ts';
 import type { Agent, Project } from '../shared/types.ts';
 import { BRAIN_ID } from './brainmcp.ts';
 
@@ -688,6 +690,12 @@ const server = http.createServer(async (req, res) => {
       }
       throw new HttpError(404, `No API route ${req.method} ${pathname}`);
     }
+    // a project's scene and the scene library: sandboxed, apart from the page (server/scene/serve.ts)
+    const scene = req.method === 'GET' ? sceneResponse(url.pathname, String(req.headers.host || '')) : null;
+    if (scene) {
+      res.writeHead(scene.status, scene.headers);
+      return res.end(scene.body);
+    }
     if (req.method === 'GET' && serveStatic(url, res)) return;
     res.writeHead(404);
     res.end('Not found');
@@ -774,6 +782,7 @@ void irc
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
 projectSync.startAutoSave();
+startSceneWatch();
 programs.startProgramScan();
 programs.startRunningWatch();
 

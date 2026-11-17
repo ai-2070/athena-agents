@@ -24,6 +24,7 @@ import { onThemeChange } from '../theme.ts';
 import { Row, Section, Segmented } from '../ui/controls.tsx';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { backgroundUrl, pickBackground, removeBackground } from '../projectlogo.ts';
+import { showSceneVersions } from '../scene/host.ts';
 import { BACKGROUND_OPACITY, backgroundOpacity, mapDotsOpacity } from '../../shared/look.ts';
 import type { LookSetting, Project } from '../../shared/types.ts';
 
@@ -106,9 +107,32 @@ function OpacitySlider({
   );
 }
 
+// The scene look: what it is, and the project's scene versions. (A scene draws the whole picture, so the
+// background picture and the map's dots don't apply.)
+function StationScene() {
+  const proj = useAppState()?.project;
+  if (!proj?.id) return null;
+  return (
+    <Row
+      title="Scene"
+      description={`A page your agents make for ${proj.name}, in the project's .dashboard/scene folder: ask an agent or the Brain for one ("make the Station an underwater garden"). Every change is kept, and a change that doesn't load is never shown in place of one that does.`}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="small"
+        className="look-scene-versions"
+        onClick={() => showSceneVersions(proj.id)}
+      >
+        Versions
+      </Button>
+    </Row>
+  );
+}
+
 // The open project's picture behind the map: a small preview, buttons to change or remove it, and how strong
 // it and the map's dots are.
-function StationBackground({ look }: { look: LookSetting['stationLook'] }) {
+function StationBackground({ look }: { look: 'classic' | 'world' }) {
   const proj = useAppState()?.project;
   if (!proj?.id) return null;
   const url = backgroundUrl(proj);
@@ -341,7 +365,7 @@ export function LookTab() {
 
       <Section
         title="Station look"
-        description="Voxel world lights the Station like the world your agents will build: a sky, a sun with soft shadows, glow around bright things and a miniature blur at the edges. Classic is the flat map."
+        description="Voxel world lights the Station like the world your agents will build: a sky, a sun with soft shadows, glow around bright things and a miniature blur at the edges. Scene shows a page your agents make, drawn any way they like. Classic is the flat map."
       >
         <Row title="Look" titleId="look-station-look">
           <Segmented
@@ -349,6 +373,7 @@ export function LookTab() {
             options={[
               { value: 'classic', label: 'Classic' },
               { value: 'world', label: 'Voxel world' },
+              { value: 'scene', label: 'Scene' },
             ]}
             value={look.stationLook}
             onChange={(v) => set({ stationLook: v })}
@@ -371,7 +396,7 @@ export function LookTab() {
             />
           </Row>
         ) : null}
-        <StationBackground look={look.stationLook} />
+        {look.stationLook === 'scene' ? <StationScene /> : <StationBackground look={look.stationLook} />}
       </Section>
 
       <Section

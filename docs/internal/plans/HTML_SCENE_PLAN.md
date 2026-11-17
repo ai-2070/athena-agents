@@ -8,8 +8,23 @@ cyberpunk loft. Athena sends the page the Station's state and live events; the p
 Agents write the scene, like they build the voxel world: the user asks "make the Station an underwater garden" and a
 builder writes the page, looks at a picture of it, and fixes it.
 
-Status: plan, nothing built yet. Written 17 November 2026; the same day, agents moved to editing the files directly
+Status: Phase 1 built (see As built). Written 17 November 2026; the same day, agents moved to editing the files directly
 (§6, §6c) and the versions moved out of the project folder (§3a).
+
+## As built
+
+- **Phase 1** (a scene you can see, and nothing lost). Where it differs from the plan below:
+  - The folder is looked at once a second (paths, sizes, times), not watched with `fs.watch`: the same on every
+    system, it sees the folder being made, and it is cheap for a folder of at most 400 files.
+  - The scene's policy allows `connect-src` to its own files and the scene library (and `data:`/`blob:`), not
+    `'none'`: three.js loads models and textures with `fetch`. Every directive names the scene's own address
+    (`http://<host>/scene/<token>/`) and `/scene-lib/`, so nothing else on this server or anywhere else is reachable.
+  - The helper also stands in for `localStorage`/`sessionStorage` when it can (so scenes like abyssal-garden that
+    use it don't throw), besides `Athena.store`.
+  - A new version takes the shown one's place when it says `ready`; the old one stays loaded, out of sight, for the
+    5 seconds in which an uncaught error still counts as "doesn't load", and comes back if the new one breaks.
+  - The bar sits at the top left (the side panel covers the right, and "Ask the Brain" the bottom). The map's zoom
+    buttons are hidden in the scene look.
 
 Inspiration: [abyssal-garden](https://github.com/Noniv/abyssal-garden) (see §10).
 

@@ -71,7 +71,7 @@ const settingsPatch = z
         chatFont: text('The chat font'),
         station: z.enum(['smooth', 'balanced', 'saver'], { error: 'The map works smooth, balanced or saver.' }),
         sidebar: z.enum(['status', 'limits'], { error: 'The sidebar shows "status" or "limits".' }),
-        stationLook: z.enum(['classic', 'world'], { error: 'The Station looks classic or world.' }),
+        stationLook: z.enum(['classic', 'world', 'scene'], { error: 'The Station looks classic, world or scene.' }),
         worldQuality: z.enum(['low', 'medium', 'high'], { error: 'The world draws low, medium or high.' }),
       })
       .partial(),
