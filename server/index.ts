@@ -54,6 +54,7 @@ import { saveToolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
 import { sceneResponse } from './scene/serve.ts';
 import { startSceneWatch } from './scene/history.ts';
+import { setScenePages } from './scene/look.ts';
 import type { Agent, Project } from '../shared/types.ts';
 import { BRAIN_ID } from './brainmcp.ts';
 
@@ -715,6 +716,7 @@ const wss = new WebSocketServer({ noServer: true });
 const eventClients = new Set<WebSocket>();
 // world_look answers in words at once when no page is open to draw a picture
 worldLook.setOpenPages(() => [...eventClients].filter((ws) => ws.readyState === 1).length);
+setScenePages(() => [...eventClients].filter((ws) => ws.readyState === 1).length);
 server.on('upgrade', (req, socket, head) => {
   const origin = req.headers.origin || '';
   const okOrigin = [...ALLOWED_HOSTS].some((h) => origin === `http://${h}`);

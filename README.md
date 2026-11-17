@@ -124,7 +124,7 @@ Every agent has its own instructions, knowledge, memory, model, skills, tools an
 
 ### Agent library
 
-Hire a specialist with its instructions already written. 88 agents come with the app, written for it and its tools: engineers, designers, marketers, researchers, a bookkeeper, a World Builder for the voxel world and more. Each one starts with the tools and skills its work needs, and takes on nearby work too: its role is where it's strongest, not a limit. **Add Athena team** on Home hires the starter team (a Coordinator, an X Writer, an Image Maker, a Researcher…) in one click. You can also use your Hermes profiles, Claude Code subagents and your own presets.
+Hire a specialist with its instructions already written. 89 agents come with the app, written for it and its tools: engineers, designers, marketers, researchers, a bookkeeper, a World Builder for the voxel world, a Scene Builder for the Station's scene and more. Each one starts with the tools and skills its work needs, and takes on nearby work too: its role is where it's strongest, not a limit. **Add Athena team** on Home hires the starter team (a Coordinator, an X Writer, an Image Maker, a Researcher…) in one click. You can also use your Hermes profiles, Claude Code subagents and your own presets.
 
 ![The Agent library: specialists by category, with a choice of which engine they run on](docs/images/library.png)
 

@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { emit, listProjects, activeProject } from '../store.ts';
 import { dataPath, ensureDir, isPlainDir, readJSON, uid, writeJSON } from '../util.ts';
-import { SCENE_LIMITS, sceneType } from '../../shared/scene.ts';
+import { SCENE_LIMITS, scenePath, sceneType } from '../../shared/scene.ts';
 import type { Project, SceneAuthor, SceneVersion, SceneVersions } from '../../shared/types.ts';
 
 /** How many versions are kept, at least (plus pinned ones, and the newest one that loads of each recent day). */
@@ -452,3 +452,126 @@ export function forgetScene(projectId?: string): void {
     watched.clear();
   }
 }
+
+// ---------- backups ----------
+/** A file in a backup: its path and its bytes as base64 (server/backup.ts PackedFile). */
+interface Packed {
+  path: string;
+  data: string;
+}
+/** What a backup carries of a project's scene: the folder as it is, and kept versions (pinned ones, the newest
+ *  that loads, the last 20) with their contents. */
+export interface PackedScene {
+  files: Packed[];
+  history: Packed[];
+}
+const BACKUP_VERSIONS = 20;
+
+/** The project's scene for a backup, within `room` bytes (null: it has none). Says how many files didn't fit. */
+export function packScene(p: Project, room: number): { scene: PackedScene | null; omitted: number } {
+  const folder = scanScene(p);
+  const list = sceneVersions(p);
+  if (!folder.present && !list.length) return { scene: null, omitted: 0 };
+  let left = room;
+  let omitted = 0;
+  const take = (file: string, rel: string, out: Packed[]): void => {
+    try {
+      const st = fs.lstatSync(file);
+      if (!st.isFile()) return;
+      if (st.size > left) {
+        omitted++;
+        return;
+      }
+      left -= st.size;
+      out.push({ path: rel, data: fs.readFileSync(file).toString('base64') });
+    } catch {
+      /* gone meanwhile */
+    }
+  };
+  const files: Packed[] = [];
+  if (folder.present && !folder.problem?.includes('link')) for (const f of folder.files) take(f.abs, f.rel, files);
+  const good = list.find((v) => v.loads === 'ok');
+  const keep = list.filter((v, i) => i < BACKUP_VERSIONS || v.pinned || v === good);
+  const history: Packed[] = [];
+  const blobs = new Set<string>();
+  for (const v of keep) {
+    history.push({ path: `versions/${v.id}.json`, data: Buffer.from(JSON.stringify(v)).toString('base64') });
+    for (const f of Object.values(v.files)) blobs.add(f.hash);
+  }
+  for (const hash of blobs) take(blobFile(p, hash), `blobs/${hash}`, history);
+  return { scene: { files, history }, omitted };
+}
+
+/** Puts a backup's scene into a (new) project: the folder's files, and the kept versions whose files all came
+ *  back intact. Then what came back is kept as a version of its own. True when something came back. */
+export function unpackScene(p: Project, scene: PackedScene): boolean {
+  const root = sceneDir(p);
+  const dash = path.join(p.brainPath, '.dashboard');
+  let wrote = false;
+  const files = scene.files.filter((f) => scenePath(f.path) === f.path && sceneType(f.path));
+  if (files.length) {
+    ensureDir(dash);
+    if (!isPlainDir(dash)) return false;
+    ensureDir(root);
+    if (!isPlainDir(root)) return false;
+    for (const f of files.slice(0, SCENE_LIMITS.files)) {
+      const buf = Buffer.from(f.data, 'base64');
+      if (buf.length > SCENE_LIMITS.fileBytes) continue;
+      const file = path.join(root, ...f.path.split('/'));
+      ensureDir(path.dirname(file));
+      if (!isInsideDir(root, path.dirname(file))) continue;
+      fs.writeFileSync(file, buf);
+      wrote = true;
+    }
+  }
+  // the history: blobs only when their contents match their name, versions only when every file they list is there
+  const blobs = new Map<string, Buffer>();
+  for (const f of scene.history) {
+    const m = /^blobs\/([0-9a-f]{64})$/.exec(f.path);
+    if (!m) continue;
+    const buf = Buffer.from(f.data, 'base64');
+    if (crypto.createHash('sha256').update(buf).digest('hex') === m[1]) blobs.set(m[1], buf);
+  }
+  const versions: SceneVersion[] = [];
+  for (const f of scene.history) {
+    const m = /^versions\/([\w-]+)\.json$/.exec(f.path);
+    if (!m) continue;
+    let v: SceneVersion;
+    try {
+      v = JSON.parse(Buffer.from(f.data, 'base64').toString('utf8')) as SceneVersion;
+    } catch {
+      continue;
+    }
+    if (!v || v.id !== m[1] || typeof v.at !== 'number' || !v.files || typeof v.files !== 'object') continue;
+    const entries = Object.entries(v.files);
+    if (!entries.every(([rel, x]) => scenePath(rel) === rel && x && blobs.has(x.hash))) continue;
+    versions.push({
+      id: v.id,
+      at: v.at,
+      by: v.by && typeof v.by.kind === 'string' ? v.by : { kind: 'outside' },
+      ...(typeof v.note === 'string' ? { note: v.note.slice(0, 300) } : {}),
+      files: Object.fromEntries(entries.map(([rel, x]) => [rel, { hash: x.hash, size: blobs.get(x.hash)!.length }])),
+      ...(v.loads === 'ok' || v.loads === 'broken' ? { loads: v.loads } : {}),
+      ...(typeof v.error === 'string' ? { error: v.error.slice(0, 2000) } : {}),
+      ...(v.pinned ? { pinned: true } : {}),
+    });
+  }
+  if (versions.length) {
+    ensureDir(path.join(historyDir(p), 'blobs'));
+    const used = new Set(versions.flatMap((v) => Object.values(v.files).map((x) => x.hash)));
+    for (const hash of used) {
+      const file = blobFile(p, hash);
+      if (!fs.existsSync(file)) fs.writeFileSync(file, blobs.get(hash)!);
+    }
+    for (const v of versions) writeJSON(path.join(versionsDir(p), `${v.id}.json`), v);
+    wrote = true;
+  }
+  forgetScene(p.id);
+  if (wrote) takeVersion(p, { kind: 'backup' }, 'Brought back from a backup');
+  return wrote;
+}
+const isInsideDir = (root: string, dir: string): boolean => {
+  const r = path.resolve(root);
+  const d = path.resolve(dir);
+  return d === r || d.startsWith(r + path.sep);
+};

@@ -95,6 +95,7 @@ describe('the scene host', () => {
       if (url === '/api/scene/open') return json({ ...versions, base: '/scene/tok' });
       if (url.startsWith('/api/scene/versions')) return json(versions);
       if (url === '/api/scene/loaded') return json({ ok: true });
+      if (url.startsWith('/api/scene/snapshot/') || url === '/api/scene/log') return json({ ok: true });
       return new Response('{}', { status: 404 });
     });
   });
@@ -190,6 +191,33 @@ describe('the scene host', () => {
     await settle();
     expect(container.querySelector('iframe')?.getAttribute('src')).toBe('/scene/tok/v/v1/index.html');
     expect(container.querySelector('.st-scene-bar')?.textContent).toMatch(/last version that worked/);
+    host.dispose();
+  });
+
+  it('answers a picture request with what the shown scene captures, saying which version it is', async () => {
+    const { host, container } = mount();
+    await settle();
+    const frame = container.querySelector('iframe')!;
+    say(frame, { athena: 1, type: 'ready' });
+    host.look('req-1', 800, 600);
+    expect(posted.get(frame)?.at(-1)).toMatchObject({ type: 'look', request: 'req-1', width: 800, height: 600 });
+    say(frame, { athena: 1, type: 'capture', request: 'req-1', image: 'data:image/png;base64,AAAA' });
+    await settle();
+    expect(calls.find((c) => c.url === '/api/scene/snapshot/req-1')?.body).toMatchObject({
+      image: 'data:image/png;base64,AAAA',
+      note: 'version:v1',
+    });
+    host.dispose();
+  });
+
+  it('refuses a picture when nothing is shown yet', async () => {
+    const { host } = mount();
+    await settle();
+    host.look('req-2', 800, 600);
+    await settle();
+    expect(calls.find((c) => c.url === '/api/scene/snapshot/req-2')?.body).toMatchObject({
+      error: expect.stringMatching(/isn't ready/),
+    });
     host.dispose();
   });
 });

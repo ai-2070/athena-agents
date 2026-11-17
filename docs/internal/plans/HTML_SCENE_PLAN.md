@@ -8,7 +8,7 @@ cyberpunk loft. Athena sends the page the Station's state and live events; the p
 Agents write the scene, like they build the voxel world: the user asks "make the Station an underwater garden" and a
 builder writes the page, looks at a picture of it, and fixes it.
 
-Status: Phase 1 built (see As built). Written 17 November 2026; the same day, agents moved to editing the files directly
+Status: Phases 1 and 2 built (see As built). Written 17 November 2026; the same day, agents moved to editing the files directly
 (§6, §6c) and the versions moved out of the project folder (§3a).
 
 ## As built
@@ -25,6 +25,21 @@ Status: Phase 1 built (see As built). Written 17 November 2026; the same day, ag
     5 seconds in which an uncaught error still counts as "doesn't load", and comes back if the new one breaks.
   - The bar sits at the top left (the side panel covers the right, and "Ask the Brain" the bottom). The map's zoom
     buttons are hidden in the scene look.
+
+- **Phase 2** (agents make scenes). Where it differs from the plan below:
+  - `scene_restore` also takes version `"starter"`: it copies the starter scene into the folder, so a builder has a
+    working pattern to change (the starter lives in the app's folder, out of reach of agents' file tools).
+  - The Brain gets the scene tools that only look (`scene_check`, `scene_look`, `scene_logs`, `scene_versions`) as
+    shared tools, and going back as an action of its `project` tool (`scene_restore`, version or `"starter"`, only
+    when the user asks), next to `station_look` `"scene"`. Turning the look on stays `station_look`.
+  - There is no separate scene page in a skill: the builders' instructions (`scenePrompt`) carry the protocol, the
+    helper and the rules, and the Scene Builder in the Agent library carries the judgment.
+  - Engines other than the built-in tools, Claude Code and Codex aren't given the folder; their prompt says where it
+    is and to say so if they can't write there. Codex on "Ask first" stays read-only (open question kept).
+  - `scene_look` pictures are the canvas only (HTML over it, like the starter's labels, isn't in them); the prompt
+    says so.
+  - Log lines go to the server every 3 seconds, errors within a moment, so `scene_logs` right after `scene_check`
+    has them.
 
 Inspiration: [abyssal-garden](https://github.com/Noniv/abyssal-garden) (see §10).
 

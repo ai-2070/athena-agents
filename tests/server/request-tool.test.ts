@@ -77,7 +77,9 @@ describe('request_tool', () => {
 
   it('lists every set briefly', () => {
     const tool = toolsForAgent(newAgent({ name: 'Plain', toolGroups: [] })).find((t) => t.name === 'request_tool')!;
-    expect(tool.description).toMatch(/The sets: programs, browser, .*world \(Voxel world\), shell\.$/);
+    expect(tool.description).toMatch(
+      /The sets: programs, browser, .*world \(Voxel world\), scene \(Station scene\), shell\.$/,
+    );
     expect(tool.description.length).toBeLessThan(900);
   });
 });

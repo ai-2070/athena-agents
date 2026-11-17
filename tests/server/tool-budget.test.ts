@@ -29,9 +29,11 @@ function sizes() {
 // 3 300 to 3 600 for view_image; core from 13 800 to 14 700 for save_skill, which /learn needs every agent to have,
 // and read_skill listing the library's matching skills for a name that is no skill, then to 16 000 for board_tags,
 // which lets every agent tag the Tasks board's tasks and find them by tag, and tags on board_reply, then to 16 350 for
-// read_document, which gives every engine the text of attached PDFs and Office files)
+// read_document, which gives every engine the text of attached PDFs and Office files; scene is the Station scene's
+// six tools, which only check, show and go back: its files are written with the file tools)
 const BUDGET: Record<string, number> = {
   world: 15_600,
+  scene: 2_400,
   core: 16_350,
   social: 6_950,
   files: 3_600,

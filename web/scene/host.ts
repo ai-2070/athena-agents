@@ -126,6 +126,8 @@ export interface SceneHost {
   showVersions(): void;
   /** what the shown scene logged lately, newest last */
   logs(): SceneLogLine[];
+  /** a builder asked for a picture (scene_look): the shown scene draws one, and it goes to the server */
+  look(request: string, width: number, height: number): void;
   /** the version shown now ('starter' for the starter), or null while nothing is */
   shown(): string | null;
   dispose(): void;
@@ -385,9 +387,21 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
       f.lastFps = Date.now();
       return;
     }
+    if (m.type === 'capture') {
+      const want = looks.get(m.request);
+      if (!want || f !== shown) return;
+      looks.delete(m.request);
+      clearTimeout(want);
+      void rpc.scene.snapshot({ request: m.request, image: m.image, note: `version:${f.version}` }).catch(() => null);
+      return;
+    }
     if (m.type === 'log') {
-      logs.push({ at: Date.now(), version: f.version, level: m.level, text: m.text });
+      const line = { at: Date.now(), version: f.version, level: m.level, text: m.text };
+      logs.push(line);
       if (logs.length > LOGS_KEPT) logs.splice(0, logs.length - LOGS_KEPT);
+      unsent.push(line);
+      // errors go to the server at once (a builder checking its change reads them), the rest every few seconds
+      if (m.level === 'error') flushSoon();
       // an uncaught error before ready, or in the first seconds after: it doesn't load
       const early = f.readyAt === null || Date.now() - f.readyAt < SETTLE_MS;
       if (m.uncaught && m.level === 'error' && early && f.version !== 'starter' && !f.error) broke(f, m.text);
@@ -430,6 +444,59 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
   const offTheme = onThemeChange(() => {
     for (const f of [shown, trial]) if (f?.readyAt) send(f, msg<'theme'>({ type: 'theme', ...theme() }));
   });
+  // ---------- for builders: what the scene logged, and pictures ----------
+  /** log lines not yet sent to the server (scene_logs) */
+  const unsent: SceneLogLine[] = [];
+  const flush = () => {
+    const lines = unsent.splice(0, 100);
+    void rpc.scene.log({ project: opts.projectId, lines }).catch(() => null);
+  };
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  function flushSoon(): void {
+    flushTimer ??= setTimeout(() => {
+      flushTimer = null;
+      if (alive) flush();
+    }, 300);
+  }
+  const logTimer = setInterval(() => {
+    // (sent every few seconds while a scene is shown, even with nothing new: the server then knows a tab shows it)
+    if (shown && !paused) flush();
+  }, 3000);
+  const looks = new Map<string, ReturnType<typeof setTimeout>>();
+  function look(request: string, width: number, height: number): void {
+    const f = shown;
+    const refuse = (error: string) => void rpc.scene.snapshot({ request, error }).catch(() => null);
+    if (!f?.readyAt) return refuse("This tab's scene isn't ready yet.");
+    looks.set(
+      request,
+      setTimeout(() => {
+        if (!looks.delete(request)) return;
+        refuse(
+          f.version === 'starter'
+            ? "The starter scene didn't make a picture."
+            : "The scene didn't make a picture in time (it may not call Athena.setCapture).",
+        );
+      }, 8000),
+    );
+    send(f, msg<'look'>({ type: 'look', request, width, height }));
+  }
+
+  /** what the scene was last told about each agent and the Brain: changes become events */
+  let before: SceneState | null = null;
+  function diffEvents(next: SceneState): void {
+    const prev = before;
+    before = next;
+    if (!prev) return;
+    const at = Date.now();
+    for (const a of next.agents) {
+      const was = prev.agents.find((x) => x.id === a.id);
+      if (a.status === 'needs' && was?.status !== 'needs')
+        if (shown?.readyAt) send(shown, msg<'event'>({ type: 'event', event: { kind: 'needs', agentId: a.id, at } }));
+    }
+    if (next.brain.status !== prev.brain.status && shown?.readyAt)
+      send(shown, msg<'event'>({ type: 'event', event: { kind: 'brain', status: next.brain.status, at } }));
+  }
+
   const freezeTimer = setInterval(() => {
     const f = shown;
     if (!f?.readyAt || paused || f.version === 'starter' || f.error) return;
@@ -459,6 +526,7 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
         if (!alive) return;
         lastState = opts.state();
         for (const f of [shown, trial]) if (f?.readyAt) send(f, msg<'state'>({ type: 'state', state: lastState }));
+        diffEvents(lastState);
       }, STATE_EVERY_MS);
     },
     event(e) {
@@ -473,6 +541,7 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
     },
     showVersions,
     logs: () => [...logs],
+    look,
     shown: () => shown?.version ?? null,
     dispose() {
       alive = false;
@@ -480,6 +549,9 @@ export function createSceneHost(opts: SceneHostOptions): SceneHost {
       document.removeEventListener('visibilitychange', onVisibility);
       offTheme();
       clearInterval(freezeTimer);
+      clearInterval(logTimer);
+      if (flushTimer) clearTimeout(flushTimer);
+      for (const t of looks.values()) clearTimeout(t);
       if (stateTimer) clearTimeout(stateTimer);
       dropFrame(shown);
       dropFrame(trial);

@@ -21,6 +21,8 @@ import { splitContent } from '../toolimages.ts';
 import type { Agent } from '../../shared/types.ts';
 import type { EngineRunArgs, EngineResult } from './index.ts';
 import { BRAIN_ID } from '../brainmcp.ts';
+import { sceneDir } from '../scene/history.ts';
+import { buildsScenes } from '../scene/tools.ts';
 
 /** EngineStatus['codex'] plus the first line of `codex login status` and where codex is. */
 export interface CodexStatus {
@@ -281,8 +283,12 @@ export function codexLaunch(
   if (agent.id === BRAIN_ID) args.push('-s', 'read-only');
   else if (mode === 'full') args.push('--dangerously-bypass-approvals-and-sandbox');
   // --approve-for-me already means the workspace-write sandbox, and Codex refuses it alongside -s
-  else if (mode === 'auto') args.push(...(interactive ? ['-s', 'workspace-write'] : ['--approve-for-me']));
-  else args.push('-s', 'read-only');
+  else if (mode === 'auto') {
+    args.push(...(interactive ? ['-s', 'workspace-write'] : ['--approve-for-me']));
+    // an agent that builds the Station's scene may write its folder (every change there is kept)
+    if (buildsScenes(agent))
+      args.push('-c', `sandbox_workspace_write.writable_roots=[${tpath(sceneDir(activeProject()))}]`);
+  } else args.push('-s', 'read-only');
   return { args, env };
 }
 

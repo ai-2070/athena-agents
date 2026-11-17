@@ -4,6 +4,7 @@ import { scene as sceneContract } from '../../shared/api/scene.ts';
 import { listProjects, log } from '../store.ts';
 import { markLoaded, pinVersion, restoreVersion, sceneOverview, sceneVersion } from '../scene/history.ts';
 import { sceneToken } from '../scene/serve.ts';
+import { addSceneLogs, deliverSceneLook } from '../scene/look.ts';
 import { refuse, refusing } from './refuse.ts';
 import type { Project } from '../../shared/types.ts';
 
@@ -27,6 +28,12 @@ export const sceneRouter = s.router({
     refusing(() => restoreVersion(p, input.version, { kind: 'user', name: 'You' }, input.path));
     log('project', `Went back to an earlier version of the scene in "${p.name}"`);
     return sceneOverview(p);
+  }),
+  snapshot: s.snapshot.handler(({ input: { request, ...look } }) => ({ ok: deliverSceneLook(request, look) })),
+  log: s.log.handler(({ input }) => {
+    projectOf(input.project);
+    addSceneLogs(input.project, input.lines);
+    return { ok: true };
   }),
   pin: s.pin.handler(({ input }) => {
     const p = projectOf(input.project);

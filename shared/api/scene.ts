@@ -34,6 +34,40 @@ export const scene = {
     .route({ method: 'POST', path: '/scene/restore' })
     .input(z.object({ project, version, path: z.string().optional() }))
     .output(type<SceneVersions>()),
+  /** A picture an open Station made for scene_look (or why it couldn't). note: "version:<id>" says which it drew. */
+  snapshot: oc
+    .route({ method: 'POST', path: '/scene/snapshot/{request}' })
+    .input(
+      z.object({
+        request: z.string(),
+        image: z
+          .string()
+          .max(6 * 1024 * 1024)
+          .optional(),
+        error: z.string().max(2000).optional(),
+        note: z.string().max(2000).optional(),
+      }),
+    )
+    .output(type<{ ok: boolean }>()),
+  /** What the shown scene logged lately (sent every few seconds while a tab shows it), for scene_logs. */
+  log: oc
+    .route({ method: 'POST', path: '/scene/log' })
+    .input(
+      z.object({
+        project,
+        lines: z
+          .array(
+            z.object({
+              at: z.number(),
+              version: z.string().max(100),
+              level: z.enum(['error', 'warn', 'info']),
+              text: z.string().max(4000),
+            }),
+          )
+          .max(100, { error: 'At most 100 lines at a time.' }),
+      }),
+    )
+    .output(type<{ ok: boolean }>()),
   /** Keeps a version however old it gets (pinned), or lets it go again. */
   pin: oc
     .route({ method: 'POST', path: '/scene/pin' })

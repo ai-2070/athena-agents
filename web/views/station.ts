@@ -5490,6 +5490,18 @@ function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'work
 // ---------- live events ----------
 /** A builder asked for a picture of the world (world_look). Every tab answers, from any page: with a picture
  *  when it shows that world in the voxel look, else that it can't, so the server needn't wait for it. */
+/** A builder asked for a picture of the scene (scene_look). Every tab answers: the one showing that project's scene
+ *  with a picture, the others that they can't. */
+export async function answerSceneLook(ev: ServerEvent): Promise<void> {
+  if (typeof ev.request !== 'string') return;
+  const host = S?.sceneHost;
+  if (host && ev.project === host.project)
+    return host.host.look(ev.request, Number(ev.width) || 1280, Number(ev.height) || 800);
+  await rpc.scene
+    .snapshot({ request: ev.request, error: "This tab doesn't show that project's scene." })
+    .catch(() => null);
+}
+
 export async function answerLook(ev: ServerEvent): Promise<void> {
   if (typeof ev.request !== 'string') return;
   const drew = S?.worldLayer ? await S.worldLayer.look(ev).catch(() => false) : false;
@@ -5534,6 +5546,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       S.teamState[ev.teamId] = { working: e.working, queued: e.queued };
       shareTeams();
       updateStatuses();
+      S.sceneHost?.host.update();
     } else if (e.kind === 'message') {
       const m = e.message;
       S.teamLast[ev.teamId] = m;
@@ -5543,6 +5556,14 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       if (b && m.from !== 'user' && m.from !== 'system' && m.from !== 'brain') {
         for (const id of m.mentions || []) pulseHandoff(ev.teamId, m.from, id);
         if (!m.mentions?.length) b.flash = Math.max(b.flash || 0, 0.5);
+      }
+      // the scene animates the same (it gets who and where, never the text)
+      if (m.from !== 'system') {
+        const at = Date.now();
+        const host = S.sceneHost?.host;
+        if (m.from !== 'user' && m.mentions?.length)
+          for (const id of m.mentions) host?.event({ kind: 'handoff', teamId: ev.teamId, from: m.from, to: id, at });
+        else host?.event({ kind: 'message', teamId: ev.teamId, from: m.from, at });
       }
       const tname = S.workflows.find((w) => w.id === ev.teamId)?.name || 'Team';
       if (m.from !== 'system')
@@ -5627,6 +5648,17 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
     const a = d?.agents.find((x) => x.id === ev.agentId);
     const e = ev.event;
     const desks = S.desks.filter((x) => x.agent.id === ev.agentId);
+    const host = S.sceneHost?.host;
+    if (host && ev.agentId !== 'brain') {
+      const at = Date.now();
+      if (e.kind === 'start') host.event({ kind: 'run-start', agentId: ev.agentId, at });
+      else if (e.kind === 'done' || e.kind === 'error')
+        host.event({ kind: 'run-end', agentId: ev.agentId, ok: e.kind === 'done', at });
+      else if (e.kind === 'tool') {
+        const t = describeTool(e.name, e.args as ToolArgs | undefined);
+        host.event({ kind: 'tool', agentId: ev.agentId, label: [t.app, t.action].filter(Boolean).join(' · '), at });
+      }
+    }
     if (e.kind === 'start' && a) {
       for (const desk of desks) if (desk.wfId) pulseToDesk(desk.wfId, desk.agent.id);
       for (const desk of desks) desk.act = { kind: 'thinking', since: Date.now() };
@@ -5652,6 +5684,8 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       for (const desk of desks) desk.act = { kind: 'thinking', since: Date.now() };
     } else if (e.kind === 'done' && a) feedPush(`${a.emoji || ''} ${a.name} finished (${e.seconds}s)`);
     else if (e.kind === 'error' && a) feedPush(`${a.name}: ${String(e.text).slice(0, 80)}`, 'error');
+    // (what an agent is doing shows in the scene's state too)
+    if (e.kind === 'tool' || e.kind === 'tool_result') host?.update();
   } else if (isEvent(ev, 'activity') && ev.entry && !['run', 'workflow'].includes(ev.entry.kind))
     feedPush(ev.entry.text, ev.entry.kind);
 }
