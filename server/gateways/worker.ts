@@ -204,7 +204,9 @@ export class GatewayWorker {
       abort.signal.throwIfAborted();
       if (transport.download) {
         this.files = new GatewayFileProcessor(this.instanceId, inbox, transport.download, abort.signal);
-        await this.files.start();
+        // (its saved downloads go on beside everything else: replies and messages without files don't wait for a
+        // backlog that new arrivals may keep filling. A message still waiting for its files isn't dispatched)
+        void this.files.start().catch(() => {});
       }
       abort.signal.throwIfAborted();
       if (transport.reply) {

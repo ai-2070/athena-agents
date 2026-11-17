@@ -330,6 +330,7 @@ Completed reviews:
 - Trigger/evidence: recovery has pending downloads and ongoing arrivals keep the drain busy. Worker awaits that evolving drain before starting dispatcher/replies.
 - Impact/expected: unrelated text and saved native/Outbox replies wait indefinitely. Independent consumers should not await a continuously replenished backlog.
 - Limits: startup/drain inspected; no backlog run.
+- Fixed: a gateway starts its saved-download loop without waiting for it, so replies, Outbox posts and messages without files go on while downloads are still being saved (a message waiting for its files isn't dispatched until they are). Test in `tests/server/gateway-worker.test.ts`; two older tests that assumed start waited for downloads now wait for them.
 
 ### BH-033 — Codex starts after Stop during status lookup
 
