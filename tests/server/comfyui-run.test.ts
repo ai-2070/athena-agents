@@ -360,6 +360,37 @@ describe('what a run reports back', () => {
 });
 
 describe('finding the prompts', () => {
+  it('a prompt mixed from two text nodes: the first gets the new prompt, the other is kept and said so (BH-124)', async () => {
+    const combined: ApiWorkflow = {
+      ...IMG2IMG,
+      '20': node('CLIPTextEncode', { text: 'oil painting, warm light', clip: ['4', 1] }),
+      '21': node('ConditioningCombine', { conditioning_1: ['6', 0], conditioning_2: ['20', 0] }),
+      '3': node('KSampler', {
+        seed: 1,
+        steps: 20,
+        model: ['4', 0],
+        positive: ['21', 0],
+        negative: ['7', 0],
+        latent_image: ['11', 0],
+      }),
+    };
+    expect(findPromptNodes(combined)).toEqual({
+      positive: '6',
+      negative: '7',
+      promptInputs: ['6.text'],
+      negativeInputs: ['7.text'],
+      promptAlso: ['20.text'],
+    });
+    saveApiWorkflow('combined', combined);
+    const r = await runWorkflow({ workflow: 'combined', prompt: 'a lighthouse at night' });
+    const sent = prompts[0].prompt;
+    expect(sent['6'].inputs.text).toBe('a lighthouse at night');
+    expect(sent['20'].inputs.text).toBe('oil painting, warm light');
+    expect(r.warnings.join('\n')).toContain(
+      'also mixes other text into its prompt (a combined conditioning), which was kept as saved: 20.text ("oil painting, warm light")',
+    );
+  });
+
   it('fills both text fields of an SDXL text node, and keeps the old single-text case', async () => {
     const sdxl: ApiWorkflow = {
       ...IMG2IMG,

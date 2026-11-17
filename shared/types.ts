@@ -2895,6 +2895,9 @@ export interface PromptNodes {
   /** "nodeId.input" keys the prompt goes into (SDXL's text_g and text_l, Flux's clip_l and t5xxl…). */
   promptInputs: string[];
   negativeInputs: string[];
+  /** text mixed in beside the prompt (a combined conditioning's other branches): left as saved by a new prompt */
+  promptAlso?: string[];
+  negativeAlso?: string[];
 }
 
 /** A Start Menu shortcut. folder is relative to the Start Menu's Programs folder. */
