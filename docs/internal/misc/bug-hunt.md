@@ -688,6 +688,7 @@ Completed reviews:
 - Trigger/evidence: parent finishes while native helper continues; restart before helper completion. `waitingParents`/`endedChildren` are memory-only and not rebuilt; owner fallback reviews parent chat without appending helper `e.answer`.
 - Impact/expected: supervision judges without completed delegated evidence and can request it again. Recover completion linkage/evidence as in uninterrupted flow.
 - Limits: distinct from native execution recovery; no restart run.
+- Fixed: a helper that finishes after a restart, when its parent's wait is no longer known here, has its answer put into the parent's chat as a "Delegated work finished" note before the check, as the uninterrupted way does. Test in `tests/server/goals.test.ts` (the restart acted out by clearing what it loses).
 
 ### BH-073 — Brain API treats unterminated SSE text as a completed answer
 

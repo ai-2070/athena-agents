@@ -4,7 +4,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ask, clearHistory } from '../../server/overseer.ts';
-import { recoverWork, startIrc } from '../../server/irc.ts';
+import { forgetRunLinks, recoverWork, startIrc } from '../../server/irc.ts';
 import { addBrief, listBriefs, openGoal } from '../../server/briefs.ts';
 import { goalTool } from '../../server/goaltool.ts';
 import { goalInChat, goalInTeam, resumeBrain, stopBrain } from '../../server/commands.ts';
@@ -431,6 +431,21 @@ describe('ordinary assignments keep going automatically', () => {
     startRun(a, c, 'List the available agents.');
     await until(() => briefIn(c.id)?.status === 'done');
     expect(checked.at(-1)).toContain('Tool list_agents (done)');
+  });
+
+  it("includes a delegate's result that finishes after a restart (BH-072)", async () => {
+    const child = agent('Holder');
+    childId = child.id;
+    const a = agents.save({ ...agent('Delegator'), toolGroups: ['agents'] });
+    const c = chats.create(a.id);
+    startRun(a, c, 'Finish the work with the helper.');
+    await until(() => held.length > 0 && !activeRuns().some((r) => r.chatId === c.id));
+    // the server restarts here: which parent waits on which helper is gone
+    forgetRunLinks();
+    held.shift()!();
+    await until(() => briefIn(c.id)?.status === 'done');
+    expect(checked.at(-1)).toContain('Delegated work finished:');
+    expect(checked.at(-1)).toContain('**Holder:** Holder worked on it.');
   });
 
   it('waits for background delegates before judging the parent and includes their results', async () => {
