@@ -679,6 +679,7 @@ Completed reviews:
 - Trigger/evidence: while first request thinks, steer “Use PostgreSQL instead.” Stop counter changes but original question saves only after old `think()` returns; client cancels reader and immediately submits correction.
 - Impact/expected: correction lacks its original context, and interrupted exchange can appear after replacement answer. Persist original before acknowledging steer.
 - Limits: reader cancellation does not finish model call; existing test waits for old answer, missing overlap. No race run.
+- Fixed: resolved by #229 (the Brain runs as an agent): a new message waits for the turn it cut off to end, that turn saves its question first, and both go to the one engine chat of the conversation, the cut-off question before the correction. Test in `tests/server/brain-run.test.ts` (no code change needed).
 
 ### BH-072 — Restart loses background helper completion evidence
 
