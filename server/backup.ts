@@ -22,7 +22,8 @@ import {
   slugify,
   writeJSON,
 } from './util.ts';
-import { listProjects, emit, log } from './store.ts';
+import { listProjects, emit, log, withProject } from './store.ts';
+import { cleanAttachments, safeUploadsRoot } from './uploads.ts';
 import {
   MODEL_EXT,
   createProject,
@@ -485,7 +486,25 @@ export function packProject(p: Project): BackupData {
     ...(t.files || []),
     ...(t.comments || []).flatMap((c) => c.files || []),
   ]);
-  for (const rel of new Set(listed.map((f) => f.path))) {
+  // and the teams' reference files (kept by absolute path into the uploads folder: packed by their place in it; a
+  // restore finds them there again, see uploads.ts relocated())
+  const teamRels = withProject(p, () => {
+    const root = safeUploadsRoot();
+    if (!root) return [];
+    const files = data.teams.flatMap((t) => cleanAttachments(t.files, 1000));
+    return files.flatMap((f) => {
+      const below = (abs: string): string[] =>
+        fs.statSync(abs).isDirectory()
+          ? fs.readdirSync(abs).flatMap((n) => below(path.join(abs, n)))
+          : [path.relative(root, abs).split(path.sep).join('/')];
+      try {
+        return below(f.replace(/[\\/]$/, ''));
+      } catch {
+        return [];
+      }
+    });
+  });
+  for (const rel of new Set([...listed.map((f) => f.path), ...teamRels])) {
     const file = taskFilePath(p, rel);
     if (!file) continue;
     const size = fs.statSync(file).size;
@@ -1015,7 +1034,7 @@ export async function restoreBackup(
   writeJSON(projectDir(id, 'brain-chat.json'), b.brainChat);
   writeJSON(projectDir(id, 'tasks.json'), restoredTasks(b.tasks));
   writeJSON(projectDir(id, 'board.json'), restoredBoard(b.board));
-  // the board's files back into the uploads folder, where its tasks say they are (never over a file already there)
+  // the board's and the teams' files back into the uploads folder, where they were (never over a file already there)
   for (const f of b.taskFiles || []) writePacked(path.join(newBrain, 'uploads'), f, { overwrite: false });
   for (const c of b.teamChats) writeJSON(projectDir(id, 'teamchats', c.name), c.data);
   unpackPast(id, b.pastChats || []);

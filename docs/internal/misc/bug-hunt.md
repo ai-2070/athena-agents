@@ -133,6 +133,7 @@ Completed reviews:
 - Trigger/evidence: attach team references, then restore a copied folder or backup/clone. Absolute team `files` still point to the old Brain folder and fail the new project's upload admission. Backups pack board-task upload bytes, not ordinary team/chat attachments.
 - Impact/expected: teams silently lose references. Copies need relocated references; backups also need the corresponding bytes.
 - Limits: source producer/consumer trace only; no restore executed.
+- Fixed: backups and clones pack the teams' reference files (a file or a whole attached folder) with the board's files, in the room left, and a restore puts them back in the new project's uploads. A team's file paths still name the old folder, so where uploads are checked (`cleanAttachments`) a path into another project folder's uploads is found at the same place under this project's uploads when it is there (`relocated()`): that covers a copied project folder too. Test in `tests/server/project-delete-clone.test.ts` (a clone; the copied-folder case uses the same mapping, untested on its own).
 
 ### BH-011 — An empty world's first WORLD.md can abort restore
 
