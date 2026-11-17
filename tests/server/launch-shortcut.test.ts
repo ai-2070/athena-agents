@@ -15,7 +15,7 @@ describe.runIf(process.platform === 'win32')('a program that is only a shortcut'
     const menu = ensureDir(path.join(roaming, 'Microsoft', 'Windows', 'Start Menu', 'Programs'));
     fs.writeFileSync(path.join(menu, 'Zebra Paint Studio.lnk'), '');
     expect(startMenuApps(true).some((a) => a.name === 'Zebra Paint Studio')).toBe(true);
-    await expect(launchProgram('Zebra Paint Studio', { file: 'C:\pictures\cat.png' })).rejects.toThrow(
+    await expect(launchProgram('Zebra Paint Studio', { file: 'C:\\pictures\\cat.png' })).rejects.toThrow(
       /only a shortcut/,
     );
     await expect(launchProgram('Zebra Paint Studio', { args: ['--fullscreen'] })).rejects.toThrow(/only a shortcut/);
