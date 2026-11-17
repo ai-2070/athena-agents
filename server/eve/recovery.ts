@@ -26,6 +26,7 @@ import {
 import { EveProjectionError, projectEvent } from './projection.ts';
 import { pendingAdmissions, submitAdmission, validAdmission } from './admission.ts';
 import { readExecution } from '../execution.ts';
+import { handBackUnsent, matchUnsent, resendUnsent } from './unsent.ts';
 import { activeTeamAssignment } from '../teamwork.ts';
 import type { EveHost } from './host.ts';
 import type { SessionSnapshot, SessionStreamEvent } from 'eve/client';
@@ -375,13 +376,19 @@ export async function recoverEveRuns(
     const binding = readBinding(run.bindingId);
     if (run.status === 'stopped' || run.status === 'interrupted') {
       if (binding?.sessionId) await endSession(binding.id, client);
+      // (its session is over: a message sent into its turn that wasn't seen to arrive goes back to you)
+      handBackUnsent(run.id);
     } else if (binding?.sessionId) {
       try {
         const snapshot = await client.sessions
           .attach(binding.sessionId)
           .snapshot({ signal: AbortSignal.timeout(10000) });
+        // messages sent into its turn just before the restart: the ones Eve took are known before its record is read
+        matchUnsent(run.id, snapshot);
         reconcileSnapshot(run.id, snapshot);
         await deliverApprovalDecisions(run.id, client);
+        // and the others go again (Eve takes each key once), or back to you when the turn can't take them
+        await resendUnsent(run.id, client);
       } catch (error) {
         if (!(error instanceof EveProjectionError)) throw error;
         settleRun(

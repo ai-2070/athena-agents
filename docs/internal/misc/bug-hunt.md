@@ -6,7 +6,7 @@ Investigation only: no application code changed. This is an accumulating concern
 
 ## Fix status
 
-Fixed so far: all 22 high, 141 of 142 medium and both low findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does). Still open: BH-063 (decided: left as it is for now).
+Fixed: all 22 high, 142 medium and 2 low findings, each with a `Fixed:` line saying what changed and which test covers it (or that none does).
 
 ## Evidence and verification
 
@@ -611,6 +611,7 @@ Completed reviews:
 - Impact/expected: a visible persisted instruction stays permanently unsent. Preserve resend eligibility or explicitly expose unresolved delivery.
 - Limits: interrupted-pre-ack durability policy needs confirmation; exact encoded attachment bytes are not persisted. No crash run.
 - Decided: left as it is for now (2026-11-17). A message saved for Eve just before a crash, whose delivery is unknown, is neither sent again nor flagged.
+- Fixed: after a restart, a message you sent into a working Eve turn whose sending wasn't seen to finish is checked against Eve's record: Eve names a delivery after its idempotency key (`athena:steer:<id>`), so one Eve took is marked delivered before the record is read again; one it didn't is sent again under the same key (Eve takes a key once); and one whose turn the restart ended, or that won't go again, comes back first in the chat's queue, held, marked "May not have reached the agent before the restart". A team's messages are left to the team's own recovery. Tests in `tests/server/eve-unsent.test.ts` (including the id rule against Eve's own code) and `tests/web/chatview.test.tsx`.
 
 ### BH-064 — Failed Windows installer launch leaves desktop ownership dismantled
 
