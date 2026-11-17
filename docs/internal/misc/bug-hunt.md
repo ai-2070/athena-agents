@@ -1247,6 +1247,7 @@ Completed reviews:
 - Trigger/evidence: extract a 129-voxel-long valid object portion. Extraction checks count/nesting, not dimensions, whereas builder limits sides to 128; publication/import accept the result too.
 - Impact/expected: users share prefabs ordinary edits then refuse, even material-only changes. Enforce consistent creation invariants.
 - Limits: geometry must first shrink to become editable; no extraction run.
+- Fixed: a prefab saved from part of an object keeps to the same side limit (128 voxels) as one built otherwise. Test in `tests/server/voxel-limits.test.ts`.
 
 ### BH-138 — Prefab pivot changes bypass affected-copy ownership approval
 
