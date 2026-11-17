@@ -381,7 +381,7 @@ the scene tools. Only `.dashboard/scene/`, not the rest of `.dashboard/` (`proje
   absolute Windows path (Claude Code writes absolute paths in rules as `//c/Users/...`), and that a rule in
   `--allowedTools` is enough for edits outside the working directory.
 - **Codex** (`server/engines/codex.ts`): in "auto" (workspace-write) the scene folder becomes a writable root
-  (`-c sandbox_workspace_write.writable_roots=[…]`). "Ask first" runs Codex read-only today, so it can't write
+  (`--add-dir`, which adds to the roots in the user's config.toml; `-c …writable_roots=` would replace them). "Ask first" runs Codex read-only today, so it can't write
   anywhere, the scene included. To check while building: whether "Ask first" can become workspace-write with only the
   scene folder writable, or whether Codex agents on "Ask first" just can't build scenes (and the prompt says so).
 - **Other engines** (Hermes, Eve, opencode, pi) with their own file tools: the same, through each engine's way of

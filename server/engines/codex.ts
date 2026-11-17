@@ -285,9 +285,9 @@ export function codexLaunch(
   // --approve-for-me already means the workspace-write sandbox, and Codex refuses it alongside -s
   else if (mode === 'auto') {
     args.push(...(interactive ? ['-s', 'workspace-write'] : ['--approve-for-me']));
-    // an agent that builds the Station's scene may write its folder (every change there is kept)
-    if (buildsScenes(agent))
-      args.push('-c', `sandbox_workspace_write.writable_roots=[${tpath(sceneDir(activeProject()))}]`);
+    // an agent that builds the Station's scene may write its folder (every change there is kept). --add-dir adds
+    // to the writable roots in the user's config.toml, where -c sandbox_workspace_write.writable_roots replaced them
+    if (buildsScenes(agent)) args.push('--add-dir', sceneDir(activeProject()));
   } else args.push('-s', 'read-only');
   return { args, env };
 }

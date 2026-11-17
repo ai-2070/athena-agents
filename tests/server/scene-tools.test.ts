@@ -201,12 +201,14 @@ describe('what the engines are given', () => {
     expect(claudePathRule('/home/x/proj/.dashboard/scene/')).toBe('//home/x/proj/.dashboard/scene/**');
   });
 
-  it('Codex on auto: the scene folder is a writable root', () => {
+  it('Codex on auto: the scene folder is added to the writable roots, not put in place of the config ones', () => {
     const a = newAgent({ name: 'Scener', engine: 'codex', autonomy: 'auto', toolGroups: ['scene'] });
     const args = codexArgs(a);
-    expect(args.some((x) => x.startsWith('sandbox_workspace_write.writable_roots=') && x.includes('scene'))).toBe(true);
+    expect(args[args.indexOf('--add-dir') + 1]).toBe(sceneDir(activeProject()));
+    // (-c sandbox_workspace_write.writable_roots=[…] would replace what the user set in ~/.codex/config.toml)
+    expect(args.some((x) => x.startsWith('sandbox_workspace_write.writable_roots='))).toBe(false);
     const plain = codexArgs(newAgent({ name: 'Plain', engine: 'codex', autonomy: 'auto' }));
-    expect(plain.some((x) => x.startsWith('sandbox_workspace_write.writable_roots='))).toBe(false);
+    expect(plain).not.toContain('--add-dir');
   });
 });
 
