@@ -116,7 +116,9 @@ scripts' tests (`python -m pytest tests/skills`, Python 3.10). `.github/workflow
 - Secrets (`data/secrets.json`) and account tokens never go to the browser, `<project>/.dashboard` or backups.
 - Agent file access is limited to allowed roots (`insideRoots` in `server/util.ts`). Don't follow symlinks out of the
   data folder.
-- New tools need an honest `Risk`: anything that deletes, runs code, sends messages or posts is `high`.
+- New tools need an honest `Risk`: anything that deletes, runs code, sends messages or posts is `high`. The one
+  recorded exception: the scene tools and writes inside the scene folder (`docs/internal/plans/HTML_SCENE_PLAN.md`,
+  Decisions), because every change there is kept.
 - A run belongs to the project it started in: use `withProject()` / the run's project, not the active one.
 - Skill installs from GitHub only come from links the user typed, unless the user opted in.
 

@@ -72,7 +72,7 @@ const OPS = {
   team: ['create_team', 'add_members', 'remove_members', 'update_team', 'hire'],
   delegate: ['delegate'],
   stop_work: ['stop'],
-  project: ['write_project_md', 'station_look', 'background'],
+  project: ['write_project_md', 'station_look', 'background', 'scene_restore'],
   board: ['board_add', 'board_update', 'board_remove', 'board_tag', 'board_comment', 'board_find'],
   tasks: ['TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList'],
   routine: ['create_routine', 'update_routine', 'run_routine', 'delete_routine'],
@@ -124,7 +124,8 @@ const ABOUT: Record<BrainToolName, string> = {
   delegate:
     "Hand work to a team or an agent with a clear brief: it goes out as your message at once (a team chat, or the agent's own chat), with the files the user attached.",
   stop_work: 'Stop the work going on now: an agent, a team, or everything running in this project.',
-  project: "Write PROJECT.md (write_project_md), switch the Station's look (station_look), set its background.",
+  project:
+    "Write PROJECT.md (write_project_md), switch the Station's look (station_look), set its background, put an earlier version of its scene back (scene_restore).",
   board:
     "The user's Tasks board: board_add, board_update, board_remove, board_tag, board_comment, and board_find (only reads).",
   tasks: 'Saved task lists for work with several steps: TaskCreate, TaskUpdate, and TaskGet / TaskList (only read).',

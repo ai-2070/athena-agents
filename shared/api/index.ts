@@ -20,6 +20,7 @@ import { engines, mcp } from './mcp.ts';
 import { comfyui, programs } from './programs.ts';
 import { assist } from './assist.ts';
 import { world, worlds } from './world.ts';
+import { scene } from './scene.ts';
 import { gateways } from './gateways.ts';
 import { outbox } from './outbox.ts';
 import { artifacts, backups, files, layout, memory, terminals, uploads } from './files.ts';
@@ -57,6 +58,7 @@ export const contract = {
   terminals,
   world,
   worlds,
+  scene,
   gateways,
   outbox,
 };

@@ -17,6 +17,9 @@ import type { EngineRunArgs, EngineResult } from './index.ts';
 import { SessionGone, openInputs } from './cli.ts';
 import { splitContent } from '../toolimages.ts';
 import { BRAIN_ID } from '../brainmcp.ts';
+import { activeProject } from '../store.ts';
+import { sceneDir } from '../scene/history.ts';
+import { buildsScenes } from '../scene/tools.ts';
 
 /** The per-run files Claude Code reads (prepareFiles). */
 export interface ClaudeFiles {
@@ -145,6 +148,13 @@ export const CLAUDE_MODELS: { id: string; name: string }[] = [
 
 const PERMISSION_TOOL = 'mcp__dashboard__permission_prompt';
 
+/** A folder and everything in it, as a Claude Code permission rule: an absolute path starts with //, and a Windows
+ *  path is matched in POSIX form (C:\Users\x becomes /c/Users/x). */
+export function claudePathRule(dir: string): string {
+  const posix = dir.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_m, d: string) => `/${d.toLowerCase()}`);
+  return `/${posix.startsWith('/') ? '' : '/'}${posix.replace(/\/+$/, '')}/**`;
+}
+
 // Files Claude Code reads for this agent: instructions and MCP servers.
 // One pair of files per run, so two chats with the same agent don't share a run id.
 export function prepareFiles(agent: Agent, systemPrompt: string, runId = '', terminalTag = 'terminal'): ClaudeFiles {
@@ -214,14 +224,19 @@ export function claudeArgs(
   // Dashboard runs use shared MCP tasks and ask_user; harness-local records would be invisible to the team.
   if (!interactive)
     args.push('--disallowedTools', 'AskUserQuestion', 'TaskCreate', 'TaskGet', 'TaskUpdate', 'TaskList', 'TodoWrite');
+  // an agent that builds the Station's scene changes its files without asking: every change there is kept
+  // (server/scene/history.ts), and the scene runs sandboxed
+  const scene = agent.id !== BRAIN_ID && buildsScenes(agent) ? sceneDir(activeProject()) : null;
   args.push(
     '--allowedTools',
     'mcp__dashboard',
     ...(mode !== 'ask' ? (agent.mcpServers || []).map((s) => `mcp__${s}`) : []),
+    ...(scene ? ['Read', 'Edit', 'Write'].map((t) => `${t}(${claudePathRule(scene)})`) : []),
   );
   // the Brain only reads files: changes go through its own tools, and work goes to agents
   if (agent.id === BRAIN_ID) args.push('--tools', 'Read,Glob,Grep');
   const dirs = knowledgeRoots(agent);
+  if (scene && !isInside(workspaceOf(agent), scene, { orEqual: true })) dirs.push(scene);
   if (dirs.length) args.push('--add-dir', ...dirs);
   return args;
 }

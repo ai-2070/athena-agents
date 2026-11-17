@@ -62,6 +62,9 @@ import type { StationPanelApi } from './stationpanel.tsx';
 import { mountStationMenu } from './stationmenu.tsx';
 import type { MenuEntry, StationMenu } from './stationmenu.tsx';
 import type { WorldView } from '../voxel/view.ts';
+import { createSceneHost, sceneStateFrom } from '../scene/host.ts';
+import type { SceneHost } from '../scene/host.ts';
+import type { ScenePickKind } from '../../shared/scene.ts';
 import type { WorldLayer } from '../voxel/worldlayer.ts';
 import type { AgentTarget, SkinHost } from '../voxel/skins.ts';
 import type {
@@ -470,6 +473,8 @@ interface StationState {
   } | null;
   /** the voxel look (web/voxel), while it is on */
   view?: WorldView | null;
+  /** the scene look (web/scene/host.ts): the project's scene in a sandboxed iframe, while it is on */
+  sceneHost?: { project: string; host: SceneHost; el: HTMLDivElement } | null;
   /** the project's voxel world on the map, while the voxel look is on */
   worldLayer?: WorldLayer | null;
   /** the quality the voxel look was set up with, or null for the classic map */
@@ -1060,6 +1065,7 @@ export async function render(el: HTMLElement): Promise<void> {
     else if (signature() !== S.signature) rebuild();
     else updateStatuses();
     drawHud();
+    S.sceneHost?.host.update();
     if (S.selected && S.selected.type !== 'agent' && S.selected.type !== 'branch') renderPanel();
   });
   const feed = await rpc.status.activity().catch((): ActivityEntry[] => []);
@@ -1208,6 +1214,8 @@ export function unmount(): void {
   S.worldLayer = null;
   S.view?.dispose();
   S.view = null;
+  S.sceneHost?.host.dispose();
+  S.sceneHost = null;
   dropBackdrop();
   S.renderer.dispose();
   S.scene.traverse((o: Disposable) => {
@@ -1282,6 +1290,7 @@ async function applyStationLook(): Promise<void> {
   const order: WorldQuality[] = ['low', 'medium', 'high'];
   const capped = (q: WorldQuality) => (S?.lookCap && order.indexOf(q) > order.indexOf(S.lookCap) ? S.lookCap : q);
   const want = S.lookForced || (look.stationLook === 'world' ? capped(look.worldQuality) : null);
+  syncScene(!S.lookForced && look.stationLook === 'scene');
   if (want === S.lookShown) return;
   S.lookShown = want;
   S.worldLayer?.dispose();
@@ -1308,6 +1317,64 @@ async function applyStationLook(): Promise<void> {
   if (S.world) S.view.adopt(S.world, S.radius || 40);
   S.worldLayer = createWorldLayer(S.view, anchorAt, skinHost);
   syncShadows();
+}
+
+// ---------- the scene look (web/scene/host.ts) ----------
+// The project's scene draws the whole Station in a sandboxed iframe: the map's canvas, labels and wires are hidden
+// (not taken down, so going back is instant) and its loop rests. The header, feed, panel and menu stay.
+function syncScene(on: boolean): void {
+  if (!S) return;
+  const project = state.data?.project?.id || '';
+  const cur = S.sceneHost;
+  if (cur && (!on || cur.project !== project)) {
+    cur.host.dispose();
+    cur.el.remove();
+    S.sceneHost = null;
+  }
+  const hide = on && !!project;
+  // (the map's zoom buttons too: a scene has its own camera)
+  for (const el of [S.renderer.domElement, S.labels, S.wires, S.zoomEl])
+    if (el) (el as HTMLElement | SVGElement).style.display = hide ? 'none' : '';
+  S.root.classList.toggle('st-scene-on', hide);
+  if (!hide || S.sceneHost) return;
+  const el = h('div.st-scene-host', { class: 'absolute inset-0' }) as HTMLDivElement;
+  S.host.after(el);
+  const host = createSceneHost({
+    projectId: project,
+    container: el,
+    state: sceneState,
+    onPick: (kind, id) => choose(scenePick(kind, id)),
+    onMenu: (kind, id, x, y) =>
+      openMenu(new MouseEvent('contextmenu', { clientX: x, clientY: y, bubbles: true }), scenePick(kind, id)),
+    onHover: (pick) => {
+      if (!S) return;
+      S.hover = pick ? hoverFor(scenePick(pick.kind, pick.id)) : null;
+      applyHover();
+    },
+  });
+  S.sceneHost = { project, host, el };
+  host.update();
+}
+
+/** What a scene's pick is on the map. */
+const scenePick = (kind: ScenePickKind, id: string | undefined): MapPick =>
+  kind === 'agent' && id ? { type: 'agent', id } : kind === 'team' && id ? { type: 'branch', id } : { type: 'brain' };
+
+/** The Station's state, as the scene gets it. */
+function sceneState() {
+  const d = state.data;
+  return sceneStateFrom({
+    project: { id: d?.project?.id || '', name: d?.project?.name || '' },
+    agents: d?.agents || [],
+    teams: S?.workflows || [],
+    teamState: S?.teamState || {},
+    approvals: d?.approvals || [],
+    questions: d?.questions || [],
+    runs: d?.runs || [],
+    brainThinking: !!d?.project && (d.brainThinking || []).includes(d.project.id),
+    now: (id) => (S ? nowText(id).text : ''),
+    teamColor: (i) => wfColor({}, i),
+  });
 }
 
 // Frames stayed slow: one quality level down for this visit (Settings keep what you chose).
@@ -3204,6 +3271,8 @@ const pixelRatioFor = (max: number): number => Math.min(window.devicePixelRatio 
 function loop(): void {
   if (!S?.alive) return;
   requestAnimationFrame(loop);
+  // the scene look draws in its iframe: the map rests
+  if (S.sceneHost) return;
   // Station quality (Settings > Appearance): skip frames to stay at its frame rate. Fewer while nothing moves
   // and while the window is in the back; all of them while you move around the map.
   const level = stationLevel(currentLook().station);
@@ -5325,6 +5394,15 @@ function renderPanel(): void {
 function choose(p: MapPick | null): void {
   if (!S) return;
   S.selected = p;
+  S.sceneHost?.host.select(
+    p?.type === 'agent'
+      ? { kind: 'agent', id: p.id }
+      : p?.type === 'branch'
+        ? { kind: 'team', id: p.id }
+        : p?.type === 'brain'
+          ? { kind: 'brain' }
+          : null,
+  );
   for (const l of S.labelEls)
     l.el.classList.toggle('sel', !!p && l.kind === p.type && l.id === p.id && (!p.wf || !l.wf || l.wf === p.wf));
   if (!p) {
@@ -5413,6 +5491,18 @@ function nowText(agentId: string, wfId?: string): { st: 'needs' | 'idle' | 'work
 // ---------- live events ----------
 /** A builder asked for a picture of the world (world_look). Every tab answers, from any page: with a picture
  *  when it shows that world in the voxel look, else that it can't, so the server needn't wait for it. */
+/** A builder asked for a picture of the scene (scene_look). Every tab answers: the one showing that project's scene
+ *  with a picture, the others that they can't. */
+export async function answerSceneLook(ev: ServerEvent): Promise<void> {
+  if (typeof ev.request !== 'string') return;
+  const host = S?.sceneHost;
+  if (host && ev.project === host.project)
+    return host.host.look(ev.request, Number(ev.width) || 1280, Number(ev.height) || 800);
+  await rpc.scene
+    .snapshot({ request: ev.request, error: "This tab doesn't show that project's scene." })
+    .catch(() => null);
+}
+
 export async function answerLook(ev: ServerEvent): Promise<void> {
   if (typeof ev.request !== 'string') return;
   const drew = S?.worldLayer ? await S.worldLayer.look(ev).catch(() => false) : false;
@@ -5425,6 +5515,10 @@ export async function answerLook(ev: ServerEvent): Promise<void> {
 export function onEvent(ev: ServerEvent): void | Promise<void> {
   if (!S) return;
   const d = state.data;
+  if (ev.type === 'scene') {
+    if (S.sceneHost && ev.project === S.sceneHost.project) S.sceneHost.host.changed();
+    return;
+  }
   if (ev.type === 'workflows') return reloadWorkflows();
   if (ev.type === 'routines') return reloadRoutineCounts();
   // the voxel world changed (a build, a move, WORLD.md, another project's world picked), or another project opened
@@ -5453,6 +5547,7 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       S.teamState[ev.teamId] = { working: e.working, queued: e.queued };
       shareTeams();
       updateStatuses();
+      S.sceneHost?.host.update();
     } else if (e.kind === 'message') {
       const m = e.message;
       S.teamLast[ev.teamId] = m;
@@ -5462,6 +5557,14 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       if (b && m.from !== 'user' && m.from !== 'system' && m.from !== 'brain') {
         for (const id of m.mentions || []) pulseHandoff(ev.teamId, m.from, id);
         if (!m.mentions?.length) b.flash = Math.max(b.flash || 0, 0.5);
+      }
+      // the scene animates the same (it gets who and where, never the text)
+      if (m.from !== 'system') {
+        const at = Date.now();
+        const host = S.sceneHost?.host;
+        if (m.from !== 'user' && m.mentions?.length)
+          for (const id of m.mentions) host?.event({ kind: 'handoff', teamId: ev.teamId, from: m.from, to: id, at });
+        else host?.event({ kind: 'message', teamId: ev.teamId, from: m.from, at });
       }
       const tname = S.workflows.find((w) => w.id === ev.teamId)?.name || 'Team';
       if (m.from !== 'system')
@@ -5546,6 +5649,17 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
     const a = d?.agents.find((x) => x.id === ev.agentId);
     const e = ev.event;
     const desks = S.desks.filter((x) => x.agent.id === ev.agentId);
+    const host = S.sceneHost?.host;
+    if (host && ev.agentId !== 'brain') {
+      const at = Date.now();
+      if (e.kind === 'start') host.event({ kind: 'run-start', agentId: ev.agentId, at });
+      else if (e.kind === 'done' || e.kind === 'error')
+        host.event({ kind: 'run-end', agentId: ev.agentId, ok: e.kind === 'done', at });
+      else if (e.kind === 'tool') {
+        const t = describeTool(e.name, e.args as ToolArgs | undefined);
+        host.event({ kind: 'tool', agentId: ev.agentId, label: [t.app, t.action].filter(Boolean).join(' · '), at });
+      }
+    }
     if (e.kind === 'start' && a) {
       for (const desk of desks) if (desk.wfId) pulseToDesk(desk.wfId, desk.agent.id);
       for (const desk of desks) desk.act = { kind: 'thinking', since: Date.now() };
@@ -5571,6 +5685,8 @@ export function onEvent(ev: ServerEvent): void | Promise<void> {
       for (const desk of desks) desk.act = { kind: 'thinking', since: Date.now() };
     } else if (e.kind === 'done' && a) feedPush(`${a.emoji || ''} ${a.name} finished (${e.seconds}s)`);
     else if (e.kind === 'error' && a) feedPush(`${a.name}: ${String(e.text).slice(0, 80)}`, 'error');
+    // (what an agent is doing shows in the scene's state too)
+    if (e.kind === 'tool' || e.kind === 'tool_result') host?.update();
   } else if (isEvent(ev, 'activity') && ev.entry && !['run', 'workflow'].includes(ev.entry.kind))
     feedPush(ev.entry.text, ev.entry.kind);
 }

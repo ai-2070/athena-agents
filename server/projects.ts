@@ -31,6 +31,7 @@ import type {
   BrainGit,
   BrainInfo,
 } from '../shared/types.ts';
+import { sceneAt } from './scene/history.ts';
 
 // (the shapes the page reads: shared/types.ts)
 export type { FoundFolder, ProjectOverviewItem, ProjectsOverview, ProjectWithMedia };
@@ -445,6 +446,7 @@ export function withLogo(p: Project): ProjectWithMedia {
     modelAt,
     modelExt: m && modelAt ? path.extname(m).slice(1) : null,
     backgroundAt: changedAt(backgroundFile(p)),
+    sceneAt: sceneAt(p),
   };
 }
 

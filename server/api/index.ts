@@ -20,6 +20,7 @@ import { enginesRouter, mcpRouter } from './mcp.ts';
 import { comfyRouter, programsRouter } from './programs.ts';
 import { assistRouter } from './assist.ts';
 import { worldRouter, worldsRouter } from './world.ts';
+import { sceneRouter } from './scene.ts';
 import { gatewaysRouter } from './gateways.ts';
 import { outboxRouter } from './outbox.ts';
 import {
@@ -65,6 +66,7 @@ export const apiRouter = implement(contract).router({
   terminals: terminalsRouter,
   world: worldRouter,
   worlds: worldsRouter,
+  scene: sceneRouter,
   gateways: gatewaysRouter,
   outbox: outboxRouter,
 });

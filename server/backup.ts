@@ -1,5 +1,5 @@
 // Backups: one file with everything in a project (agents, teams, routines, layout, chats, knowledge
-// files, MEMORY.md files, logo and background, PROJECT.md and notes, its voxel world, and the kept versions of its agents, teams and memories) plus every skill in
+// files, MEMORY.md files, logo and background, PROJECT.md and notes, its voxel world, its Station scene with some of its versions, and the kept versions of its agents, teams and memories) plus every skill in
 // the library with its versions, every saved preset and the prefab library. Written
 // to <home>/Athena Agents Backups on Windows, macOS and Linux. Drop one into "New project > From
 // backup" to get it all back as a new project, here or on another PC. Keys and tokens are never in it.
@@ -55,6 +55,8 @@ import { restoredTasks } from './tasks.ts';
 import { restoredBoard } from './taskboard.ts';
 import { taskFilePath } from './boardfiles.ts';
 import { PAST_NAME, packPast, unpackPast } from './pastchats.ts';
+import { packScene, unpackScene } from './scene/history.ts';
+import type { PackedScene } from './scene/history.ts';
 import type {
   Agent,
   BackupListing,
@@ -94,6 +96,7 @@ const CAP = {
   world: 300 * 1024 * 1024,
   library: 100 * 1024 * 1024,
   marks: 100 * 1024 * 1024,
+  scene: 100 * 1024 * 1024,
 };
 // A kept version in a backup: <kind>/<item id>/<version id>.json, and a skill version's files under
 // skills/<slug>/files-<version id>/. Agents and teams are the project's; skills are the library's
@@ -185,6 +188,8 @@ export interface BackupData {
   world: { name: string; files: PackedFile[] } | null;
   /** The teams' pictures and 3D models (MARK_RE names). Older backups: missing. */
   teamMarks?: PackedFile[];
+  /** The Station's scene (.dashboard/scene/) and kept versions of it (server/scene/history.ts). Older backups: missing. */
+  scene?: PackedScene | null;
   /** The prefab library (every project's), like the presets. Older backups: empty. */
   prefabLibrary: LibraryPrefab[];
   /** Files on the Tasks board's tasks and comments: paths in the uploads folder, as the board lists them. Older backups: missing. */
@@ -425,6 +430,8 @@ export function packProject(p: Project): BackupData {
   });
   const marksBudget = budget(CAP.marks);
   const teamMarks = packTree(projectDir(id, 'team-marks'), marksBudget, '', (r, dir) => !dir && MARK_RE.test(r));
+  // the Station's scene, with some of its versions
+  const scenePack = packScene(p, CAP.scene);
   const presets = jsonFiles(dataPath('presets'))
     .map((n) => readJSON<Preset>(dataPath('presets', n)))
     .filter((x): x is Preset => !!x && PRESET_RE.test(String(x.id)));
@@ -466,8 +473,10 @@ export function packProject(p: Project): BackupData {
     world,
     prefabLibrary,
     teamMarks,
+    scene: scenePack.scene,
     taskFiles: [],
     omitted:
+      scenePack.omitted +
       brainBudget.omitted +
       skillBudget.omitted +
       chatBudget.omitted +
@@ -771,6 +780,10 @@ export function decodeBackup(buf: Buffer): BackupData {
           }
         : null,
     teamMarks: files(b.teamMarks).filter((f) => MARK_RE.test(f.path)),
+    scene:
+      b.scene && typeof b.scene === 'object'
+        ? { files: files((b.scene as PackedScene).files), history: files((b.scene as PackedScene).history) }
+        : null,
     taskFiles: files(b.taskFiles),
     omitted: Number(b.omitted) || 0,
   };
@@ -1102,6 +1115,14 @@ export async function restoreBackup(
       /* not a picture after all: no background */
     }
   }
+  // the Station's scene and its versions
+  let scene = false;
+  if (b.scene)
+    try {
+      scene = unpackScene(created, b.scene);
+    } catch (e) {
+      console.error('restore: the scene did not come back:', e);
+    }
   if (b.brainModel)
     try {
       setModel(id, b.brainModel.path, `data:application/octet-stream;base64,${b.brainModel.data}`);
@@ -1165,6 +1186,7 @@ export async function restoreBackup(
       paused,
       logo,
       background,
+      scene,
     },
   };
 }

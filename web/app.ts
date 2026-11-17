@@ -488,6 +488,7 @@ onEvent((ev) => {
   if (STATE_EVENTS.has(ev.type)) refreshSoon();
   if (ev.type === 'toast') toast(ev.text as string);
   if (ev.type === 'world-look') void station.answerLook(ev);
+  if (ev.type === 'scene-look') void station.answerSceneLook(ev);
   if (ev.type === 'run' && (ev.event as RunEvent).kind === 'done' && !location.hash.includes(ev.chatId as string)) {
     const a = state.data?.agents?.find((x) => x.id === ev.agentId);
     if (a) toast(`${a.emoji || ''} ${a.name} finished`);

@@ -151,6 +151,8 @@ import { build as buildInWorld } from './voxel/build.ts';
 import { shownWorld, worldForBuild } from './voxel/link.ts';
 import { readWorldMd, writeWorldMd, writeWorldMdSection } from './voxel/worldmd.ts';
 import { worldText } from './voxel/describe.ts';
+import { restoreVersion, sceneOverview, startFromTemplate } from './scene/history.ts';
+import { isSceneTemplate } from '../shared/scene.ts';
 import { setEffect, setEnvironment, setLight } from './voxel/scene.ts';
 import { playAnimation, setAnimation, setSkin } from './voxel/characters.ts';
 import type {
@@ -263,8 +265,11 @@ export interface BrainAction {
   append?: unknown;
   /** build: "map" puts its steps in map units */
   units?: unknown;
-  /** station_look: "world" or "classic" */
+  /** station_look: "world", "scene" or "classic" */
   look?: unknown;
+  /** scene_restore: a version of the Station's scene, or "starter"; path: only that file */
+  version?: unknown;
+  path?: unknown;
   /** background: the picture's path (absolute, or in the project folder); clear: true takes it away */
   image?: unknown;
   clear?: unknown;
@@ -723,15 +728,33 @@ export async function snapshot({
 
 const BRAIN_BUILDER = { kind: 'brain', name: 'The Brain' } as const;
 
+// The scene look's part of the snapshot: whether the project has a scene, and whether its newest version loads.
+function sceneSnapshot(): string {
+  const o = sceneOverview(activeProject());
+  if (!o.present) return 'This project has no scene yet: the Station shows the starter.';
+  const v = o.versions[0];
+  if (!v) return `The scene folder isn't shown: ${o.problem || 'nothing kept yet'}.`;
+  const state =
+    v.loads === 'broken'
+      ? `its newest version doesn't load (${v.error || 'no reason given'}), so the Station shows an older one`
+      : v.loads === 'ok'
+        ? 'its newest version loads'
+        : 'its newest version has not loaded yet';
+  return `Scene: ${state}; ${o.versions.length} version${o.versions.length === 1 ? '' : 's'} kept (scene_versions).`;
+}
+
 // The world part of the snapshot: what is built, and WORLD.md (cut short).
 const WORLD_MD_IN_SNAPSHOT = 4000;
 function brainWorldSnapshot(): string {
   const shown = shownWorld();
   // in the classic look the Station doesn't draw the world: nobody sees what is built (station_look turns it on)
+  const stationLook = getSettings().look.stationLook;
   const look =
-    getSettings().look.stationLook === 'world'
+    stationLook === 'world'
       ? 'Station look: voxel world (the Station draws the world).'
-      : 'Station look: classic (the Station does NOT draw the voxel world, and builders get no pictures; station_look "world" turns it on when the user wants to see a world).';
+      : stationLook === 'scene'
+        ? `Station look: scene (the Station shows the project's scene page, not the voxel world). ${sceneSnapshot()}`
+        : 'Station look: classic (the Station does NOT draw the voxel world, and builders get no pictures; station_look "world" turns it on when the user wants to see a world).';
   if (!shown.world) return `WORLD: no voxel world yet. A build action starts one for this project. ${look}`;
   const md = readWorldMd(shown.world.id).trim();
   return `WORLD (the voxel world on the Station): ${look}\n${worldText(shown.world, { how: shown.how, fromProject: listProjects().find((x) => x.id === shown.fromProject)?.name })}\nWORLD.md:\n${md.length > WORLD_MD_IN_SNAPSHOT ? `${md.slice(0, WORLD_MD_IN_SNAPSHOT)}\n… (${md.length - WORLD_MD_IN_SNAPSHOT} more characters)` : md}`;
@@ -1093,7 +1116,8 @@ read_skill {"name":"<skill id>"}   (you get the skill's whole text)
 {"do":"take_mcp","servers":["<name>",…],"to":…,"id":…}   (or "targets", like give_mcp)
 {"do":"set_mcp","servers":["<name>",…],"to":"agent"|"team","id":"…"}   (their whole list becomes exactly this; [] takes all away)${tools.actions}
 {"do":"build","object":"name (a new name makes a new object)","anchor":"world"|"brain"|"team:<team id>","position":[x,y,z],"voxel_size":0.25,"units":"map","steps":[STEP,…]}   (builds in the project's voxel world; position in map units from the anchor, new objects only; "units":"map" puts the steps in map units too; "prefab":"name" instead of "object" builds a prefab, with "description")
-{"do":"station_look","look":"world"|"classic"}   (how the Station looks, for every project: "world" draws the voxel world, "classic" is the dark map; only when the user asks for it, or asks for a world while the Station is classic)
+{"do":"station_look","look":"world"|"scene"|"classic"}   (how the Station looks, for every project: "world" draws the voxel world, "scene" shows the project's scene page (agents with the Station scene tools make it), "classic" is the dark map; only when the user asks for it, or asks for a world while the Station is classic)
+{"do":"scene_restore","version":"<a version id from scene_versions, or a template: 'starter', 'garden' (underwater garden), 'solar' (solar system)>","path":"<only this file>"}   (puts an earlier version of the Station's scene back, or replaces it with a template; it is kept as a new version, so it can be undone; only when the user asks)
 {"do":"background","image":"<path of a PNG, JPG, WebP or GIF: a file the user attached, or one in the project folder>"}  or  {"do":"background","clear":true}   (the picture behind the Station's map in this project, in the classic and the voxel look, where it takes the sky's place; only when the user asks)
 {"do":"background","opacity":40,"dots":20}   (how strong that picture and the classic map's floor dots are in this project, in percent: 0 hides it, 100 is full; "default" puts one back; either one alone is fine, and they go with "image" too; only when the user asks)
 {"do":"world_env","preset":"station|day|golden|dusk|night|overcast|snow","sun":{"elevation":8},"fog":{"density":0.4},"weather":"none|snow|rain|petals|leaves|dust","wind":[1,0,0.5]}   (the world's time of day, sky, sun, fog, weather and wind; only what changes)
@@ -2739,19 +2763,33 @@ function applyAsBrain(
         // a setting for every project: only when the user asks in the chat, never from a review
         if (auto) throw new Error('only when the user asks');
         const look = String(act.look ?? '');
-        if (look !== 'world' && look !== 'classic') throw new Error('"look" is "world" or "classic"');
+        if (look !== 'world' && look !== 'classic' && look !== 'scene')
+          throw new Error('"look" is "world", "scene" or "classic"');
         saveSettings({ look: { stationLook: look } });
         log(
           'settings',
-          `The Brain turned the Station's ${look === 'world' ? 'voxel look on' : 'voxel look off (classic)'}`,
+          `The Brain turned the Station's ${look === 'world' ? 'voxel look on' : look === 'scene' ? 'scene look on' : 'classic look on'}`,
         );
         done.push({
           kind: 'note',
           text:
             look === 'world'
               ? 'Turned on the voxel look (Settings › Appearance › Station look)'
-              : 'Put the Station back to the classic look',
+              : look === 'scene'
+                ? 'Turned on the scene look (Settings › Appearance › Station look)'
+                : 'Put the Station back to the classic look',
         });
+      } else if (kind === 'scene_restore') {
+        // going back is itself a kept version, so it can be undone too; only when the user asks
+        if (auto) throw new Error('only when the user asks');
+        const version = String(act.version ?? '').trim();
+        if (!version) throw new Error('give "version": a version id from scene_versions, or a template name');
+        const by = { kind: 'brain' as const, id: BRAIN_ID, name: 'The Brain' };
+        const v = isSceneTemplate(version)
+          ? startFromTemplate(p, version, by)
+          : restoreVersion(p, version, by, act.path ? String(act.path) : undefined);
+        log('project', `The Brain changed the scene in "${p.name}"`);
+        done.push({ kind: 'note', text: v?.note || 'The scene already was that version' });
       } else if (kind === 'background') {
         if (auto) throw new Error('only when the user asks');
         // how strong the picture and the map's dots are: a percent, or "default"

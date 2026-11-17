@@ -52,6 +52,9 @@ import * as backup from './backup.ts';
 import { devPage, pageCsp, viteFromArgs } from './devpage.ts';
 import { saveToolStats } from './toolstats.ts';
 import { handleRpc, JSON_LIMIT } from './rpc.ts';
+import { sceneResponse } from './scene/serve.ts';
+import { startSceneWatch } from './scene/history.ts';
+import { setScenePages } from './scene/look.ts';
 import type { Agent, Project } from '../shared/types.ts';
 import { BRAIN_ID } from './brainmcp.ts';
 
@@ -688,6 +691,12 @@ const server = http.createServer(async (req, res) => {
       }
       throw new HttpError(404, `No API route ${req.method} ${pathname}`);
     }
+    // a project's scene and the scene library: sandboxed, apart from the page (server/scene/serve.ts)
+    const scene = req.method === 'GET' ? sceneResponse(url.pathname, String(req.headers.host || '')) : null;
+    if (scene) {
+      res.writeHead(scene.status, scene.headers);
+      return res.end(scene.body);
+    }
     if (req.method === 'GET' && serveStatic(url, res)) return;
     res.writeHead(404);
     res.end('Not found');
@@ -707,6 +716,7 @@ const wss = new WebSocketServer({ noServer: true });
 const eventClients = new Set<WebSocket>();
 // world_look answers in words at once when no page is open to draw a picture
 worldLook.setOpenPages(() => [...eventClients].filter((ws) => ws.readyState === 1).length);
+setScenePages(() => [...eventClients].filter((ws) => ws.readyState === 1).length);
 server.on('upgrade', (req, socket, head) => {
   const origin = req.headers.origin || '';
   const okOrigin = [...ALLOWED_HOSTS].some((h) => origin === `http://${h}`);
@@ -774,6 +784,7 @@ void irc
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
 projectSync.startAutoSave();
+startSceneWatch();
 programs.startProgramScan();
 programs.startRunningWatch();
 

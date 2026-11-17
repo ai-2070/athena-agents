@@ -62,6 +62,7 @@ import { safeUploadsRoot } from './uploads.ts';
 import * as skills from './skills.ts';
 import { findAgent } from '../shared/agentref.ts';
 import * as voxel from './voxel/tools.ts';
+import { inSceneFolder, noteSceneWrite, sceneRoots, sceneTools } from './scene/tools.ts';
 import { taskTools } from './tasktools.ts';
 import { goalTool } from './goaltool.ts';
 import { isBoardConversation, isGatewayConversation } from './private-conversations.ts';
@@ -209,6 +210,12 @@ export const TOOL_GROUPS: ToolGroup[] = [
       'Build the voxel world around the Station (places, props, prefabs to place many times) and keep its WORLD.md up to date.',
   },
   {
+    id: 'scene',
+    label: 'Station scene',
+    description:
+      "Make the Station's scene: a web page that draws the project's Brain, teams and agents its own way. It writes the scene's files with its file tools; every change is kept.",
+  },
+  {
     id: 'shell',
     label: 'Shell',
     description:
@@ -233,6 +240,8 @@ function allowedRoots(agent: ToolAgent, write = false): string[] {
     ...(write ? [] : kb.knowledgeRoots(agent)),
     ...(uploads ? [uploads] : []),
     ...(s.allowedFolders || []),
+    // the scene folder of the run's project, for an agent that builds scenes
+    ...sceneRoots(agent),
   ];
 }
 
@@ -2090,6 +2099,8 @@ const TOOLS: ToolDef[] = [
   },
   // ---------- the voxel world (server/voxel/tools.ts) ----------
   ...voxel.worldTools(gate, { readable: readablePath, writableDir }),
+  // ---------- the Station's scene (server/scene/tools.ts) ----------
+  ...sceneTools(),
   // ---------- files ----------
   {
     name: 'list_files',
@@ -2206,7 +2217,8 @@ const TOOLS: ToolDef[] = [
   {
     name: 'write_file',
     group: 'files',
-    risk: 'low',
+    // (never asks inside the Station's scene folder: every change there is kept, server/scene/history.ts)
+    risk: (args) => (inSceneFolder(String(args.path || '')) ? 'none' : 'low'),
     description:
       'Create or overwrite a text file in your workspace or an allowed folder. Returns the full path. To change part of a file, use edit_file.',
     parameters: obj({ path: str('File path (relative = workspace)'), content: str('File contents') }, [
@@ -2218,14 +2230,15 @@ const TOOLS: ToolDef[] = [
       if (!ok) throw new Error(`${abs} is outside the folders this agent may write to.`);
       ensureDir(path.dirname(real));
       fs.writeFileSync(real, content);
+      noteSceneWrite(real, ctx.agent, ctx.runId);
       return { text: `Wrote ${abs} (${Buffer.byteLength(content)} bytes)` };
     },
   },
   {
     name: 'edit_file',
     group: 'files',
-    // like write_file: it changes a file in the folders the agent may write to
-    risk: 'low',
+    // like write_file: it changes a file in the folders the agent may write to (never asks in the scene folder)
+    risk: (args) => (inSceneFolder(String(args.path || '')) ? 'none' : 'low'),
     description:
       'Change part of a text file, without sending all of it again: each edit replaces old (the exact text, there exactly once; set all to replace every one) with new. Edits apply in order, and if one does not fit nothing is changed. Read the file first.',
     parameters: obj(
@@ -2252,6 +2265,7 @@ const TOOLS: ToolDef[] = [
       if (!exists(real)) throw new Error(`${abs} does not exist. Create it with write_file.`);
       const r = files.applyEdits(fs.readFileSync(real, 'utf8'), edits);
       fs.writeFileSync(real, r.text);
+      noteSceneWrite(real, ctx.agent, ctx.runId);
       return { text: `Edited ${abs}: ${r.replaced} replacement${r.replaced === 1 ? '' : 's'}.` };
     },
   },
@@ -2489,7 +2503,16 @@ function mayUse(agent: ToolAgent, tool: ToolDef): boolean {
 
 // The Brain gets its own tools, the look-ups it shares with agents, and file tools that only read (engines with
 // their own file tools read with those). Everything else it hands to an agent or team.
-const BRAIN_SHARED = new Set(['read_skill', 'search_sessions', 'read_session']);
+// (and the scene tools that only look: going back to a version is one of the Brain's own actions)
+const BRAIN_SHARED = new Set([
+  'read_skill',
+  'search_sessions',
+  'read_session',
+  'scene_check',
+  'scene_look',
+  'scene_logs',
+  'scene_versions',
+]);
 const BRAIN_FILES = new Set(['list_files', 'read_file', 'read_document', 'find_files', 'search_files', 'view_image']);
 function brainMayUse(tool: ToolDef): boolean {
   if (tool.group === 'brain') return brainToolOffered(tool.name);

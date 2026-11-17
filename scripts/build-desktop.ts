@@ -80,6 +80,16 @@ function copyStatic(): void {
   const css = path.join('node_modules', '@xterm', 'xterm', 'css', 'xterm.css');
   fs.mkdirSync(path.dirname(path.join(stage, css)), { recursive: true });
   fs.copyFileSync(path.join(root, css), path.join(stage, css));
+  // the scene look: the helper and the starter scene, and three.js with its addons for scenes to import
+  // (server/scene/serve.ts serves them straight from these folders)
+  copyDir(path.join(root, 'scene'), path.join(stage, 'scene'));
+  const three = path.join('node_modules', 'three');
+  for (const f of ['three.module.js', 'three.core.js', 'three.webgpu.js', 'three.tsl.js']) {
+    fs.mkdirSync(path.join(stage, three, 'build'), { recursive: true });
+    fs.copyFileSync(path.join(root, three, 'build', f), path.join(stage, three, 'build', f));
+  }
+  copyDir(path.join(root, three, 'examples', 'jsm'), path.join(stage, three, 'examples', 'jsm'));
+  fs.copyFileSync(path.join(root, three, 'LICENSE'), path.join(stage, three, 'LICENSE'));
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { name: string; version: string };
   fs.writeFileSync(
     path.join(stage, 'package.json'),

@@ -18,6 +18,7 @@ import { knowledgeContext } from '../knowledge.ts';
 import { memoryContext, memoryStamp, readMemory, hasMemory } from '../memory.ts';
 import { workspaceOf, toolsForAgent } from '../tools.ts';
 import { worldPrompt } from '../voxel/tools.ts';
+import { scenePrompt, takeSceneRunsFrom } from '../scene/tools.ts';
 import { skillsPrompt } from '../skills.ts';
 import { accountsPrompt, teamWorkServers } from '../mcp.ts';
 import { withAttachmentsRead, attachmentNames } from '../uploads.ts';
@@ -522,6 +523,14 @@ export const runActive = (runId: string): boolean => active.has(runId);
 // (the Brain's own turns show in the Brain chat, not as an agent at work)
 const agentRuns = () => [...active.entries()].filter(([, r]) => r.agentId !== BRAIN_ID);
 
+// a change seen in a project's scene folder is put on the run going on there (server/scene/tools.ts)
+takeSceneRunsFrom(() => activeRuns());
+
+/** The projects a Brain turn is going on in (the scene look shows the Brain thinking). */
+export const brainThinking = (): string[] => [
+  ...new Set([...active.values()].filter((r) => r.agentId === BRAIN_ID).map((r) => r.projectId)),
+];
+
 export function activeRuns(): ActiveRun[] {
   return agentRuns().map(([id, r]) => ({
     id,
@@ -673,6 +682,7 @@ export function buildSystemPrompt(agent: Agent): string {
     knowledgeContext(agent),
     memoryContext(agent),
     worldPrompt(tools),
+    scenePrompt(tools, agent.engine),
     skillsPrompt(agent),
     // (what each tool does is in its own description: only what no description says goes here)
     tools.includes('search_sessions')

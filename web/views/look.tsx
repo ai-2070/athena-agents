@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 import { Radio } from '@base-ui/react/radio';
 import { RadioGroup } from '@base-ui/react/radio-group';
 import { Slider } from '@base-ui/react/slider';
-import { attempt, state } from '../core.ts';
+import { attempt, confirmBox, state } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { rememberSidebarPanel } from '../navlimits.tsx';
 import {
@@ -24,6 +24,9 @@ import { onThemeChange } from '../theme.ts';
 import { Row, Section, Segmented } from '../ui/controls.tsx';
 import { Icon, reactPage, useAppState } from '../ui/react.tsx';
 import { backgroundUrl, pickBackground, removeBackground } from '../projectlogo.ts';
+import { showSceneVersions } from '../scene/host.ts';
+import { SCENE_TEMPLATES } from '../../shared/scene.ts';
+import type { SceneTemplate } from '../../shared/scene.ts';
 import { BACKGROUND_OPACITY, backgroundOpacity, mapDotsOpacity } from '../../shared/look.ts';
 import type { LookSetting, Project } from '../../shared/types.ts';
 
@@ -106,9 +109,72 @@ function OpacitySlider({
   );
 }
 
+// The scene look: what it is, and the project's scene versions. (A scene draws the whole picture, so the
+// background picture and the map's dots don't apply.)
+function StationScene() {
+  const proj = useAppState()?.project;
+  if (!proj?.id) return null;
+  const id = proj.id;
+  // a template replaces the scene; the one before stays in its versions
+  const start = async (template: SceneTemplate, label: string) => {
+    // asked now, not read from the page's state: an agent may have made the scene since the page loaded
+    // (and when the server can't say, asking is the safe side)
+    const has = await rpc.scene.versions({ project: id }).then(
+      (o) => o.present && o.versions.length > 0,
+      () => true,
+    );
+    if (
+      has &&
+      !(await confirmBox(
+        `Replace this project's scene with the ${label.toLowerCase()} scene? The scene you have now stays in its versions.`,
+        { ok: 'Replace' },
+      ))
+    )
+      return;
+    await attempt(
+      () => rpc.scene.start({ project: id, template }),
+      `The Station now shows the ${label.toLowerCase()} scene`,
+    );
+  };
+  return (
+    <>
+      <Row
+        title="Scene"
+        description={`A page your agents make for ${proj.name}, in the project's .dashboard/scene folder: ask an agent or the Brain for one ("make the Station an underwater garden"). Every change is kept, and a change that doesn't load is never shown in place of one that does.`}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="small"
+          className="look-scene-versions"
+          onClick={() => showSceneVersions(id)}
+        >
+          Versions
+        </Button>
+      </Row>
+      <Row title="Start from" description={SCENE_TEMPLATES.map((t) => `${t.label}: ${t.about}`).join(' ')}>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {SCENE_TEMPLATES.map((t) => (
+            <Button
+              key={t.id}
+              type="button"
+              variant="ghost"
+              size="small"
+              className="look-scene-template"
+              onClick={() => void start(t.id, t.label)}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+      </Row>
+    </>
+  );
+}
+
 // The open project's picture behind the map: a small preview, buttons to change or remove it, and how strong
 // it and the map's dots are.
-function StationBackground({ look }: { look: LookSetting['stationLook'] }) {
+function StationBackground({ look }: { look: 'classic' | 'world' }) {
   const proj = useAppState()?.project;
   if (!proj?.id) return null;
   const url = backgroundUrl(proj);
@@ -341,7 +407,7 @@ export function LookTab() {
 
       <Section
         title="Station look"
-        description="Voxel world lights the Station like the world your agents will build: a sky, a sun with soft shadows, glow around bright things and a miniature blur at the edges. Classic is the flat map."
+        description="Voxel world lights the Station like the world your agents will build: a sky, a sun with soft shadows, glow around bright things and a miniature blur at the edges. Scene shows a page your agents make, drawn any way they like. Classic is the flat map."
       >
         <Row title="Look" titleId="look-station-look">
           <Segmented
@@ -349,15 +415,20 @@ export function LookTab() {
             options={[
               { value: 'classic', label: 'Classic' },
               { value: 'world', label: 'Voxel world' },
+              { value: 'scene', label: 'Scene' },
             ]}
             value={look.stationLook}
             onChange={(v) => set({ stationLook: v })}
           />
         </Row>
-        {look.stationLook === 'world' ? (
+        {look.stationLook === 'world' || look.stationLook === 'scene' ? (
           <Row
             title="Quality"
-            description="Low has no shadows or glow, for older computers. High adds softer creases and smoother edges."
+            description={
+              look.stationLook === 'scene'
+                ? 'How much the scene draws: lower it for older computers. A scene that stays slow steps down by itself.'
+                : 'Low has no shadows or glow, for older computers. High adds softer creases and smoother edges.'
+            }
           >
             <Segmented
               label="Voxel world quality"
@@ -371,7 +442,7 @@ export function LookTab() {
             />
           </Row>
         ) : null}
-        <StationBackground look={look.stationLook} />
+        {look.stationLook === 'scene' ? <StationScene /> : <StationBackground look={look.stationLook} />}
       </Section>
 
       <Section
