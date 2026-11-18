@@ -78,6 +78,18 @@ async function stopServer(child: ChildProcess): Promise<void> {
 // may grab the port first: then ours exits and the one answering isn't ours (other data folder), so try again.
 // (all attempts together stay within START_MS, well under beforeAll's timeout)
 const START_MS = 45_000;
+// The server without the real Claude Code, as on CI: the Brain's check of an approval would start it, and it went on
+// writing into the throwaway home after the server stopped (and may use the PC's own login, kept in the Keychain on
+// macOS). A folder that also holds bun stays: the server needs it.
+const hasProgram = (dir: string, name: string) =>
+  ['', '.exe', '.cmd'].some((ext) => fs.existsSync(path.join(dir, name + ext)));
+const serverPath = (process.env.PATH || '')
+  .split(path.delimiter)
+  .filter((d) => !d || !hasProgram(d, 'claude') || hasProgram(d, 'bun'))
+  .join(path.delimiter);
+// (on Windows it may be spelled Path: one spelling only, or the child could get the old one)
+const withoutPath = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+  Object.fromEntries(Object.entries(env).filter(([k]) => k.toUpperCase() !== 'PATH'));
 async function startServer(home: string): Promise<void> {
   const deadline = Date.now() + START_MS;
   for (let attempt = 0; attempt < 5 && Date.now() < deadline; attempt++) {
@@ -86,7 +98,13 @@ async function startServer(home: string): Promise<void> {
     const child = spawn('bun', ['server/index.ts', '--port', String(port), '--no-open'], {
       cwd: root,
       detached: process.platform !== 'win32',
-      env: { ...process.env, DASH_DATA: path.join(tmp, 'data'), HOME: home, USERPROFILE: home },
+      env: {
+        ...withoutPath(process.env),
+        PATH: serverPath,
+        DASH_DATA: path.join(tmp, 'data'),
+        HOME: home,
+        USERPROFILE: home,
+      },
       stdio: 'ignore',
     });
     proc = child;
