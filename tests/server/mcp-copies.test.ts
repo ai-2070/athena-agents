@@ -110,6 +110,13 @@ describe('adding another account of a ready-made server', () => {
     expect(mcp.kindOf('oomol-personal', mcp.listServers()['oomol-personal'])).toBe('oomol');
   });
 
+  it('a ready-made server under its own name, renamed from its form, stays that service', () => {
+    mcp.addPreset('context7');
+    // (the form sends "its own service" as the name it had)
+    mcp.renameServer('context7', 'docs', { ...mcp.listServers().context7, kind: 'context7' });
+    expect(mcp.kindOf('docs', mcp.listServers().docs)).toBe('context7');
+  });
+
   it("asks for Composio's own link and key", () => {
     const composio = mcp.PRESETS.find((p) => p.name === 'composio')!;
     expect(mcp.presetNeeds(composio)).toBe('needs its own link in the URL and a key in the x-api-key header');

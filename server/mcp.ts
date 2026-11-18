@@ -1485,10 +1485,13 @@ export function renameServer(from: string, to: string, cfg?: McpServerInput): st
   // The service it is goes with it: worked out from the old name it would be lost (a first GitHub with its own
   // arguments). A server that is its own service (one added by hand) takes its new name along, and so do the
   // other accounts of it.
+  // (a ready-made one under its own name, like "playwright", stays that service: asked as itself it's not "its own")
   const had = kindOf(from, was);
+  const preset = had === from && PRESETS.some((p) => p.name === from);
   const asked = cfg?.kind ? resolveKind(cfg.kind, servers) : '';
-  const own = asked ? asked === from : had === from && !PRESETS.some((p) => p.name === from);
-  saveServer(clean, { ...(cfg || was), kind: own ? clean : asked || had });
+  const own = asked ? asked === from && !preset : had === from && !preset;
+  // (the page sends saved keys as dots: they are the old name's, so they're put back from it)
+  saveServer(clean, { ...(cfg ? keepHidden(cfg, was) : was), kind: own ? clean : asked || had });
   removeServer(from);
   if (own) {
     const now = listServers();

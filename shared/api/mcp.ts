@@ -26,12 +26,14 @@ export const mcp = {
   list: oc.route({ method: 'GET', path: '/mcp' }).output(type<McpOverview>()),
   /** The bridge's config with its token, to copy into another MCP client. */
   bridge: oc.route({ method: 'POST', path: '/mcp-bridge' }).output(type<BridgeServerConfig>()),
-  /** Adds or changes a server. args may be one string. */
+  /** Adds or changes a server. args may be one string. from: the name it had, to rename it (it stays on every agent
+   *  and team that has it). */
   save: oc
     .route({ method: 'POST', path: '/mcp' })
     .input(
       z.object({
         name: z.string({ error: 'Give the server a name.' }),
+        from: z.string({ error: 'The old name must be text.' }).optional(),
         type: z.string().optional(),
         command: z.string({ error: 'The command must be text.' }).optional(),
         args: z.union([z.array(z.string()), z.string()], { error: 'The arguments must be text.' }).optional(),

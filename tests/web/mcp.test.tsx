@@ -296,10 +296,10 @@ describe('the MCP servers tab', () => {
     expect([...el.querySelectorAll('.mcp-server .title')].map((t) => t.textContent)).toEqual(['playwright', 'notion']);
   });
 
-  it('edits a server with its name locked and its arguments and environment filled in', async () => {
+  it('edits a server with its arguments and environment filled in', async () => {
     await open();
     await act(async () => btn(el, 'Edit').click());
-    expect(field('Name').disabled).toBe(true);
+    expect(field('Name').value).toBe('playwright');
     expect(field('Arguments').value).toBe('-y @playwright/mcp');
     await type(field('Environment'), 'DEBUG=1');
     await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
@@ -308,6 +308,19 @@ describe('the MCP servers tab', () => {
       name: 'playwright',
       args: ['-y', '@playwright/mcp'],
       env: { DEBUG: '1' },
+    });
+  });
+
+  it('renames a server by sending the name it had, so its agents and teams keep it', async () => {
+    await open();
+    await act(async () => btn(el, 'Edit').click());
+    await type(field('Name'), 'browser');
+    await act(async () => btn(document.querySelector('#modal-root')!, 'Save').click());
+    await settle();
+    expect(requests.find((r) => r.method === 'POST' && r.url === '/api/mcp')!.body).toMatchObject({
+      name: 'browser',
+      from: 'playwright',
+      kind: 'playwright',
     });
   });
 

@@ -32,7 +32,14 @@ export const mcpRouter = m.router({
     };
   }),
   bridge: m.bridge.handler(() => mcp.bridgeServerConfig('')),
-  save: m.save.handler(({ input: { name, ...server } }) => refusing(() => mcp.saveServer(name, server))),
+  // A new name renames it: removing it and adding it again would take it off every agent and team.
+  save: m.save.handler(({ input: { name, from, ...server } }) =>
+    refusing(() => {
+      if (!from || mcp.serverName(from) === mcp.serverName(name)) return mcp.saveServer(name, server);
+      const now = mcp.renameServer(from, name, server);
+      return mcp.listServers()[now];
+    }),
+  ),
   remove: m.remove.handler(({ input }) => (mcp.removeServerEverywhere(input.name), { ok: true as const })),
   brainGrants: m.brainGrants.handler(() => ({ allowed: mcp.brainGrants() })),
   forgetBrainGrant: m.forgetBrainGrant.handler(({ input }) => {

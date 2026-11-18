@@ -4,9 +4,11 @@
 import http from 'node:http';
 import type net from 'node:net';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { newAgent } from '../../server/library.ts';
+import { listServers } from '../../server/mcp.ts';
 import { handleRpc } from '../../server/rpc.ts';
-import { internalToken } from '../../server/store.ts';
-import type { McpOverview, McpServerConfig } from '../../shared/types.ts';
+import { agents, internalToken, workflows } from '../../server/store.ts';
+import type { McpOverview, McpServerConfig, Team } from '../../shared/types.ts';
 
 // (Hermes and OpenClaw installed on this computer would be asked for their profiles and agents: seconds each, and
 // past the time limit while other test runs share the computer)
@@ -76,6 +78,40 @@ describe('MCP servers over oRPC', () => {
       status: 404,
       json: { error: 'That server is no longer in its Claude config.' },
     });
+  });
+
+  it('rename a server from its form: it stays on its agents and teams, with its key', async () => {
+    await send('POST', '/api/mcp', { name: 'mail', command: 'node', args: 'mail.js', env: { API_KEY: 'k-1' } });
+    const agent = agents.save({ ...newAgent({ name: 'Mailer', engine: 'eve' }), mcpServers: ['mail'] });
+    const team = workflows.save({
+      name: 'Mail team',
+      members: [agent.id],
+      lead: agent.id,
+      steps: [],
+      access: { toolGroups: [], mcpServers: ['mail'] },
+    } as Partial<Team>);
+    // as the page sends it: the key as dots, and "its own service" as the name it had
+    const seen = (await send<McpOverview>('GET', '/api/mcp')).json.servers.mail;
+    const r = await send<McpServerConfig>('POST', '/api/mcp', {
+      ...seen,
+      name: 'mail-work',
+      from: 'mail',
+      kind: 'mail',
+    });
+    expect(r.status).toBe(200);
+    const servers = (await send<McpOverview>('GET', '/api/mcp')).json;
+    expect(servers.servers.mail).toBeUndefined();
+    expect(servers.info['mail-work'].kind).toBe('mail-work');
+    expect(listServers()['mail-work'].env.API_KEY).toBe('k-1');
+    expect(agents.get(agent.id)?.mcpServers).toEqual(['mail-work']);
+    expect(workflows.get(team.id)?.access?.mcpServers).toEqual(['mail-work']);
+    // a name that is taken changes nothing
+    await send('POST', '/api/mcp', { name: 'other', command: 'node' });
+    expect(await send('POST', '/api/mcp', { name: 'other', from: 'mail-work', command: 'node' })).toEqual({
+      status: 400,
+      json: { error: 'There already is an MCP server named "other".' },
+    });
+    expect(agents.get(agent.id)?.mcpServers).toEqual(['mail-work']);
   });
 
   it('give the bridge with its token only to copy', async () => {

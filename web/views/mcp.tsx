@@ -575,8 +575,11 @@ function ServerForm({
   const save = async () => {
     const body = {
       name: newName,
+      // (a new name renames it, so the agents and teams that have it keep it)
+      ...(name ? { from: name } : {}),
       ...c,
-      kind: c.kind || (ownPicked ? newName : ''),
+      // "its own service" is the name it has now: renamed, the server takes the service along to the new name
+      kind: c.kind || (ownPicked ? name || newName : ''),
       args: args === joinArgs(cfg.args || []) ? cfg.args || [] : splitArgs(args),
       env: parseKv(env),
       headers: parseHeaders(headers),
@@ -590,13 +593,8 @@ function ServerForm({
     <>
       <div className="modal-body">
         <div className="flex flex-col gap-5">
-          <Field label="Name">
-            <input
-              value={newName}
-              placeholder="e.g. playwright"
-              disabled={!!name}
-              onChange={(e) => setNewName(e.target.value)}
-            />
+          <Field label="Name" hint={name ? 'Renaming keeps it on the agents and teams that have it.' : undefined}>
+            <input value={newName} placeholder="e.g. playwright" onChange={(e) => setNewName(e.target.value)} />
           </Field>
           <Segmented
             label="Kind of server"
