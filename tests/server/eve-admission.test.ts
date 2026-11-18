@@ -22,7 +22,7 @@ import { readBinding, readRun, recordAdmissionReceipt, settleRun } from '../../s
 import { prepareEveRecovery, stopEveRun } from '../../server/eve/recovery.ts';
 import { eveRuntime } from '../../server/eve/runtime.ts';
 import { eveCoordinator } from '../../server/eve/coordinator.ts';
-import { run as runEve } from '../../server/engines/eve.ts';
+import { SEND_WAIT, run as runEve } from '../../server/engines/eve.ts';
 import { eveConfiguration } from '../../server/eve/bridge.ts';
 import type { ChatItem, EveMessagePart, ExecutionRun } from '../../shared/types.ts';
 import { docx, pdf } from './fixtures/documents.ts';
@@ -217,6 +217,58 @@ describe('saved Eve input admission', () => {
     expect(readRun(own.run.id)).toMatchObject({ status: 'stopped', deliveryId: 'late-delivery' });
     expect(readBinding(readRun(own.run.id)!.bindingId)).toMatchObject({ retired: true, runtimeEnded: true });
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up on a message Eve keeps refusing, and the next one starts a fresh session', async () => {
+    const own = fixture([{ type: 'assistant', text: 'Kept for the fresh session' }]);
+    const first = await prepareAdmission(own.run.id, own.project);
+    recordAdmissionReceipt(first.id, 'old-session', 'old-delivery', []);
+    settleRun(first.id, 'completed', 'Earlier answer');
+    updateExecution(first.id, { status: 'completed', settled: true });
+    const next = { ...own.run, id: `${own.run.id}-refused` };
+    admitExecution(next);
+    vi.spyOn(eveRuntime, 'ready').mockResolvedValue({
+      url: 'http://127.0.0.1:4800',
+      token: 'fixture',
+      exited: new Promise<void>(() => {}),
+      close: async () => {},
+    });
+    const sent: string[] = [];
+    vi.spyOn(Client.prototype, 'fetch').mockImplementation(async (route) => {
+      sent.push(route);
+      return route.endsWith('/end') ? Response.json({}) : new Response('', { status: 503 });
+    });
+    const follow = vi.spyOn(eveCoordinator, 'follow');
+    const wait = SEND_WAIT.ms;
+    SEND_WAIT.ms = 300;
+    try {
+      await expect(
+        runEve({
+          agent: own.agent,
+          chat: own.chat,
+          runId: next.id,
+          text: next.text,
+          systemPrompt: '',
+          attachments: [],
+          signal: new AbortController().signal,
+          depth: 0,
+          onEvent: () => {},
+        }),
+      ).rejects.toThrow('Send it again');
+    } finally {
+      SEND_WAIT.ms = wait;
+    }
+    expect(sent.filter((r) => r.includes('/session/old-session')).length).toBeGreaterThan(1);
+    expect(follow).not.toHaveBeenCalled();
+    expect(readRun(next.id)?.status).toBe('stopped');
+    expect(readBinding(first.bindingId)?.retired).toBe(true);
+    // (the engine runner settles a run whose engine threw)
+    updateExecution(next.id, { status: 'failed', settled: true });
+    const again = { ...own.run, id: `${own.run.id}-again` };
+    admitExecution(again);
+    const input = await prepareAdmission(again.id, own.project);
+    expect(input.mode).toBe('create');
+    expect(input.history.some((m) => m.text === 'Kept for the fresh session')).toBe(true);
   });
 
   it('imports original roles and tool results after the last memory reset', async () => {

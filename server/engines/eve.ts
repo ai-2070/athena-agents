@@ -23,6 +23,11 @@ export const steer: TurnSteering = {
 /** How long a run following a turn Eve started with a late message waits for that turn to begin. */
 export const ADOPT_WAIT = { ms: 60_000 };
 
+/** How long Eve may keep refusing a message before the run gives up (Eve normally takes one at once). Past it the
+ *  session is retired, so sending again starts a fresh one: a session Eve can no longer take messages on must not
+ *  leave the agent "working" forever. */
+export const SEND_WAIT = { ms: 120_000 };
+
 /** Delivery retries are transport recovery; Eve owns every model and tool step. */
 export async function run({ runId, signal, adopt, depth, agent, chat }: EngineRunArgs): Promise<EngineResult> {
   if (adopt) return follow(runId, signal, adopt, depth, await contextWindow(agent, chat));
@@ -38,6 +43,7 @@ export async function run({ runId, signal, adopt, depth, agent, chat }: EngineRu
     signal,
     input.selection.contextWindow,
     async () => {
+      const giveUp = Date.now() + SEND_WAIT.ms;
       for (;;) {
         signal.throwIfAborted();
         try {
@@ -52,6 +58,12 @@ export async function run({ runId, signal, adopt, depth, agent, chat }: EngineRu
             !validAdmission(runId)
           )
             throw new Error('Eve could not accept this input.');
+          if (Date.now() >= giveUp) {
+            await stopEveRun(runId, eveClient(host, input.bindingId)).catch(() => {});
+            throw new Error(
+              `Eve did not take this message in ${Math.round(SEND_WAIT.ms / 60_000)} minutes, so it was stopped. Send it again: it starts a fresh session with the same chat.`,
+            );
+          }
           await new Promise((resolve) => setTimeout(resolve, 250));
           try {
             host = await eveRuntime.ready();
