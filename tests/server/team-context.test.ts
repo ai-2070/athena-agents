@@ -144,11 +144,15 @@ describe('full team context', () => {
     expect(input).toContain('Original 509');
   });
 
-  it('refuses oversized history and preserves all originals for retrieval', async () => {
+  it('sends the newest history that fits, says the rest is left out, and keeps all originals for retrieval', async () => {
     saveSettings({ contextWindowTokens: 32000 });
     const { turn } = setup(Array.from({ length: 100 }, (_, i) => message(i)));
     const chat = await turn();
-    expect(requests).toHaveLength(0);
+    expect(requests).toHaveLength(1);
+    const sent = requests[0].messages.map((m) => m.content).join('\n');
+    expect(sent).toContain('oldest messages of this chat are left out');
+    expect(sent).toContain('REQUIREMENT_AT_END_99');
+    expect(sent).not.toContain('REQUIREMENT_AT_END_0');
     expect(chat.items.filter((i) => i.type === 'user' && i.teamMessageId?.startsWith('source-'))).toHaveLength(100);
     expect(chat.items.some((i) => i.type === 'user' && i.text.includes('REQUIREMENT_AT_END_0'))).toBe(true);
   });

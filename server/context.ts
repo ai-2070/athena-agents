@@ -136,31 +136,72 @@ export function stopMark(item: ChatItem): string {
     : '(The user stopped my turn here, before it finished. The steps above are done.)';
 }
 
-/** A fresh CLI session receives every retained original after Clear memory, without clipping. */
+// ---------- a fresh session's history ----------
+/** How much of the window a fresh session's history may fill when all of it doesn't fit: the rest is room to work. */
+export const SEED_SHARE = 0.6;
+
+/** The newest part of a history that fits in budget tokens. When not all of it fits, the cut moves forward to where
+ *  a message of the user's starts, so the part kept doesn't open halfway through a turn. left: how many were left out. */
+export function newestThatFits<T>(
+  items: readonly T[],
+  size: (item: T) => number,
+  budget: number,
+  opensTurn: (item: T) => boolean,
+): { kept: T[]; left: number } {
+  let total = 0;
+  let from = items.length;
+  while (from > 0 && total + size(items[from - 1]) <= budget) total += size(items[--from]);
+  if (from === 0) return { kept: [...items], left: 0 };
+  let start = from;
+  while (start < items.length && !opensTurn(items[start])) start++;
+  // (no message of the user's in what fits: keep what fits)
+  if (start === items.length) start = from;
+  return { kept: items.slice(start), left: start };
+}
+
+/** What a fresh session is told when the oldest part of its chat was left out of its history. Nothing is lost: the
+ *  chat keeps every original, and the agent reads them with its conversation tools. */
+export const leftOutNote = (left: number): string =>
+  `(The ${left} oldest message${left === 1 ? '' : 's'} of this chat ${left === 1 ? 'is' : 'are'} left out here: the whole conversation doesn't fit the model's context. Their original text is kept. Before guessing about earlier work, find it with search_conversations and read it with read_conversation.)`;
+
+/** A fresh CLI session receives the retained originals after Clear memory, whole. When they don't all fit the model,
+ *  it gets the newest part that does, and is told where the rest is. */
 export function seedPrompt(items: ChatItem[], prompt: string, window: number, system = ''): string {
   const current = items.findLastIndex((item) => item.type === 'user');
-  const history = items
+  const entries = items
     .slice(memoryStart(items), current < 0 ? items.length : current)
-    .flatMap((item) => {
+    .flatMap((item): { text: string; asked: boolean }[] => {
       if (item.type === 'user' || item.type === 'steer')
         return [
-          `${item.from || 'User'}: ${item.text}${item.attachments?.length ? `\nAttachments: ${item.attachments.join(', ')}` : ''}`,
+          {
+            text: `${item.from || 'User'}: ${item.text}${item.attachments?.length ? `\nAttachments: ${item.attachments.join(', ')}` : ''}`,
+            asked: true,
+          },
         ];
-      if (item.type === 'assistant') return [`Assistant: ${item.text}`];
+      if (item.type === 'assistant') return [{ text: `Assistant: ${item.text}`, asked: false }];
       if (item.type === 'tool')
         return [
-          `Tool ${item.name}\nInput: ${JSON.stringify(item.args || {})}\nResult: ${item.result ?? '(unfinished)'}`,
+          {
+            text: `Tool ${item.name}\nInput: ${JSON.stringify(item.args || {})}\nResult: ${item.result ?? '(unfinished)'}`,
+            asked: false,
+          },
         ];
-      if (stopMark(item)) return [`Assistant: ${stopMark(item)}`];
+      if (stopMark(item)) return [{ text: `Assistant: ${stopMark(item)}`, asked: false }];
       return [];
-    })
-    .join('\n\n');
+    });
+  const history = entries.map((entry) => entry.text).join('\n\n');
   const input = history
     ? `Earlier conversation (original messages):\n${history}\n\nCurrent request:\n${prompt}`
     : prompt;
-  if (estimateTokens(system + input) > window * 0.85)
-    throw new Error(
-      'The full conversation does not fit this model. Choose a larger-context model or clear memory. No original messages were discarded.',
-    );
-  return input;
+  if (estimateTokens(system + input) <= window * 0.85) return input;
+  // (a current request too big on its own is refused by the run: it is never shortened)
+  const budget = Math.floor(window * SEED_SHARE) - estimateTokens(system + prompt);
+  const { kept, left } = newestThatFits(
+    entries,
+    (entry) => estimateTokens(entry.text) + 2,
+    budget,
+    (entry) => entry.asked,
+  );
+  const text = [leftOutNote(left), ...kept.map((entry) => entry.text)].join('\n\n');
+  return `Earlier conversation (original messages, the newest part):\n${text}\n\nCurrent request:\n${prompt}`;
 }

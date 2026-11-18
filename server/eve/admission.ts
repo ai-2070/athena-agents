@@ -6,7 +6,7 @@ import { findAgent } from '../liveagents.ts';
 import { readExecution } from '../execution.ts';
 import { cleanAttachments, safeUploadsRoot, withAttachmentsReadWhole } from '../uploads.ts';
 import { isDocumentName } from '../documents.ts';
-import { estimateTokens, stopMark } from '../context.ts';
+import { SEED_SHARE, estimateTokens, leftOutNote, newestThatFits, stopMark } from '../context.ts';
 import { listFiles, realTarget, isInside } from '../util.ts';
 import { privateDataPath } from '../private.ts';
 import { canonical } from '../../shared/canonical.ts';
@@ -271,15 +271,26 @@ export async function prepareAdmission(runId: string, project: Project): Promise
     inputLimits.set(runId, currentLimit);
     // (a run's turn is long over well before a thousand more have started)
     if (inputLimits.size > 1000) inputLimits.delete(inputLimits.keys().next().value!);
-    const originalHistory = history.map((item) => ({ role: item.role, content: item.text }));
-    const historySize = Math.max(
-      estimateTokens(history.map((item) => item.text).join('\n')),
-      Math.ceil(Buffer.byteLength(JSON.stringify(originalHistory)) / 4),
-    );
-    const tokens = envelope + historySize + addressed;
-    if (tokens > window * 0.85)
+    const sizeOf = (list: readonly { role: string; text: string }[]) =>
+      Math.max(
+        estimateTokens(list.map((item) => item.text).join('\n')),
+        Math.ceil(Buffer.byteLength(JSON.stringify(list.map((item) => ({ role: item.role, content: item.text })))) / 4),
+      );
+    // A fresh session whose whole chat doesn't fit gets the newest part that does, and is told where the rest is (the
+    // chat keeps every original). Its team messages all count as imported: the note covers the ones left out.
+    if (!binding.sessionId && envelope + sizeOf(history) + addressed > window * 0.85) {
+      const budget = Math.floor(window * SEED_SHARE) - envelope - addressed;
+      const { kept, left } = newestThatFits(
+        history,
+        (item) => sizeOf([item]) + 4,
+        budget,
+        (item) => item.role === 'user',
+      );
+      history.splice(0, history.length, { id: 'chat:left-out', role: 'user', text: leftOutNote(left) }, ...kept);
+    }
+    if (envelope + sizeOf(history) + addressed > window * 0.85)
       throw new Error(
-        'The saved conversation does not fit this model. Choose a larger-context model or clear memory. No original messages were discarded.',
+        'This message does not fit this model with its instructions and tools. Choose a larger-context model, or send a smaller message. No original messages were discarded.',
       );
     if (addressed > currentLimit)
       throw new Error(

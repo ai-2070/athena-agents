@@ -386,7 +386,7 @@ Some sites and programs can't be connected because they have no API or MCP serve
 
 API-model agents run through Eve. Eve keeps each session and handles its own context compaction, as the CLI engines do for their sessions. A **Compacted** mark records that the engine shortened its active memory; saved original messages and tool results stay visible and searchable.
 
-The dashboard no longer shortens conversations, writes summaries or lets you edit checkpoints. Use **Clear memory** to start a new session. When changing engines or models, it supplies the saved originals after the last clear. If they do not fit, choose a larger-context model or clear memory; originals are never silently trimmed.
+The dashboard no longer shortens conversations, writes summaries or lets you edit checkpoints. Use **Clear memory** to start a new session. When a new session starts (after changing engines or models, a lost session, a restart or an Eve update), it gets the saved originals after the last clear. If they don't all fit the model, it gets the newest part that does, starting at a message to it, and is told that older messages are left out and how to read them with the conversation tools. The chat itself keeps every original.
 
 The context meter uses the engine's last measurement when available, otherwise an estimate. Under **Settings → General & keys → Context**, set **Context window** if a model's reported size is wrong.
 

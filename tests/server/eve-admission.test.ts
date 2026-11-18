@@ -490,10 +490,28 @@ describe('saved Eve input admission', () => {
     });
   });
 
-  it('fails oversized history and files without clipping or dropping them', async () => {
+  it("gives a fresh session the newest part of a chat that doesn't fit, and keeps every original in the chat", async () => {
+    const huge = 'Original '.repeat(30000);
+    const own = fixture([
+      { type: 'user', text: huge },
+      { type: 'assistant', text: 'Old answer' },
+      { type: 'user', text: 'Recent question' },
+      { type: 'assistant', text: 'Recent answer' },
+    ]);
+    const input = await prepareAdmission(own.run.id, own.project);
+    expect(input.mode).toBe('create');
+    expect(input.history.map((m) => m.text)).toEqual([
+      expect.stringContaining('The 2 oldest messages of this chat are left out'),
+      'Recent question',
+      'Recent answer',
+    ]);
+    expect(chats.get(own.agent.id, own.chat.id)?.items[0]).toMatchObject({ type: 'user', text: huge });
+  });
+
+  it("refuses a message that doesn't fit with its instructions and tools, and files over the limit", async () => {
     const own = fixture([{ type: 'user', text: 'Original '.repeat(30000) }]);
     saveSettings({ contextWindowTokens: 1000 });
-    await expect(prepareAdmission(own.run.id, own.project)).rejects.toThrow('No original messages were discarded');
+    await expect(prepareAdmission(own.run.id, own.project)).rejects.toThrow('does not fit this model');
     expect(readAdmission(own.run.id)).toBeNull();
     expect(chats.get(own.agent.id, own.chat.id)?.items[0]).toEqual(own.chat.items[0]);
     const file = path.join(newBatch().dir, 'too-big.pdf');
