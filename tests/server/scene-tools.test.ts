@@ -20,7 +20,7 @@ import {
   takeVersion,
 } from '../../server/scene/history.ts';
 import { forgetSceneLook, setScenePages, addSceneLogs } from '../../server/scene/look.ts';
-import { forgetSceneWriters, sceneAuthor, scenePrompt, shownNote } from '../../server/scene/tools.ts';
+import { forgetSceneWriters, noteSceneWrite, sceneAuthor, scenePrompt, shownNote } from '../../server/scene/tools.ts';
 import { claudeArgs, claudePathRule } from '../../server/engines/claude.ts';
 import { codexArgs } from '../../server/engines/codex.ts';
 import { applyActions } from '../../server/overseer.ts';
@@ -68,6 +68,21 @@ describe('writing the scene', () => {
     const v = settleScene(activeProject());
     expect(v?.by).toMatchObject({ kind: 'agent', id: 'scene-agent', name: 'Coral' });
     expect(Object.keys(v!.files).sort()).toEqual(['index.html', 'main.js']);
+  });
+
+  it("a write is the agent's when the scene folder is reached through a link", () => {
+    // (the file tools hand over the real path: /private/var on macOS, a long name on Windows)
+    const target = path.join(process.env.DASH_DATA!, 'scene-elsewhere');
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.mkdirSync(target, { recursive: true });
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    fs.symlinkSync(target, dir, 'junction');
+    try {
+      noteSceneWrite(path.join(fs.realpathSync(target), 'index.html'), builder, 'r1');
+      expect(sceneAuthor(activeProject(), [])).toMatchObject({ kind: 'agent', id: 'scene-agent', runId: 'r1' });
+    } finally {
+      fs.rmSync(dir, { force: true });
+    }
   });
 
   it('only agents with the scene tools get them and the folder', () => {

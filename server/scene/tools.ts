@@ -8,6 +8,7 @@
 // covers scene_restore too: what it replaces or removes stays in the versions. (A deliberate exception to "anything
 // that deletes or runs code is high" in AGENTS.md: HTML_SCENE_PLAN.md, Decisions.) scene_use is low: it changes a
 // setting for every project, not the scene.
+import fs from 'node:fs';
 import path from 'node:path';
 import { activeProject, getSettings, log, saveSettings } from '../store.ts';
 import { isInside } from '../util.ts';
@@ -58,10 +59,20 @@ export function inSceneFolder(p: string): boolean {
   return isInside(sceneDir(activeProject()), p);
 }
 
-/** A built-in file tool wrote into the scene folder: the version it leads to is this agent's. */
+/** A built-in file tool wrote into the scene folder: the version it leads to is this agent's. The tools hand over
+ *  the real path, so the folder counts by its real path too (a data folder behind a link: /var on macOS, a short
+ *  name on Windows). */
 export function noteSceneWrite(abs: string, agent: Pick<ToolAgent, 'id' | 'name'>, runId?: string | null): void {
-  if (!inSceneFolder(abs)) return;
+  if (!inSceneFolder(abs) && !inRealSceneFolder(abs)) return;
   writers.set(activeProject().id, { by: authorOf(agent, runId), at: Date.now() });
+}
+
+function inRealSceneFolder(p: string): boolean {
+  try {
+    return path.isAbsolute(p) && isInside(fs.realpathSync(sceneDir(activeProject())), p);
+  } catch {
+    return false;
+  }
 }
 
 const authorOf = (agent: Pick<ToolAgent, 'id' | 'name'>, runId?: string | null): SceneAuthor => ({
