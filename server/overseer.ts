@@ -1883,11 +1883,13 @@ function applyAsBrain(
   // MEMBER -> agent id (reuses an agent already hired from the same library entry)
   const resolve = (m: MemberRef | string | null | undefined): string | null => {
     if (!m) return null;
-    if (typeof m === 'string') m = agents.get(m) ? { agent: m } : { library: m };
-    if (m.agent || m.agentId) {
-      const a = agents.get(m.agent || m.agentId);
-      return a ? a.id : null;
-    }
+    // an agent by id or by its name (any case), as delegate takes them
+    const agentOf = (ref: unknown) =>
+      agents.get(String(ref)) ||
+      agents.list().find((a) => a.name.toLowerCase() === String(ref).trim().toLowerCase()) ||
+      null;
+    if (typeof m === 'string') m = agentOf(m) ? { agent: m } : { library: m };
+    if (m.agent || m.agentId) return agentOf(m.agent || m.agentId)?.id ?? null;
     if (m.library) {
       const have = agents.list().find((a) => a.source?.type === 'library' && a.source.slug === m.library);
       if (have) return have.id;
@@ -1914,20 +1916,32 @@ function applyAsBrain(
     }
     return null;
   };
-  const resolveAll = (list: unknown): string[] => [
-    ...new Set(
-      (Array.isArray(list) ? (list as (MemberRef | string)[]) : [])
-        .map((m) => {
-          try {
-            return resolve(m);
-          } catch (e) {
-            done.push({ kind: 'error', text: `Couldn't add an agent: ${(e as Error).message}` });
-            return null;
-          }
-        })
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ];
+  // the members the last resolveAll couldn't find, for the error that says so
+  let missed: string[] = [];
+  const resolveAll = (list: unknown): string[] => {
+    missed = [];
+    return [
+      ...new Set(
+        (Array.isArray(list) ? (list as (MemberRef | string)[]) : [])
+          .map((m) => {
+            try {
+              const id = resolve(m);
+              if (!id) missed.push(cut(typeof m === 'string' ? `"${m}"` : JSON.stringify(m), 80));
+              return id;
+            } catch (e) {
+              done.push({ kind: 'error', text: `Couldn't add an agent: ${(e as Error).message}` });
+              return null;
+            }
+          })
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+  };
+  // why nobody could be put on a team: no list at all, or names nobody has
+  const noMembers = (list: unknown): string =>
+    missed.length
+      ? `couldn't find ${missed.join(', ')}: use a library slug from project_overview "library", or an agent's id`
+      : `no agents to put on it: "members" is a list like [{"library":"<slug>"}], [{"agent":"<id>"}] or [{"new":{"name":"…"}}]${list === undefined || Array.isArray(list) ? '' : `, not ${cut(JSON.stringify(list), 60)}`}`;
   // a step list keeps its other steps (tools, approvals, posts)
   const saveTeam = (wf: Partial<Team> & { members: string[] }): Team =>
     workflows.save({ ...wf, steps: teamSteps({ steps: wf.steps || [], members: wf.members }) });
@@ -2605,7 +2619,7 @@ function applyAsBrain(
         const members = resolveAll(act.members);
         const lead = act.lead ? resolveAll([act.lead])[0] || null : null;
         if (lead && !members.includes(lead)) members.unshift(lead);
-        if (!members.length) throw new Error('no agents to put on it');
+        if (!members.length) throw new Error(noMembers(act.members));
         const wf = saveTeam({
           name: String(act.name || 'New team').slice(0, 50),
           description: String(act.description || '').slice(0, 300),
@@ -2634,7 +2648,9 @@ function applyAsBrain(
       } else if (kind === 'add_members') {
         const wf = findTeam(act.team);
         if (!wf) throw new Error('team not found');
-        const add = resolveAll(act.members).filter((id) => !(wf.members || []).includes(id));
+        const asked = resolveAll(act.members);
+        if (!asked.length) throw new Error(noMembers(act.members));
+        const add = asked.filter((id) => !(wf.members || []).includes(id));
         wf.members = [...(wf.members || []), ...add];
         saveTeam(wf);
         lastTeam = wf.id;
@@ -2714,7 +2730,8 @@ function applyAsBrain(
         });
       } else if (kind === 'hire') {
         const ids = resolveAll(act.members);
-        if (ids.length) lastAgent = ids[ids.length - 1];
+        if (!ids.length) throw new Error(noMembers(act.members));
+        lastAgent = ids[ids.length - 1];
         if (!done.some((d) => d.kind === 'hired'))
           done.push({
             kind: 'note',

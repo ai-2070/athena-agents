@@ -6,7 +6,7 @@ import { activeProject, getSettings, saveSettings, workflows } from '../../serve
 import { dataPath, readJSON, writeJSON } from '../../server/util.ts';
 import * as skills from '../../server/skills.ts';
 import { callTool, riskOf, toolsForAgent } from '../../server/tools.ts';
-import { BRAIN_ID, beginBrainTurn, endBrainTurn, toolOf } from '../../server/braintools.ts';
+import { BRAIN_ID, beginBrainTurn, endBrainTurn, readStructuredArgs, toolOf } from '../../server/braintools.ts';
 import type { BrainTurn } from '../../server/braintools.ts';
 import type { ToolAgent } from '../../server/tools.ts';
 
@@ -89,6 +89,59 @@ describe("the Brain's tools", () => {
     expect(t.done.map((d) => d.kind)).toEqual(['team', 'team']);
     const wrong = await callTool(BRAIN, 'team', { do: 'delegate' }, { runId });
     expect(wrong).toMatchObject({ isError: true, text: expect.stringContaining('takes "do"') });
+    endBrainTurn(runId);
+  });
+
+  it('lists and objects sent as JSON text count as what they are (as Claude Code sent them)', async () => {
+    const { runId } = turn();
+    // word for word what the Brain sent in a chat where every create_team failed
+    const made = await callTool(
+      BRAIN,
+      'team',
+      {
+        do: 'create_team',
+        name: 'Scene Team',
+        members: '[{"library":"scene-builder"}]',
+        lead: 'null',
+        access: '{"tools":["scene","files","browser"],"mcpServers":[]}',
+      },
+      { runId },
+    );
+    expect(made.isError).toBe(false);
+    const team = workflows.list().find((w) => w.name === 'Scene Team');
+    expect(team?.members).toHaveLength(1);
+    expect(team?.access?.toolGroups).toEqual(expect.arrayContaining(['scene', 'files', 'browser']));
+    endBrainTurn(runId);
+  });
+
+  it('free text that looks like JSON stays text', () => {
+    const args = readStructuredArgs({ do: 'delegate', message: '["a","b"]', members: '["x"]', content: '{"k":1}' });
+    expect(args).toEqual({ do: 'delegate', message: '["a","b"]', members: ['x'], content: '{"k":1}' });
+    expect(readStructuredArgs({ members: '[not json' }).members).toBe('[not json');
+  });
+
+  it('members can be named, and the error says who was not found or what members should look like', async () => {
+    const { runId } = turn();
+    const painter = newAgent({ name: 'Painter' });
+    const byName = await callTool(
+      BRAIN,
+      'team',
+      { do: 'create_team', name: 'Named', members: [{ agent: 'painter' }] },
+      { runId },
+    );
+    expect(byName.isError).toBe(false);
+    expect(workflows.list().find((w) => w.name === 'Named')?.members).toEqual([painter.id]);
+    const unknown = await callTool(
+      BRAIN,
+      'team',
+      { do: 'create_team', name: 'Ghosts', members: [{ agent: 'nobody-here' }] },
+      { runId },
+    );
+    expect(unknown).toMatchObject({ isError: true, text: expect.stringContaining('nobody-here') });
+    const none = await callTool(BRAIN, 'team', { do: 'create_team', name: 'Empty', members: [] }, { runId });
+    expect(none).toMatchObject({ isError: true, text: expect.stringContaining('[{"library":"<slug>"}]') });
+    const hire = await callTool(BRAIN, 'team', { do: 'hire', members: [{ library: 'no-such-slug' }] }, { runId });
+    expect(hire).toMatchObject({ isError: true, text: expect.stringContaining('no-such-slug') });
     endBrainTurn(runId);
   });
 

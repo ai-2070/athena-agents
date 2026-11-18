@@ -171,6 +171,53 @@ function params(name: BrainToolName): JSONSchema {
 
 const refuse = (text: string): ToolResult => ({ text, isError: true });
 
+// The arguments that are lists or objects. Only "do" has a declared type, so a model may send these as JSON text
+// ("members": "[{\"library\":\"scene-builder\"}]"), which then counted as nothing at all. Free text (message,
+// content, text…) is never parsed: a message that happens to be JSON stays a message.
+const STRUCTURED = new Set([
+  'members',
+  'agents',
+  'lead',
+  'access',
+  'skills',
+  'targets',
+  'give',
+  'tags',
+  'addTags',
+  'removeTags',
+  'tasks',
+  'metadata',
+  'addBlockedBy',
+  'addBlocks',
+  'removeBlockedBy',
+  'removeBlocks',
+  'servers',
+  'mcpServers',
+  'args',
+  'env',
+  'headers',
+  'steps',
+  'position',
+  'schedule',
+]);
+
+/** The arguments with lists and objects that came as JSON text read back as what they are. */
+export function readStructuredArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...args };
+  for (const [k, v] of Object.entries(args)) {
+    if (!STRUCTURED.has(k) || typeof v !== 'string') continue;
+    const s = v.trim();
+    if (s === 'null') out[k] = null;
+    else if (/^[[{]/.test(s))
+      try {
+        out[k] = JSON.parse(s);
+      } catch {
+        /* not JSON: left as it came */
+      }
+  }
+  return out;
+}
+
 export function brainTools(): ToolDef[] {
   return BRAIN_TOOL_NAMES.map((name): ToolDef => ({
     name,
@@ -182,7 +229,8 @@ export function brainTools(): ToolDef[] {
     },
     description: ABOUT[name],
     parameters: params(name),
-    run: async (args, ctx: ToolContext) => {
+    run: async (given, ctx: ToolContext) => {
+      const args = readStructuredArgs(given);
       const turn = brainTurn(ctx.runId);
       if (ctx.agent.id !== BRAIN_ID || !turn) return refuse("Only the Brain's own turns can use this.");
       const ops = OPS[name] as readonly string[];
