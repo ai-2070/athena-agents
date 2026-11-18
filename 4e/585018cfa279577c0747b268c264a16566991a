@@ -1,0 +1,37 @@
+web/views/mcp.tsx
+  s_caa8626501dac1::t_cc55350329ef84 578-579,581-582,596-597
+tests/server/rpc-mcp.test.ts
+  s_caa8626501dac1::t_791ae764a96ccc 7,10-11,83-104,106-114
+  s_caa8626501dac1::t_355bdaa662ebe8 8,105
+  s_caa8626501dac1::t_05184713974d82 115-116
+tests/web/mcp.test.tsx
+  s_caa8626501dac1::t_616ba521a0713c 299,302,314-323
+  s_caa8626501dac1::t_c2ac6c83b8651f 324-326
+docs/guide.md
+  s_caa8626501dac1::t_d81fe2c2b5e743 426
+shared/api/mcp.ts
+  s_caa8626501dac1::t_eb6b1e39d2da83 29-30,36
+server/mcp.ts
+  s_caa8626501dac1::t_eb6b1e39d2da83 1488,1490,1492-1494
+server/api/mcp.ts
+  s_caa8626501dac1::t_eb6b1e39d2da83 35-36,42
+  s_caa8626501dac1::t_e75c220a9a2783 37-41
+tests/server/mcp-copies.test.ts
+  s_caa8626501dac1::t_355bdaa662ebe8 113-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4e585018cfa279577c0747b268c264a16566991a",
+  "prompts": {},
+  "sessions": {
+    "s_caa8626501dac1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fd8e337-e1de-4239-8e9b-1d05a82b9310",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
