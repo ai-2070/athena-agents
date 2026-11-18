@@ -1,0 +1,25 @@
+server/scene/tools.ts
+  s_ec4d5c8ca74f3b::t_ab3dc8cc59f0d4 66
+  s_ec4d5c8ca74f3b::t_25411f2b0a00b6 11,62-64,70-75
+  s_ec4d5c8ca74f3b::t_af03d2aaa154a6 76-77
+tests/server/scene-tools.test.ts
+  s_ec4d5c8ca74f3b::t_71587aa586184e 23,74-85
+  s_ec4d5c8ca74f3b::t_fbe34c93b738cf 73
+  s_ec4d5c8ca74f3b::t_0014a642c6d1d8 86-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d8260759aea45165c73aec84adb7c80dd0079862",
+  "prompts": {},
+  "sessions": {
+    "s_ec4d5c8ca74f3b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2d3ff6cf-579a-45c1-a05a-3c7a1b9d6711",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
