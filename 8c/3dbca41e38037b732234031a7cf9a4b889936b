@@ -1,0 +1,30 @@
+tests/server/eve-version.test.ts
+  s_caa8626501dac1::t_9b3a7f32fa4d5f 18-20
+  s_caa8626501dac1::t_eb2ce2e5a124da 1-17,21-22
+server/eve/version.ts
+  s_caa8626501dac1::t_b463bc17beb328 1-3
+tests/server/eve-admission.test.ts
+  s_caa8626501dac1::t_eb2ce2e5a124da 25,222-264,267-271
+  s_caa8626501dac1::t_1911f6a652504f 265-266
+  s_caa8626501dac1::t_f3a06add67462c 272-273
+server/engines/eve.ts
+  s_caa8626501dac1::t_b463bc17beb328 26-30,46,61-66
+docs/guide.md
+  s_caa8626501dac1::t_0ddb80276ef660 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c3dbca41e38037b732234031a7cf9a4b889936b",
+  "prompts": {},
+  "sessions": {
+    "s_caa8626501dac1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fd8e337-e1de-4239-8e9b-1d05a82b9310",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
