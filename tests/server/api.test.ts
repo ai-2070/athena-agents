@@ -1822,26 +1822,33 @@ describe('agent runs and projects', () => {
       'content-type': 'application/json',
       'x-dash-internal': fs.readFileSync(path.join(tmp, 'data', '.internal-token'), 'utf8').trim(),
     };
-    const stop = new AbortController();
-    const call = req('/api/internal/tools/call', {
-      method: 'POST',
-      headers: internal,
-      signal: stop.signal,
-      body: JSON.stringify({
-        agent: agent.id,
-        project: a.id,
-        name: 'write_file',
-        args: { path: 'cancelled.txt', content: 'should not be written' },
-      }),
-    }).catch(() => null);
-    const waiting = async () => ((await (await req('/api/approvals')).json()) as { title: string }[]).length;
-    for (let i = 0; i < 100 && !(await waiting()); i++) await new Promise((r) => setTimeout(r, 50));
-    expect(await waiting()).toBe(1);
-    stop.abort();
-    await call;
-    for (let i = 0; i < 100 && (await waiting()); i++) await new Promise((r) => setTimeout(r, 50));
-    expect(await waiting()).toBe(0);
-    expect(fs.existsSync(path.join(a.brainPath, 'cancelled.txt'))).toBe(false);
+    // straight to Needs you: the Brain's check first would start the real `claude` where it is installed, and
+    // the request would show only after that answered (or never, if it allowed the write)
+    await req('/api/settings', { method: 'PUT', headers: json, body: JSON.stringify({ brainApproves: false }) });
+    try {
+      const stop = new AbortController();
+      const call = req('/api/internal/tools/call', {
+        method: 'POST',
+        headers: internal,
+        signal: stop.signal,
+        body: JSON.stringify({
+          agent: agent.id,
+          project: a.id,
+          name: 'write_file',
+          args: { path: 'cancelled.txt', content: 'should not be written' },
+        }),
+      }).catch(() => null);
+      const waiting = async () => ((await (await req('/api/approvals')).json()) as { title: string }[]).length;
+      for (let i = 0; i < 100 && !(await waiting()); i++) await new Promise((r) => setTimeout(r, 50));
+      expect(await waiting()).toBe(1);
+      stop.abort();
+      await call;
+      for (let i = 0; i < 100 && (await waiting()); i++) await new Promise((r) => setTimeout(r, 50));
+      expect(await waiting()).toBe(0);
+      expect(fs.existsSync(path.join(a.brainPath, 'cancelled.txt'))).toBe(false);
+    } finally {
+      await req('/api/settings', { method: 'PUT', headers: json, body: JSON.stringify({ brainApproves: true }) });
+    }
   });
 
   it("tool calls from an agent's terminal stay in the project it was opened in", async () => {
