@@ -42,7 +42,7 @@ tools. It starts at Full.
 - **Limits.** The 12-actions-per-answer cap is the engines' tool-step limit now; GitHub installs stay capped at 3
   per answer; the shared 48 000-character MCP budget is gone (each result comes back with its own call, still cut
   to 12 000).
-- **Files.** Claude Code gets only Read, Glob and Grep; Codex the read-only sandbox; Hermes never `--yolo`;
+- **Files.** Claude Code gets only Read, Glob and Grep (plus ToolSearch, which isn't a file tool: without it every MCP tool goes into each request whole); Codex the read-only sandbox; Hermes never `--yolo`;
   opencode only reads. API models get the dashboard's file tools that only read (they couldn't read files before).
 - **Engine chats go with their conversation** when it is deleted, pruned or cleared.
 

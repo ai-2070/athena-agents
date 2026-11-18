@@ -396,7 +396,12 @@ describe('every engine keeps the Brain to reading files', () => {
   const brain = (engine: string) => ({ ...brainAgent('x', '/tmp/brain'), engine }) as ReturnType<typeof brainAgent>;
   it('Claude Code: only Read, Glob and Grep of its own', () => {
     const args = claudeArgs(brain('claude-code'), { promptFile: 'p.md', mcpFile: 'm.json' });
-    expect(args.join(' ')).toContain('--tools Read,Glob,Grep');
+    expect(args[args.indexOf('--tools') + 1].split(',')).toEqual(['Read', 'Glob', 'Grep', 'ToolSearch']);
+  });
+  it('Claude Code: keeps tool search, so MCP tools load when used, not all in every request', () => {
+    const args = claudeArgs(brain('claude-code'), { promptFile: 'p.md', mcpFile: 'm.json' });
+    expect(args[args.indexOf('--tools') + 1].split(',')).toContain('ToolSearch');
+    expect(args).not.toContain('--disallowedTools ToolSearch');
   });
   it('Codex: the read-only sandbox, even on Full', () => {
     const args = codexArgs({ ...brain('codex'), autonomy: 'full' });

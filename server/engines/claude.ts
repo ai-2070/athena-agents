@@ -233,8 +233,10 @@ export function claudeArgs(
     ...(mode !== 'ask' ? (agent.mcpServers || []).map((s) => `mcp__${s}`) : []),
     ...(scene ? ['Read', 'Edit', 'Write'].map((t) => `${t}(${claudePathRule(scene)})`) : []),
   );
-  // the Brain only reads files: changes go through its own tools, and work goes to agents
-  if (agent.id === BRAIN_ID) args.push('--tools', 'Read,Glob,Grep');
+  // the Brain only reads files: changes go through its own tools, and work goes to agents. ToolSearch stays: without
+  // it Claude Code puts every MCP tool in each request whole (claude.ai connectors alone can be 150k+ tokens), and
+  // a new chat runs out of room ("Prompt is too long") a few messages in.
+  if (agent.id === BRAIN_ID) args.push('--tools', 'Read,Glob,Grep,ToolSearch');
   const dirs = knowledgeRoots(agent);
   if (scene && !isInside(workspaceOf(agent), scene, { orEqual: true })) dirs.push(scene);
   if (dirs.length) args.push('--add-dir', ...dirs);
