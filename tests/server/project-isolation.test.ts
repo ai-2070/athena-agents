@@ -401,11 +401,11 @@ describe('conversation tools during a project switch', () => {
 });
 
 describe('the Outbox', () => {
-  it('keeps a legacy gateway draft unsent in its own project after switching projects', async () => {
+  it('keeps a chat app draft without a chat unsent in its own project after switching projects', async () => {
     const a = await createProject({ name: 'Post A', mode: 'new', folder: folder('post-a') });
     setSecret('discordWebhook', `${base}/hook`);
     outbox.save({ id: 'pd1', platform: 'discord', parts: ['hello'], status: 'pending' } as OutboxPost);
-    const going = expect(approvePost('pd1')).rejects.toThrow('Review this saved gateway recipient');
+    const going = expect(approvePost('pd1')).rejects.toThrow('Choose the chat it goes to first.');
     const b = await createProject({ name: 'Post B', mode: 'new', folder: folder('post-b') });
     await going;
     expect(hooks).toBe(0);

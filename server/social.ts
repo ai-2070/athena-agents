@@ -17,24 +17,12 @@ import {
   activeProject,
   withProject,
 } from './store.ts';
-import { listGatewayInstances } from './gateways/instances.ts';
-import {
-  approveGatewayPost,
-  assertGatewayDraftMutable,
-  checkGatewayDraft,
-  gatewayDraftRevision,
-  gatewayPost,
-  gatewayTextParts,
-  prepareGatewayPost,
-  projectGatewayPost,
-} from './gateways/outbox-posts.ts';
-import type { GatewayOutboxReadCache } from './gateways/outbox-posts.ts';
-export { prepareGatewayPost } from './gateways/outbox-posts.ts';
+import { getChat, getInstance, instances as gatewayInstances } from './gateways/store.ts';
 import * as reddit from './reddit.ts';
 import { xLength, X_MAX_LENGTH } from '../shared/xtext.ts';
 import type { FetchError } from './util.ts';
 import type { Collection } from './store.ts';
-import type { Accounts, GatewayOutboxApproval, OutboxPost, XAccount, XPost } from '../shared/types.ts';
+import type { Accounts, GatewayPlatform, OutboxPost, XAccount, XPost } from '../shared/types.ts';
 import type { StoredRedditAccount } from './reddit.ts';
 
 /** A connected X account as accounts.json stores it (tokens never leave the server). */
@@ -122,8 +110,8 @@ export interface ApproveEdits {
   /** The images still wanted (a subset of what the draft has: images can be taken off, not added). */
   images?: string[];
   title?: string | null;
-  gatewayApproval?: GatewayOutboxApproval;
-  draftRevision?: string;
+  /** Telegram, Slack or Discord: the chat it goes to, when you choose it as you approve. */
+  gateway?: OutboxPost['gateway'];
 }
 
 // ---------- X API answers (only the fields used here) ----------
@@ -164,9 +152,9 @@ const saveAccounts = (a: AccountsFile) => writeJSON(ACCOUNTS_FILE, a);
 export function listAccounts(): Accounts {
   const a = loadAccounts();
   const s = getSettings();
-  const gateways = listGatewayInstances().filter(
-    (instance) => instance.projectId === activeProject().id && Boolean(getGatewaySecrets(instance.id).botToken),
-  );
+  const here = gatewayInstances
+    .list()
+    .filter((instance) => instance.projectId === activeProject().id && !!getGatewaySecrets(instance.id).botToken);
   return {
     x: Object.values(a.x || {}).map(({ id, username, name, autopost, connectedAt, avatar }) => ({
       id,
@@ -177,8 +165,8 @@ export function listAccounts(): Accounts {
       avatar,
     })),
     xAppConfigured: !!s.x.clientId,
-    telegram: { configured: gateways.some((instance) => instance.platform === 'telegram') },
-    discord: { configured: gateways.some((instance) => instance.platform === 'discord') },
+    telegram: { configured: here.some((instance) => instance.platform === 'telegram') },
+    discord: { configured: here.some((instance) => instance.platform === 'discord') },
     reddit: reddit.redditAccounts(),
     redditAppConfigured: reddit.redditAppConfigured(),
   };
@@ -585,22 +573,21 @@ export async function draftPost({
   const parts = (thread && thread.length ? thread : [text]).map((t) => String(t || '').trim()).filter(Boolean);
   if (!parts.length) throw new Error('The post is empty.');
   const imagePaths = checkImages(platform, images, imageRoots);
-  if (gatewayPost({ platform })) {
+  if (isGatewayPlatform(platform)) {
     const item: OutboxItem = {
       id: uid('p'),
       platform,
-      parts: gatewayTextParts(platform, parts),
+      parts,
       agentId,
       agentName,
       ...teamFields,
       note,
       status: 'pending',
+      accountLabel: GATEWAY_LABEL[platform],
+      ...(gateway ? gatewayFields(platform, gateway) : {}),
     };
-    if (!gateway) return projectGatewayPost(outbox.save(item));
-    const checked = checkGatewayDraft(item, gateway, item.parts);
-    return projectGatewayPost(
-      outbox.save({ ...item, gateway: checked.selected, accountLabel: checked.preview.recipient.instanceName }),
-    );
+    log('social', `${agentName || 'You'} drafted a ${GATEWAY_LABEL[platform]} message`, { agentId });
+    return outbox.save(item);
   }
   const alts = imagePaths.length && imageAlt?.length ? pairImageAlt(images, imageAlt, imagePaths) : {};
   let accountId: string | null = null;
@@ -689,7 +676,7 @@ function settleInterrupted(item: OutboxItem): OutboxItem {
 
 /** Parts edited after some of a thread went out: those stay as they were posted, the edit changes only the rest. */
 function editedParts(item: OutboxItem, parts: unknown[]): string[] {
-  const posted = item.postIds?.length || 0;
+  const posted = item.postIds?.length || item.sentParts || 0;
   return [
     ...item.parts.slice(0, posted),
     ...parts
@@ -716,14 +703,13 @@ export function approvePost(id: string, edits: ApproveEdits | null = null): Prom
 async function approveIn(key: string, id: string, edits: ApproveEdits | null): Promise<OutboxItem> {
   const found = outbox.get(id);
   if (!found) throw new Error('No such post.');
-  if (gatewayPost(found)) return approveGatewayPost(found, edits);
   if (publishing.has(key)) throw new Error('This post is already being published.');
   const item = settleInterrupted(found);
   if (item.status === 'posted') return item;
   // (one you rejected or sent back stays that way, whatever an older tab still shows)
   if (item.status !== 'pending' && item.status !== 'failed')
     throw new Error(`This post was ${item.status === 'returned' ? 'sent back' : item.status}, so it isn't posted.`);
-  const posted = item.postIds?.length || 0;
+  const posted = item.postIds?.length || item.sentParts || 0;
   // Parts already on X can't be edited any more.
   const parts = edits?.parts ? editedParts(item, edits.parts) : item.parts;
   if ((item.platform === 'x' || item.platform === 'x_dm') && !parts.some((p) => p.trim()))
@@ -733,6 +719,10 @@ async function approveIn(key: string, id: string, edits: ApproveEdits | null): P
   item.parts = parts;
   try {
     if (edits?.parts) syncRedditLink(item);
+    if (isGatewayPlatform(item.platform)) {
+      if (edits?.gateway && !item.sentParts) Object.assign(item, gatewayFields(item.platform, edits.gateway));
+      if (!item.gateway) throw refusal('Choose the chat it goes to first.');
+    }
   } catch (e) {
     publishing.delete(key);
     throw e;
@@ -772,11 +762,20 @@ async function approveIn(key: string, id: string, edits: ApproveEdits | null): P
       if (edits?.title != null && item.reddit) item.reddit.title = String(edits.title).trim();
       const r = await reddit.publish(item);
       Object.assign(item, { status: 'posted', url: r.url, postIds: [r.id], postedAt: Date.now(), error: null });
+    } else if (isGatewayPlatform(item.platform) && item.gateway) {
+      // (loaded when needed: the gateways reach the Brain and the agents' tools, which load this file)
+      const { gateways } = await import('./gateways/supervisor.ts');
+      await gateways.sendToChat(item.gateway.instanceId, item.gateway.chatKey, item.parts, item.sentParts || 0, (n) => {
+        item.sentParts = n;
+        outbox.save(item);
+      });
+      Object.assign(item, { status: 'posted', postedAt: Date.now(), error: null });
     } else throw new Error(`Posting to ${item.platform} isn't supported yet.`);
     log('social', `Posted to ${item.accountLabel}${item.url ? `: ${item.url}` : ''}`, { agentId: item.agentId });
   } catch (e) {
-    const part = item.postIds?.length
-      ? ` (${item.postIds.length} of ${item.parts.length} parts are already posted; approving again continues from there)`
+    const done = item.postIds?.length || item.sentParts || 0;
+    const part = done
+      ? ` (${done} of ${item.parts.length} parts are already posted; approving again continues from there)`
       : '';
     Object.assign(item, { status: 'failed', error: (e as Error).message + part });
     log('error', `Post to ${item.accountLabel} failed: ${(e as Error).message}`);
@@ -805,7 +804,6 @@ async function returnIn(
 ): Promise<OutboxItem> {
   const found = outbox.get(id);
   if (!found) throw new Error('No such post.');
-  assertGatewayDraftMutable(found);
   assertNotBusy(found);
   const item = settleInterrupted(found);
   if (item.status !== 'pending' && item.status !== 'failed')
@@ -853,7 +851,6 @@ async function sendBack(
 export function rejectPost(id: string, reason = '') {
   const found = outbox.get(id);
   if (!found) throw new Error('No such post.');
-  assertGatewayDraftMutable(found);
   assertNotBusy(found);
   const item = settleInterrupted(found);
   if (item.status === 'posted') throw new Error('This post is already posted.');
@@ -862,10 +859,9 @@ export function rejectPost(id: string, reason = '') {
 }
 
 export function listPosts(): OutboxItem[] {
-  const cache: GatewayOutboxReadCache = new Map();
   return outbox
     .list()
-    .map((item) => projectGatewayPost(gatewayPost(item) ? item : settleInterrupted(item), cache))
+    .map(settleInterrupted)
     .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 }
 
@@ -876,20 +872,10 @@ export function editPost(
     images?: string[];
     title?: string;
     gateway?: OutboxPost['gateway'];
-    draftRevision?: string;
   },
 ): OutboxItem {
   const item = outbox.get(id);
   if (!item) throw new Error('No such post.');
-  assertGatewayDraftMutable(item);
-  if (gatewayPost(item)) {
-    prepareGatewayPost(id, {
-      gateway: body.gateway ?? item.gateway,
-      parts: body.parts ?? item.parts,
-      draftRevision: body.draftRevision,
-    });
-    return projectGatewayPost(outbox.get(id)!);
-  }
   assertNotBusy(item);
   if (item.status === 'posted') throw new Error('This post is already posted.');
   // (what is already posted of a thread stays as it was posted)
@@ -899,52 +885,34 @@ export function editPost(
   }
   if (body.images && item.images) item.images = item.images.filter((p) => body.images!.includes(p));
   if (body.title != null && item.reddit) item.reddit.title = String(body.title).trim();
+  if (body.gateway && isGatewayPlatform(item.platform)) {
+    if (item.sentParts) throw refusal('Part of it went out already: it stays in that chat.');
+    Object.assign(item, gatewayFields(item.platform, body.gateway));
+  }
   return outbox.save(item);
 }
 
 export function removePost(id: string): void {
   const item = outbox.get(id);
-  if (item) {
-    assertGatewayDraftMutable(item);
-    assertNotBusy(item);
-  }
+  if (item) assertNotBusy(item);
   outbox.remove(id);
 }
 
-// These high-risk helpers are called only after the tool's normal approval, with a named recipient.
-function sendGateway(
-  platform: 'telegram' | 'discord',
-  text: string,
-  gateway?: OutboxPost['gateway'],
-  author: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'> = {},
-  signal?: AbortSignal,
-): Promise<string> {
-  return withProject(activeProject(), async () => {
-    if (!gateway)
-      throw new Error(
-        'Choose an explicit gateway instance and known conversation. Set up fresh credentials in Settings › Gateways; old global tokens and webhooks are no longer used.',
-      );
-    signal?.throwIfAborted();
-    const item = await draftPost({ platform, text, gateway, ...author });
-    signal?.throwIfAborted();
-    const preview = prepareGatewayPost(item.id, {
-      gateway,
-      parts: item.parts,
-      draftRevision: gatewayDraftRevision(outbox.get(item.id)!),
-    });
-    await approvePost(item.id, { gatewayApproval: preview.approval, draftRevision: preview.draftRevision });
-    return `Approved and queued on ${platform === 'telegram' ? 'Telegram' : 'Discord'} (Outbox id ${item.id}). Check the Outbox for each part’s delivery result.`;
-  });
+// ---------- Telegram, Slack and Discord: through a gateway (server/gateways/) ----------
+const GATEWAY_LABEL: Record<GatewayPlatform, string> = { telegram: 'Telegram', slack: 'Slack', discord: 'Discord' };
+export const isGatewayPlatform = (platform: string): platform is GatewayPlatform =>
+  Object.hasOwn(GATEWAY_LABEL, platform);
+
+const refusal = (message: string) => Object.assign(new Error(message), { status: 400 });
+
+/** The chat a message goes to: one a gateway of this project has talked in. */
+function gatewayFields(platform: GatewayPlatform, gateway: { instanceId: string; chatKey: string }) {
+  const instance = getInstance(gateway.instanceId);
+  if (instance.platform !== platform || instance.projectId !== activeProject().id)
+    throw refusal(`Choose a ${GATEWAY_LABEL[platform]} chat of this project.`);
+  const chat = getChat(instance.id, gateway.chatKey);
+  return {
+    gateway: { instanceId: instance.id, chatKey: chat.key },
+    accountLabel: `${instance.name} → ${chat.title}`,
+  };
 }
-export const sendTelegram = (
-  text: string,
-  gateway?: OutboxPost['gateway'],
-  author?: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'>,
-  signal?: AbortSignal,
-) => sendGateway('telegram', text, gateway, author, signal);
-export const sendDiscord = (
-  text: string,
-  gateway?: OutboxPost['gateway'],
-  author?: Pick<DraftInput, 'agentId' | 'agentName' | 'chatId'>,
-  signal?: AbortSignal,
-) => sendGateway('discord', text, gateway, author, signal);

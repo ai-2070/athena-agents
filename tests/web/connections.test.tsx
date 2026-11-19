@@ -24,6 +24,7 @@ const post = (over: Partial<OutboxPost> = {}): OutboxPost =>
     ...over,
   }) as OutboxPost;
 let posts: OutboxPost[];
+let chats: { instanceId: string; instanceName: string; platform: string; chatKey: string; title: string }[];
 let requests: { method: string; url: string; body: unknown }[];
 let el: HTMLElement;
 
@@ -32,6 +33,7 @@ beforeEach(() => {
   el = document.getElementById('view')!;
   posts = [post(), post({ id: 'p2', status: 'posted', parts: ['Old one'], images: undefined, url: 'https://x.com/1' })];
   requests = [];
+  chats = [];
   state.data = {
     outboxPending: 1,
     accounts: { x: [{ id: 'x1', username: 'ada', name: 'Ada', autopost: false, connectedAt: Date.now() }], reddit: [] },
@@ -42,6 +44,7 @@ beforeEach(() => {
     requests.push({ method, url, body });
     const json = (v: unknown) => new Response(JSON.stringify(v));
     if (url === '/api/outbox' && method === 'GET') return json(posts);
+    if (url === '/api/outbox/gateway-chats') return json(chats);
     if (url.endsWith('/approve')) {
       posts = posts.map((p, i) => (i === 0 ? { ...p, status: 'posted' } : p));
       return json(posts[0]);
@@ -119,6 +122,24 @@ describe('the Outbox', () => {
     expect(count.classList.contains('text-red')).toBe(true);
     await type(text, '日本'.repeat(70) + '!');
     expect(count.textContent).toBe('281/280');
+  });
+
+  it('sends a chat app message only once its chat is chosen', async () => {
+    posts = [post({ platform: 'telegram', accountLabel: 'Telegram', images: undefined })];
+    await openOutbox();
+    expect(el.textContent).toContain('No Telegram chats yet');
+    expect(btn(el, 'Approve & send').disabled).toBe(true);
+    act(() => outbox.unmount());
+    chats = [{ instanceId: 'g1', instanceName: 'Phone', platform: 'telegram', chatKey: '42', title: 'Ann' }];
+    posts = [post({ platform: 'telegram', images: undefined, gateway: { instanceId: 'g1', chatKey: '42' } })];
+    await openOutbox();
+    expect(el.querySelector('[aria-label="Send to"]')!.textContent).toContain('Ann · Phone');
+    await act(async () => btn(el, 'Approve & send').click());
+    await settle();
+    expect(requests.find((r) => r.url === '/api/outbox/p1/approve')!.body).toEqual({
+      parts: ['Hello world'],
+      gateway: { instanceId: 'g1', chatKey: '42' },
+    });
   });
 
   it("shows X's character count only on X posts", async () => {
@@ -312,10 +333,9 @@ describe('Connections', () => {
       x: { clientId: 'new-id' },
     });
   });
-  it('links Telegram and Discord to fresh gateway setup instead of accepting old tokens or webhooks', async () => {
+  it('links Telegram and Discord to their gateways instead of asking for tokens or webhooks', async () => {
     await openConnections('#/settings?tab=connections&sub=accounts');
-    expect(el.textContent).toContain('old global token and chat ID are no longer used');
-    expect(el.textContent).toContain('Old channel webhooks are no longer used');
+    expect(el.textContent).toContain('Set it up in Gateways');
     expect(
       [...el.querySelectorAll('a')]
         .filter((link) => link.textContent === 'Open Gateways')

@@ -1,4 +1,5 @@
-// Settings: everything you set up once, in tabs. General · Connections · MCP servers · Programs · Appearance · About.
+// Settings: everything you set up once, in tabs. General · Connections · Gateways · MCP servers · Programs · Appearance
+// · About.
 // A search box finds any setting: it switches to its tab, scrolls to it and flashes it.
 // Links can do the same with #/settings?tab=general&find=OpenAI Codex
 // React and Base UI: the tabs, the search (an autocomplete) and every tab's page.
@@ -20,7 +21,7 @@ interface Tab {
   id: TabId;
   label: string;
   Page: ComponentType;
-  /** Out of the tab row and the search for now; its link still opens it. */
+  /** Out of the tab row and the search; its link still opens it. */
   hidden?: boolean;
 }
 /** One searchable setting. */
@@ -35,8 +36,7 @@ interface IndexEntry {
 const TABS: Tab[] = [
   { id: 'general', label: 'General & keys', Page: GeneralTab },
   { id: 'connections', label: 'Connections', Page: ConnectionsTab },
-  // (hidden for now; #/settings?tab=gateways still opens it)
-  { id: 'gateways', label: 'Gateways', Page: GatewaysTab, hidden: true },
+  { id: 'gateways', label: 'Gateways', Page: GatewaysTab },
   { id: 'mcp', label: 'MCP servers', Page: McpTab },
   { id: 'programs', label: 'Programs', Page: ProgramsTab },
   { id: 'look', label: 'Appearance', Page: LookTab },
@@ -48,9 +48,9 @@ const INDEX: IndexEntry[] = [
   {
     tab: 'gateways',
     find: 'Chat gateways',
-    label: 'Telegram, Slack, Discord and WhatsApp chat gateways',
+    label: 'Telegram, Slack and Discord chat gateways',
     words:
-      'telegram bot two way slack discord whatsapp instances sender guard phone numbers brain agent team token inbox delivery uncertain retry files recovery servers relay pairing code meta access app secret setup',
+      'telegram bot two way slack discord chat app message brain agent team token user ids channels allow files retry socket mode botfather',
   },
   { tab: 'general', find: 'API keys', label: 'AI keys', words: 'openrouter venice key api anthropic token' },
   { tab: 'general', find: 'Venice key', label: 'Venice key', words: 'venice api key balance diem models' },
@@ -147,18 +147,6 @@ const INDEX: IndexEntry[] = [
     find: 'Your Reddit app',
     label: 'Reddit app setup',
     words: 'reddit client id secret username redirect oauth',
-  },
-  {
-    tab: 'gateways',
-    find: 'Chat gateways',
-    label: 'Telegram messages and approved sends',
-    words: 'telegram bot token chat id notifications outbox recipient approval instances',
-  },
-  {
-    tab: 'gateways',
-    find: 'Chat gateways',
-    label: 'Discord messages and approved sends',
-    words: 'discord bot channel old webhook outbox recipient approval instances',
   },
   {
     tab: 'connections',

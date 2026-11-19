@@ -703,7 +703,14 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
     return A('X', `drafting a DM to @${String(args.to || '').replace(/^@/, '')}`, args.text || '', 'x', INK);
   if (n === 'x_recent_posts' || n === 'x_mentions')
     return A('X', 'reading', n === 'x_mentions' ? 'mentions' : 'recent posts', 'x', INK);
-  if (n === 'telegram_send') return A('Telegram', 'sending a message', args.text || '', 'telegram', '#4fb3f6');
+  if (n === 'gateway_draft') {
+    const platform = String(args.platform || '');
+    const app = ({ telegram: 'Telegram', slack: 'Slack', discord: 'Discord' } as Record<string, string>)[platform];
+    const color = ({ telegram: '#4fb3f6', slack: '#e01e5a', discord: '#7d86ff' } as Record<string, string>)[platform];
+    if (app) return A(app, 'drafting a message', args.text || '', platform, color);
+  }
+  if (n === 'send_gateway_files')
+    return A('Chat', 'sending files', (Array.isArray(args.paths) ? args.paths : []).map(base).join(', '), null, '');
   if (n === 'reddit_draft_post')
     return A(
       'Reddit',
@@ -729,7 +736,6 @@ function describeTool(name: unknown, args: ToolArgs = {}): ToolDesc {
       'reddit',
       '#ff4500',
     );
-  if (n === 'discord_send') return A('Discord', 'posting', args.text || '', 'discord', '#7d86ff');
   if (n === 'Bash' || n === 'run_command') return A('Terminal', 'running', args.command || '', null, '');
   if (n === 'view_image') return A('Files', 'looking at', base(args.path), null, '#a9d3e2');
   if (['Read', 'read_file', 'knowledge_read'].includes(n))

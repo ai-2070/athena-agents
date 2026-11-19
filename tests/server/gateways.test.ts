@@ -1,279 +1,331 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+// Chat gateways end to end with a fake Telegram (fetch stubbed): who is let in, a message saved and answered as a reply,
+// files in and out, a failure noted once, a retry that sends only what didn't arrive, and a restart in the middle.
+// The Brain/team/agent run is a stand-in (run.ts has its own tests through the real services elsewhere).
 import fs from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { activeProject, setGatewaySecrets } from '../../server/store.ts';
 import {
-  activeProject,
-  agents,
-  bus,
-  getGatewaySecrets,
-  listProjects,
-  saveProjects,
-  setActiveProject,
-  withProject,
-  workflows,
-} from '../../server/store.ts';
-import { dataPath } from '../../server/util.ts';
-import {
-  captureGatewayRoute,
-  gatewayCredentialStatus,
-  getGatewayInstance,
-  listGatewayInstances,
-  removeGatewayInstance,
-  saveGatewayCredentials,
-  saveGatewayInstance,
-  withGatewayRoute,
-  gatewayTargets,
-  updateGatewayCredentials,
-} from '../../server/gateways/instances.ts';
-import type { GatewayPlatform, GatewayTarget } from '../../shared/types.ts';
+  addMessage,
+  conversationOf,
+  instances,
+  listChats,
+  listMessages,
+  saveInstance,
+  setEnabled,
+} from '../../server/gateways/store.ts';
+import { admits, gateways, splitText } from '../../server/gateways/supervisor.ts';
+import type { Incoming } from '../../server/gateways/transport.ts';
+import type { GatewayInstance } from '../../shared/types.ts';
+import type { GatewayRunInput } from '../../server/gateways/run.ts';
 
-const first = listProjects()[0];
-const second = { ...first, id: 'other-project', name: 'Other project' };
+const runs = vi.hoisted(() => ({
+  inputs: [] as GatewayRunInput[],
+  answer: async (_input: GatewayRunInput): Promise<string> => 'Hi back',
+}));
+vi.mock('../../server/gateways/run.ts', () => ({
+  runGatewayMessage: (input: GatewayRunInput) => {
+    runs.inputs.push(input);
+    return runs.answer(input);
+  },
+}));
 
-function config(
-  accountId = 'bot-1',
-  platform: GatewayPlatform = 'telegram',
-  target: GatewayTarget = { kind: 'brain' },
-) {
-  return {
-    name: 'My gateway',
-    platform,
-    accountId:
-      platform === 'slack'
-        ? `T${accountId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}`
-        : platform === 'discord'
-          ? String(
-              100000000000000000n +
-                BigInt([...accountId].reduce((sum, point) => sum * 31 + point.charCodeAt(0), 0) >>> 0),
-            )
-          : accountId,
-    projectId: first.id,
-    target,
-    senderPolicy:
-      platform === 'whatsapp'
-        ? { platform, allowedPhones: ['+436641234567'] }
-        : { platform, allowedUserIds: platform === 'slack' ? ['UALICE'] : ['12345'] },
-    scope: { directMessages: true, conversationIds: [], guildIds: [] },
-    fileLimits: { perFileBytes: 1024, perMessageBytes: 2048, filesPerMessage: 2, dailyBytes: 4096 },
-    enabled: true,
-  };
+// ---------- a fake Telegram ----------
+interface Call {
+  method: string;
+  body: Record<string, unknown>;
+  form?: FormData;
+}
+let calls: Call[] = [];
+let updates: unknown[] = [];
+let failSend = 0;
+function telegram() {
+  return vi.fn(async (input: string | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes('/file/bot')) return new Response('file body', { headers: { 'content-length': '9' } });
+    const method = url.split('/').pop()!;
+    const form = init?.body instanceof FormData ? init.body : undefined;
+    const body = form ? {} : (JSON.parse(String(init?.body || '{}')) as Record<string, unknown>);
+    calls.push({ method, body, ...(form ? { form } : {}) });
+    const ok = (result: unknown) => Response.json({ ok: true, result });
+    if (method === 'getMe') return ok({ id: 999, username: 'athena_bot' });
+    if (method === 'getUpdates') {
+      if (updates.length) return ok(updates.splice(0));
+      // (a long poll: nothing new until it is stopped)
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        const timer = setTimeout(() => _resolve(ok([])), 200);
+        signal?.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(new Error('aborted'));
+        });
+      });
+    }
+    if (method === 'getFile') return ok({ file_path: 'documents/notes.txt' });
+    if (method === 'sendMessage' && failSend > 0) {
+      failSend--;
+      return Response.json({ ok: false, description: 'Too Many Requests' }, { status: 429 });
+    }
+    return ok({});
+  });
 }
 
-beforeEach(() => {
-  for (const instance of listGatewayInstances()) removeGatewayInstance(instance.id);
-  saveProjects([first, second]);
-  setActiveProject(first.id);
+const message = (id: number, from: number, text: string, extra: Record<string, unknown> = {}) => ({
+  update_id: id,
+  message: {
+    message_id: id * 10,
+    from: { id: from, is_bot: false, first_name: 'Ann' },
+    chat: { id: from, type: 'private' },
+    text,
+    ...extra,
+  },
 });
 
-describe('gateway instances', () => {
-  it('updates each Slack token without exposing or removing the other saved secret', () => {
-    const instance = saveGatewayInstance(config('tokens', 'slack'));
-    saveGatewayCredentials(instance.id, { botToken: 'private-bot', appToken: 'private-app' });
-    updateGatewayCredentials(instance.id, { botToken: 'replacement-bot' });
-    expect(getGatewaySecrets(instance.id)).toEqual({ botToken: 'replacement-bot', appToken: 'private-app' });
-    expect(gatewayCredentialStatus(instance.id)).toEqual({ botToken: true, appToken: true });
-    updateGatewayCredentials(instance.id, { appToken: null });
-    expect(getGatewaySecrets(instance.id)).toEqual({ botToken: 'replacement-bot' });
-    expect(() => updateGatewayCredentials(instance.id, { unknown: 'value' })).toThrow('credentials');
-  });
+async function until(check: () => boolean, ms = 5000) {
+  const end = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > end) throw new Error('timed out');
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
 
-  it('checks Slack workspace, user and conversation IDs before enabling a saved draft', () => {
-    const good = config('scope', 'slack');
-    for (const change of [
-      { accountId: 'a workspace' },
-      { senderPolicy: { platform: 'slack', allowedUserIds: ['@alice'] } },
-      { scope: { directMessages: false, conversationIds: ['general'], guildIds: [] } },
-      { scope: { directMessages: false, conversationIds: ['CLOCAL/not-a-timestamp'], guildIds: [] } },
-    ]) {
-      expect(() => saveGatewayInstance({ ...good, ...change })).toThrow('Slack workspace');
-    }
-    expect(
-      saveGatewayInstance({
-        ...good,
-        senderPolicy: { platform: 'slack', allowedUserIds: [] },
-        scope: { directMessages: false, conversationIds: ['CLOCAL/1700000000.000001'], guildIds: [] },
-      }).enabled,
-    ).toBe(true);
-  });
-  it('checks Discord snowflakes and scopes before enabling, with an optional sender list', () => {
-    const good = config('ids', 'discord');
-    for (const change of [
-      { accountId: 'bot-name' },
-      { accountId: '18446744073709551616' },
-      { senderPolicy: { platform: 'discord', allowedUserIds: ['18446744073709551616'] } },
-      { scope: { directMessages: true, guildIds: ['18446744073709551616'], conversationIds: ['123'] } },
-      { scope: { directMessages: true, guildIds: ['123'], conversationIds: ['channel-name'] } },
-    ]) {
-      expect(() => saveGatewayInstance({ ...good, ...change })).toThrow('Discord');
-    }
-    expect(saveGatewayInstance({ ...good, senderPolicy: { platform: 'discord', allowedUserIds: [] } }).enabled).toBe(
-      true,
-    );
-  });
+let instance: GatewayInstance;
+const sent = (method = 'sendMessage') => calls.filter((c) => c.method === method);
 
-  it('lists only target names and IDs in the chosen project without moving the open project', () => {
-    agents.save({ id: 'visible-first', name: 'First', workspace: 'private path' });
-    withProject(second, () => {
-      agents.save({ id: 'visible-second', name: 'Second', workspace: 'other private path' });
-      workflows.save({ id: 'team-second', name: 'Other team' });
-    });
-    const targets = gatewayTargets(second.id);
-    expect(targets.agents).toContainEqual({ id: 'visible-second', name: 'Second' });
-    expect(targets.agents.some((item) => item.id === 'visible-first')).toBe(false);
-    expect(targets.teams).toContainEqual({ id: 'team-second', name: 'Other team' });
-    expect(JSON.stringify(targets)).not.toContain('private path');
-    expect(activeProject().id).toBe(first.id);
-    expect(() => gatewayTargets('missing')).toThrow('existing project');
+beforeEach(() => {
+  calls = [];
+  updates = [];
+  failSend = 0;
+  runs.inputs = [];
+  runs.answer = async () => 'Hi back';
+  vi.stubGlobal('fetch', telegram());
+  instance = saveInstance({
+    platform: 'telegram',
+    name: 'Phone',
+    projectId: activeProject().id,
+    target: { kind: 'brain' },
+    users: ['42'],
+    channels: [],
   });
+  setGatewaySecrets(instance.id, { botToken: 'TOKEN' });
+});
+afterEach(async () => {
+  await gateways.stop();
+  for (const i of instances.list()) instances.remove(i.id);
+  vi.unstubAllGlobals();
+});
 
-  it.each<GatewayPlatform>(['telegram', 'slack', 'discord', 'whatsapp'])(
-    'keeps multiple %s instances and targets independent',
-    (platform) => {
-      const agent = agents.save({ id: 'gateway-agent', name: 'Gateway agent' });
-      const team = workflows.save({ id: 'gateway-team', name: 'Gateway team' });
-      const brainInstance = saveGatewayInstance(config('one', platform));
-      const agentInstance = saveGatewayInstance(config('two', platform, { kind: 'agent', id: agent.id }));
-      const teamInstance = saveGatewayInstance(config('three', platform, { kind: 'team', id: team.id }));
-      expect(new Set(listGatewayInstances().map((i) => i.id)).size).toBe(3);
-      expect(captureGatewayRoute(agentInstance.id).target).toEqual({ kind: 'agent', id: agent.id });
-      expect(captureGatewayRoute(teamInstance.id).target).toEqual({ kind: 'team', id: team.id });
-      saveGatewayInstance({ ...config('one', platform), enabled: false }, brainInstance.id);
-      expect(() => captureGatewayRoute(brainInstance.id)).toThrow('paused');
-      expect(captureGatewayRoute(agentInstance.id).instanceId).toBe(agentInstance.id);
-      removeGatewayInstance(brainInstance.id);
-      expect(listGatewayInstances()).toHaveLength(2);
-    },
-  );
-
-  it('rejects duplicate account ownership even when an instance is paused', () => {
-    const instance = saveGatewayInstance({ ...config(), enabled: false });
-    expect(() => saveGatewayInstance(config())).toThrow('already has');
-    expect(() => saveGatewayInstance(config('another-account'), instance.id)).toThrow('different account');
-    expect(saveGatewayInstance(config('bot-1', 'slack')).id).not.toBe(instance.id);
-  });
-
-  it('validates targets in the selected project instead of the open project', () => {
-    agents.save({ id: 'only-here' });
-    expect(() =>
-      saveGatewayInstance({ ...config('x', 'telegram', { kind: 'agent', id: 'only-here' }), projectId: second.id }),
-    ).toThrow('agent in this project');
-    withProject(second, () => agents.save({ id: 'only-there' }));
-    const instance = saveGatewayInstance({
-      ...config('x', 'telegram', { kind: 'agent', id: 'only-there' }),
-      projectId: second.id,
-    });
-    expect(withGatewayRoute(captureGatewayRoute(instance.id), () => activeProject().id)).toBe(second.id);
-    expect(activeProject().id).toBe(first.id);
-    expect(() => saveGatewayInstance({ ...config(), projectId: 'missing' })).toThrow('existing project');
-  });
-
-  it('pins routes across global switches and blocks stale queued routes after edits', () => {
-    const instance = saveGatewayInstance(config());
-    const route = captureGatewayRoute(instance.id);
-    setActiveProject(second.id);
-    expect(withGatewayRoute(route, () => activeProject().id)).toBe(first.id);
-    const renamed = saveGatewayInstance({ ...config(), name: 'Renamed' }, instance.id);
-    expect(renamed.routeGeneration).toBe(1);
-    const rebound = saveGatewayInstance({ ...config(), projectId: second.id }, instance.id);
-    expect(rebound.routeGeneration).toBe(2);
-    expect(route.projectId).toBe(first.id);
-    expect(() => withGatewayRoute(route, () => 'must not run')).toThrow('destination changed');
-  });
-
-  it('pauses instead of falling back when a project or target is removed', () => {
-    const agent = agents.save({ id: 'removed-agent' });
-    const instance = saveGatewayInstance(config('one', 'telegram', { kind: 'agent', id: agent.id }));
-    agents.remove(agent.id);
-    expect(() => captureGatewayRoute(instance.id)).toThrow('agent in this project');
-    expect(getGatewayInstance(instance.id).enabled).toBe(false);
-    const other = saveGatewayInstance({ ...config('two'), projectId: second.id });
-    saveProjects([first]);
-    expect(() => captureGatewayRoute(other.id)).toThrow('existing project');
-    expect(getGatewayInstance(other.id).enabled).toBe(false);
-  });
-
-  it('requires exact platform guards and explicit scope before enabling', () => {
-    expect(() =>
-      saveGatewayInstance({ ...config(), senderPolicy: { platform: 'telegram', allowedUserIds: [] } }),
-    ).toThrow('allowed sender');
-    expect(() =>
-      saveGatewayInstance({ ...config('wa', 'whatsapp'), senderPolicy: { platform: 'whatsapp', allowedPhones: [] } }),
-    ).toThrow('allowed sender');
-    expect(() => saveGatewayInstance({ ...config(), senderPolicy: { platform: 'slack', allowedUserIds: [] } })).toThrow(
-      'match the platform',
-    );
-    expect(() =>
-      saveGatewayInstance({ ...config(), scope: { directMessages: false, conversationIds: [], guildIds: [] } }),
-    ).toThrow('conversation scope');
-    expect(
-      saveGatewayInstance({ ...config('slack', 'slack'), senderPolicy: { platform: 'slack', allowedUserIds: [] } })
-        .enabled,
-    ).toBe(true);
-    expect(() =>
-      saveGatewayInstance({
-        ...config('discord', 'discord'),
-        scope: { directMessages: false, conversationIds: ['123'], guildIds: [] },
+describe('a Telegram gateway', () => {
+  it('answers an allowed person as a reply, in a conversation of its own, and remembers the chat', async () => {
+    setEnabled(instance.id, true);
+    updates = [message(1, 42, 'Hello')];
+    gateways.start();
+    await until(() => listMessages(instance.id)[0]?.status === 'done');
+    expect(runs.inputs).toEqual([
+      expect.objectContaining({
+        projectId: activeProject().id,
+        conversationId: conversationOf(instance.id, '42'),
+        target: { kind: 'brain' },
+        text: 'Hello',
+        attachments: [],
+        from: 'Telegram: Ann (42)',
       }),
-    ).toThrow('Discord servers');
-    expect(
-      saveGatewayInstance({ ...config(), enabled: false, senderPolicy: { platform: 'telegram', allowedUserIds: [] } })
-        .enabled,
-    ).toBe(false);
+    ]);
+    expect(sent()[0].body).toMatchObject({
+      chat_id: '42',
+      text: 'Hi back',
+      reply_parameters: { message_id: 10, allow_sending_without_reply: true },
+    });
+    expect(listChats(instance.id)).toEqual([expect.objectContaining({ key: '42', title: 'Ann' })]);
+    expect(gateways.health(instance.id)).toMatchObject({ status: 'connected', bot: '@athena_bot' });
+    // (the next update is asked for: a restart never takes the same one again)
+    await until(() => calls.some((c) => c.method === 'getUpdates' && c.body.offset === 2));
   });
 
-  it.each(['@someone', '123abc', '', '0'])('rejects nonnumeric Telegram sender %j', (sender) => {
-    expect(() =>
-      saveGatewayInstance({ ...config(), senderPolicy: { platform: 'telegram', allowedUserIds: [sender] } }),
-    ).toThrow('sender IDs');
+  it('ignores people not on its list and shows them, to let them in', async () => {
+    setEnabled(instance.id, true);
+    updates = [message(1, 7, 'Let me in')];
+    gateways.start();
+    await until(() => gateways.listing()[0]?.refused.length === 1);
+    expect(gateways.listing()[0].refused[0]).toMatchObject({ kind: 'user', id: '7', name: 'Ann' });
+    expect(listMessages(instance.id)).toEqual([]);
+    expect(runs.inputs).toEqual([]);
   });
 
-  it.each(['06641234567', '00436641234567', '+43 664 1234567', '+0123'])(
-    'requires canonical WhatsApp phone %j',
-    (phone) => {
-      expect(() =>
-        saveGatewayInstance({
-          ...config('wa', 'whatsapp'),
-          senderPolicy: { platform: 'whatsapp', allowedPhones: [phone] },
-        }),
-      ).toThrow('sender IDs');
-    },
-  );
-
-  it('rejects oversized limits, credential fields and unsafe identifiers', () => {
-    const base = config();
-    expect(() =>
-      saveGatewayInstance({ ...base, fileLimits: { ...base.fileLimits, perFileBytes: 21 * 1024 * 1024 } }),
-    ).toThrow('file limits');
-    expect(() => saveGatewayInstance({ ...base, fileLimits: { ...base.fileLimits, dailyBytes: 1 } })).toThrow(
-      'daily limits',
+  it('in a group, answers only when mentioned or replied to', () => {
+    const group = (text: string, extra: Partial<Incoming> = {}): Incoming => ({
+      sourceId: '1',
+      chat: { chatId: '-100', title: 'Team', direct: false },
+      sender: { id: '42', name: 'Ann', bot: false },
+      text,
+      addressed: false,
+      files: [],
+      ...extra,
+    });
+    expect(admits(instance, group('chatter')).ok).toBe(false);
+    expect(admits(instance, group('@athena_bot hi', { addressed: true })).ok).toBe(true);
+    expect(admits(instance, group('hi', { addressed: true, sender: { id: '42', name: 'Bot', bot: true } })).ok).toBe(
+      false,
     );
-    expect(() => saveGatewayInstance({ ...base, botToken: 'secret' })).toThrow('gateway fields');
-    expect(() => getGatewayInstance('../secret')).toThrow('Invalid gateway');
-    expect(() => saveGatewayInstance({ ...base, target: { kind: 'agent', id: '../agent' } })).toThrow('gateway fields');
   });
 
-  it('separates credentials and clears only the deleted instance credentials', () => {
-    const one = saveGatewayInstance(config());
-    const two = saveGatewayInstance(config('two'));
-    const events: unknown[] = [];
-    const listener = (event: unknown) => events.push(event);
-    bus.on('event', listener);
-    try {
-      saveGatewayCredentials(one.id, { botToken: 'secret-one' });
-      saveGatewayCredentials(two.id, { botToken: 'secret-two' });
-      expect(gatewayCredentialStatus(one.id)).toEqual({ botToken: true });
-      expect(getGatewaySecrets(two.id).botToken).toBe('secret-two');
-      expect(JSON.stringify([listGatewayInstances(), gatewayCredentialStatus(one.id), events])).not.toContain(
-        'secret-',
-      );
-      expect(fs.readFileSync(dataPath('gateways', `${one.id}.json`), 'utf8')).not.toContain('secret-one');
-      expect(fs.existsSync(dataPath('projects', first.id, 'gateway-secrets.json'))).toBe(false);
-      removeGatewayInstance(one.id);
-      expect(getGatewaySecrets(one.id)).toEqual({});
-      expect(getGatewaySecrets(two.id).botToken).toBe('secret-two');
-      expect(() => saveGatewayCredentials(one.id, { botToken: 'gone' })).toThrow('No such gateway');
-      expect(() => saveGatewayCredentials(two.id, { unknown: 'secret' })).toThrow('credentials');
-    } finally {
-      bus.off('event', listener);
-    }
+  it('saves the files that come with a message in the project uploads and hands them on', async () => {
+    setEnabled(instance.id, true);
+    updates = [
+      message(1, 42, '', {
+        caption: 'Read this',
+        document: { file_id: 'F1', file_name: 'notes.txt', file_size: 9 },
+      }),
+    ];
+    gateways.start();
+    await until(() => listMessages(instance.id)[0]?.status === 'done');
+    const [m] = listMessages(instance.id);
+    expect(m.text).toBe('Read this');
+    expect(m.files[0]).toMatchObject({ name: 'notes.txt', size: 9 });
+    expect(fs.readFileSync(m.files[0].path!, 'utf8')).toBe('file body');
+    expect(runs.inputs[0].attachments).toEqual([m.files[0].path]);
+    // (the platform's file handle stays on the server)
+    expect(JSON.stringify(gateways.messages(instance.id))).not.toContain('F1');
+  });
+
+  it('sends files the agent chose after its answer', async () => {
+    setEnabled(instance.id, true);
+    const file = `${activeProject().brainPath}/report.txt`;
+    fs.writeFileSync(file, 'report');
+    runs.answer = async (input) => {
+      gateways.queueFiles(input.conversationId, [{ path: file, name: 'report.txt' }]);
+      return 'Here it is';
+    };
+    updates = [message(1, 42, 'Send me the report')];
+    gateways.start();
+    await until(() => listMessages(instance.id)[0]?.status === 'done');
+    expect(sent()[0].body.text).toBe('Here it is');
+    const doc = sent('sendDocument')[0];
+    expect(doc.form!.get('chat_id')).toBe('42');
+    expect((doc.form!.get('document') as File).name).toBe('report.txt');
+    expect(listMessages(instance.id)[0].outFiles).toEqual([
+      expect.objectContaining({ name: 'report.txt', sent: true }),
+    ]);
+    expect(() => gateways.queueFiles('gw-nobody', [{ path: file, name: 'x' }])).toThrow('No message');
+  });
+
+  it('notes a failure once, and a retry sends only the parts that had not arrived', async () => {
+    setEnabled(instance.id, true);
+    runs.answer = async () => `${'a'.repeat(4000)}\n\n${'b'.repeat(100)}`;
+    // (the first part arrives, the second is refused; with part of the answer there, no "sorry" notice)
+    const fetchNow = globalThis.fetch;
+    let parts = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/sendMessage') && ++parts === 2) failSend = 1;
+        return fetchNow(input, init);
+      }),
+    );
+    updates = [message(1, 42, 'Long one')];
+    gateways.start();
+    await until(() => listMessages(instance.id)[0]?.status === 'failed');
+    const [failed] = listMessages(instance.id);
+    expect(failed).toMatchObject({ sentParts: 1, error: 'Telegram: Too Many Requests' });
+    expect(sent().map((c) => String(c.body.text).slice(0, 1))).toEqual(['a', 'b']);
+    gateways.retry(instance.id, failed.id);
+    await until(() => listMessages(instance.id)[0]?.status === 'done');
+    expect(runs.inputs).toHaveLength(1);
+    expect(sent().map((c) => String(c.body.text).slice(0, 1))).toEqual(['a', 'b', 'b']);
+  });
+
+  it('tells the person once when nothing could be answered', async () => {
+    setEnabled(instance.id, true);
+    runs.answer = async () => {
+      throw new Error('The Brain couldn’t answer this.');
+    };
+    updates = [message(1, 42, 'Hello')];
+    gateways.start();
+    await until(() => listMessages(instance.id)[0]?.status === 'failed');
+    expect(listMessages(instance.id)[0].error).toBe('The Brain couldn’t answer this.');
+    await until(() => sent().length === 1);
+    expect(sent()[0].body.text).toContain('waiting in Athena');
+    gateways.retry(instance.id, listMessages(instance.id)[0].id);
+    await until(() => runs.inputs.length === 2 && listMessages(instance.id)[0]?.status === 'failed');
+    expect(sent()).toHaveLength(1);
+  });
+
+  it('after a restart, marks a message that was being worked on as failed instead of running it twice', async () => {
+    setEnabled(instance.id, true);
+    addMessage({
+      id: 'm1',
+      instanceId: instance.id,
+      chatKey: '42',
+      chatTitle: 'Ann',
+      sourceId: '10',
+      sender: { id: '42', name: 'Ann' },
+      text: 'Halfway',
+      files: [],
+      status: 'working',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+    gateways.start();
+    expect(listMessages(instance.id)[0]).toMatchObject({ status: 'failed', error: expect.stringContaining('Retry') });
+    expect(runs.inputs).toEqual([]);
+  });
+
+  it('sends Outbox messages to a chat it knows, part by part', async () => {
+    updates = [message(1, 42, 'Hello')];
+    setEnabled(instance.id, true);
+    gateways.start();
+    await until(() => listChats(instance.id).length === 1);
+    const progress: number[] = [];
+    await gateways.sendToChat(instance.id, '42', ['one', 'two'], 0, (n) => progress.push(n));
+    expect(progress).toEqual([1, 2]);
+    expect(gateways.chats(activeProject().id)).toEqual([
+      expect.objectContaining({ instanceId: instance.id, chatKey: '42', title: 'Ann', platform: 'telegram' }),
+    ]);
+    await expect(gateways.sendToChat(instance.id, 'unknown', ['x'])).rejects.toThrow('unknown');
+  });
+});
+
+describe('who a Slack or Discord gateway answers', () => {
+  const base = (platform: 'slack' | 'discord', users: string[], channels: string[]): GatewayInstance => ({
+    ...instance,
+    platform,
+    users,
+    channels,
+  });
+  const msg = (direct: boolean, extra: Partial<Incoming['chat']> = {}): Incoming => ({
+    sourceId: '1',
+    chat: { chatId: 'C1', title: '#general', direct, ...extra },
+    sender: { id: 'U1', name: 'Ann', bot: false },
+    text: 'hi',
+    addressed: true,
+    files: [],
+  });
+  it('Slack: everyone in direct messages unless there is a list; mentions only in listed channels', () => {
+    expect(admits(base('slack', [], []), msg(true)).ok).toBe(true);
+    expect(admits(base('slack', ['U2'], []), msg(true))).toMatchObject({ ok: false, refused: { kind: 'user' } });
+    expect(admits(base('slack', [], []), msg(false))).toMatchObject({
+      ok: false,
+      refused: { kind: 'channel', id: 'C1' },
+    });
+    expect(admits(base('slack', [], ['C1']), msg(false)).ok).toBe(true);
+  });
+  it('Discord: direct messages need the user list; a thread counts as its channel', () => {
+    expect(admits(base('discord', [], ['C1']), msg(true))).toMatchObject({ ok: false, refused: { kind: 'user' } });
+    expect(admits(base('discord', ['U1'], []), msg(true)).ok).toBe(true);
+    expect(admits(base('discord', [], ['C1']), msg(false, { chatId: 'T9', parentId: 'C1' })).ok).toBe(true);
+    expect(admits(base('discord', [], ['C2']), msg(false, { chatId: 'T9', parentId: 'C1' }))).toMatchObject({
+      refused: { kind: 'channel', id: 'C1' },
+    });
+  });
+});
+
+describe('splitting an answer', () => {
+  it('keeps messages under the limit, cutting at paragraphs, lines or words', () => {
+    expect(splitText('short', 10)).toEqual(['short']);
+    expect(splitText('one two three four', 9)).toEqual(['one two', 'three', 'four']);
+    expect(splitText(`${'a'.repeat(6)}\n\n${'b'.repeat(6)}`, 10)).toEqual(['aaaaaa', 'bbbbbb']);
+    const emoji = splitText('😀'.repeat(6), 5);
+    expect(emoji.join('')).toBe('😀'.repeat(6));
+    expect(emoji.every((p) => p.length <= 5 && !/[\ud800-\udbff]$/.test(p))).toBe(true);
+    expect(splitText('', 10)).toEqual([]);
   });
 });

@@ -100,7 +100,7 @@ Chats open in floating windows. Drag tabs between windows, snap them side by sid
 
 ### The Outbox: nothing goes out without you
 
-When an agent needs a decision, its question lands here with the choices as buttons and a box to answer in your own words. Drafts for X and Reddit wait here too: approve, edit, talk it over with the team, or reject. X replies always wait for you, even with auto-post on. Permission requests for risky steps show up under **Needs you**.
+When an agent needs a decision, its question lands here with the choices as buttons and a box to answer in your own words. Drafts for X, Reddit, Telegram, Slack and Discord wait here too: approve, edit, talk it over with the team, or reject. X replies always wait for you, even with auto-post on. Permission requests for risky steps show up under **Needs you**.
 
 ![The Outbox: a question from the Market Researcher about pricing, with three choices, above X drafts waiting for approval](docs/images/outbox.png)
 
@@ -137,6 +137,7 @@ Connect agents to programs and services with the Model Context Protocol. Add ser
 ### And also
 
 - **Overview:** every project's agents, teams, Brain and tasks at work on one page, with what needs you first. Open their chats side by side and write to another project's agents without switching to it.
+- **Chat gateways:** talk to the Brain, a team or an agent from Telegram, Slack or Discord, files included. Each bot answers only the people and channels you let in, and nothing on your computer is opened to the internet.
 - **Skills:** instructions in plain words ("our brand voice", "how we test checkout"), shared across agents and teams.
 - **Routines:** work you want done again and again, run by hand or on a schedule.
 - **Programs:** the Programs page finds creative and CAD apps on your computer (Blender, Photoshop, DaVinci Resolve, GIMP, OpenSCAD…) so agents can use them. Agents run your ComfyUI workflows with their own prompts and pictures, and get the images, video, audio and 3D files back.

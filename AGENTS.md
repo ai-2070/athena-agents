@@ -47,6 +47,8 @@ scripts' tests (`python -m pytest tests/skills`, Python 3.10). `.github/workflow
   app's and is its own entry in `scripts/build-desktop.ts`.
 - `server/mcp-bridge.ts`: gives the dashboard tools to Claude Code and Codex over MCP.
 - `server/brain.ts`, `overseer.ts`, `teams.ts`, `learning.ts`: the Brain, approvals review, team chats, self-improvement.
+- `server/gateways/`: Telegram, Slack and Discord bots that talk to the Brain, a team or an agent
+  (`docs/internal/plans/CHAT_GATEWAYS_2026-11-01.md`); `server/private-conversations.ts` keeps each chat's own.
 - `server/projectsync.ts`, `backup.ts`, `versions.ts`: auto-save into `<project>/.dashboard`, backups, version history.
 - `server/voxel/`, `web/voxel/`, `shared/voxel.ts`: the voxel world (`docs/internal/plans/VOXEL_WORLD_PLAN.md`).
 - `shared/`: code both sides import; `types.ts` is the source of truth for data shapes.

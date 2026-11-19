@@ -13,7 +13,6 @@ import type {
   Artifact,
   Chat,
   ChatSummary,
-  GatewayWhatsAppPairing,
   OutboxPost,
   Project,
   Routine,
@@ -177,13 +176,10 @@ export function secretStatus(): SecretStatus {
 }
 
 export interface GatewaySecrets {
-  whatsappPairing?: GatewayWhatsAppPairing;
+  /** Telegram bot token, Slack bot token (xoxb-) or Discord bot token. */
   botToken?: string;
+  /** Slack app-level token (xapp-), for Socket Mode. */
   appToken?: string;
-  signingSecret?: string;
-  verificationToken?: string;
-  accessToken?: string;
-  relayKey?: string;
 }
 
 // Global, outside project exports and versions, just like provider secrets.

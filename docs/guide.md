@@ -50,7 +50,7 @@ Claude Code, Codex, pi, oh-my-pi, Hermes, OpenClaw and opencode have their own t
 - **Shell:** `run_command` uses PowerShell 7 when it is installed, otherwise Windows PowerShell on Windows and bash (or sh) on Mac and Linux. Long output keeps its start and its end, where errors usually are.
 - **Delegate:** `await_agent` can wait for several helpers at once, until the first is done or all of them. `ask_agent` can wait for a quick answer in the same call.
 - **Long results:** a tool result longer than **Settings → General & keys → Context → Longest tool result** (24,000 characters by default) reaches the agent with its start and its end. The whole text is saved in `outputs/tool-results` for a week, where the agent can read the rest. Tools that already read in parts, and task lists, are not shortened.
-- **Board and gateway tools** show up only in the conversations they work in: a Tasks board task, or a gateway conversation. `board_tags` (tagging tasks and finding them by tag) shows everywhere except gateway conversations.
+- **Board and gateway tools** show up only in the conversations they work in: a Tasks board task, or a [chat gateway](#chat-gateways-telegram-slack-and-discord) conversation. `board_tags` (tagging tasks and finding them by tag) shows everywhere except gateway conversations.
 - **Tool stats:** the dashboard counts how each tool is used (calls, errors, time and result size) in `data/tool-stats.json`. The numbers stay on this computer.
 
 ## Venice models
@@ -411,6 +411,54 @@ Very long chats still scroll smoothly: from 50 messages on, the chat page and th
 - **Free Codex resets.** When OpenAI has given your Codex account free limit resets, point at **Codex** in the sidebar: a card beside it says how many you have and when the next one runs out. **Reset now** asks first, then uses the one that runs out first and sets your Codex limits back to 0%. If you haven't used any of your limit yet, Codex keeps the reset.
 - **Where the numbers come from.** Claude's come from Anthropic with your Claude Code login; Codex's from the Codex program on this PC (`codex app-server`) with your Codex login. Nothing else is sent anywhere.
 
+## Chat gateways: Telegram, Slack and Discord
+
+Talk to the Brain, a team or an agent from your phone. A gateway is a bot in Telegram, Slack or Discord that brings
+the messages people send it to one project and answers in the same chat. Set them up in **Settings → Gateways**; you
+can have as many as you like, each with its own project and who answers.
+
+Nothing on your computer is opened to the internet: the dashboard asks Telegram for new messages (long polling),
+and Slack and Discord keep a connection open from your side (Socket Mode and the Discord Gateway). Bots only work
+while Athena runs.
+
+**Who answers.** Each chat (a direct message, a group, a Slack thread, a Discord channel or thread) is a private
+conversation of its own with the Brain, the team or the agent you chose: it remembers what was said there, and none
+of it shows in your own chats or in session search. Files people send are saved in the project's uploads and handed
+on with the message. Agents can send finished files back with `send_gateway_files` (it asks you first, like any
+other step that sends something out). While they work, Telegram and Discord show "typing…".
+
+**Who it listens to.**
+
+- **Telegram:** only the user IDs on its list. Anyone can find a Telegram bot, so an empty list means nobody.
+  In a group it answers when someone mentions it or replies to it.
+- **Slack:** direct messages from everyone in your workspace, or only the users on its list. In channels, it
+  answers mentions in the channels you list, in the thread of the message.
+- **Discord:** mentions in the channels you list (and threads in them), from everyone or only the users on its list.
+  Direct messages need the user list: anyone who shares a server with the bot could write to it.
+
+People and channels it ignored show under the bot in Settings with **Let them in** or **Add the channel**: the
+easiest way to set it up is to leave the list empty, write to the bot yourself, and let yourself in.
+
+**Setting one up.**
+
+- **Telegram:** talk to @BotFather, send `/newbot` and paste the token.
+- **Slack:** make an app at api.slack.com/apps, turn on Socket Mode and make an app-level token (`xapp-…`) with
+  `connections:write`. Give the bot the scopes `chat:write`, `app_mentions:read`, `im:history`, `files:read` and
+  `files:write` (`users:read` and `channels:read` let it show names), subscribe to the bot events `app_mention` and
+  `message.im`, allow messages in the App Home, install it and paste the bot token (`xoxb-…`).
+- **Discord:** make an application at discord.com/developers, add a bot, turn on **Message Content Intent**, paste its
+  token, and invite it to your server with Send Messages, Read Message History and Attach Files.
+
+**When something fails.** The bot's **Messages** list shows each message and how its answer went. A message that
+failed says why, and the person gets a short note that it is waiting in Athena. **Retry** keeps what it already has:
+the files, the answer, and the parts that arrived are not sent twice. If Athena stops while it works on a message,
+that message shows as failed instead of running again by itself. The sidebar's **Status** panel shows each bot and
+how many messages failed. A wrong token or a missing permission stops the bot with what to change; press
+**Reconnect** after fixing it.
+
+**Sending first.** Agents with the Social tools can draft a Telegram, Slack or Discord message with `gateway_draft`.
+It waits in the Outbox, where you choose the chat it goes to (one the bot has talked in) and approve it.
+
 ## Approvals and safety
 
 ### Choose how much agents may do
@@ -491,363 +539,6 @@ The dashboard keeps the last **50 versions** per item and groups nearby edits. *
 ## Development
 
 Building, testing and packaging the dashboard is in the [README](../README.md#development).
-
-Chat gateways are still being built. Experimental Telegram, Slack and Discord instances can pass allowed text and attached files
-to the Brain, a team or an agent and send final text replies. Files explicitly selected through the local API
-can be sent as Telegram documents, Slack files or Discord attachments after their size, location and saved content hash are checked.
-Gateway agents can also inspect specific finished files and request their delivery through the normal
-approval policy. Files changed after inspection are refused. Artifacts and tool images are not attached automatically.
-Delegated files can come from the agent's custom workspace. Their source run, private conversation and
-current folder access are checked again before delivery; missing records or revoked access hold the file for review.
-Set up Telegram under **Settings → Gateways**. The tab is hidden for now: open it by going to `#/settings?tab=gateways` in the address bar. Add an instance with its numeric bot account ID and
-BotFather token, choose a project and the Brain, a team or an agent, and enter the allowed Telegram
-user IDs. Choose whether direct messages are allowed and list exact group/topic IDs when needed.
-Save leaves the instance paused; click **Enable** to connect. Saving an edit pauses it again. Each bot
-account has its own instance and token. **Pause** stops receiving and delivering; native work already
-started keeps its normal stop behavior. **Reconnect** retries connection setup. **Delete** removes the
-connection and token but retains conversation receipts for recovery.
-
-Choose **Set up Telegram** on the saved instance and **Check setup** while paused. This verifies the
-token's bot identity and reads its webhook status without receiving messages or sending replies.
-The page shows only the webhook host and the last pending-update count; full URL paths and secrets
-stay private. Opening or reloading the page reads saved local status and makes no Telegram request.
-
-If another service registered a webhook, stop that integration first, then confirm **Switch to
-polling**. Athena rechecks the same bot and webhook, saves an intent before the change, and asks
-Telegram to remove the webhook with pending updates kept. It verifies the result and leaves the
-instance paused. Pending messages may be handled under the saved sender and conversation rules
-when you enable it. Telegram has no atomic check-and-switch operation, so another integration must
-stay stopped during the change. Connecting never removes an existing webhook automatically.
-
-If the request is interrupted or its result cannot be saved, the switch remains unconfirmed across
-restarts. Polling is blocked until you explicitly **Check setup** again. A check can verify that no
-webhook remains, or show the current webhook for a new explicit confirmation; Athena never retries
-the switch automatically. Existing inbox receipts, byte accounting and native work stay intact.
-
-For Slack, choose **Add Slack instance** and enter the workspace ID (starting with T), a bot OAuth
-token (xoxb-) and an app-level token (xapp-) from the same Slack app. Enable Socket Mode; the app
-token needs `connections:write`. The bot needs `app_mentions:read`, `channels:history`, `channels:read`,
-`groups:history`, `groups:read`, `im:history`, `im:read`, `users:read`, `chat:write`, `files:read` and
-`files:write`. Subscribe to `app_mention`, `message.channels`, `message.groups` and `message.im`.
-Reinstall the app after changing scopes, and invite the bot into each allowed channel. No public
-callback URL is needed. Bot and app tokens can be changed or removed separately; blank fields keep
-the saved tokens. Save pauses the instance; **Enable** starts it once both tokens are saved.
-
-Slack's user-ID list is optional. Empty allows local workspace users within the configured scope;
-adding IDs restricts it to those exact users. Direct messages are a separate choice. List channel IDs
-or channel ID/thread timestamp pairs under **Allowed channels and threads**. Mention the bot to start
-an assignment in a channel, then reply in that thread to continue. Direct messages also start a thread
-per new root message. Different threads keep separate Athena histories. Shared channels, external
-users, group DMs and org-wide installations are refused. Slack files must be hosted uploads shared
-in the saved local conversation; external or inaccessible files hold the request for review. Downloads
-are bounded and rechecked; selected output files use the same workspace, channel and thread.
-Replies are plain text and cannot turn model output into Slack mentions or unfurls. Ambiguous sends
-stay held until explicitly retried after checking Slack. Approvals are reviewed in Athena.
-
-For Discord, choose **Add Discord instance** and enter the bot user ID and token from the Discord
-Developer Portal. Enable the **Message content** intent on the Bot page. Invite the bot with the
-`bot` scope and View channels, Read message history, Send messages, Send messages in threads and
-Attach files permissions. List exact server IDs under **Allowed servers** and channel or native
-thread IDs under **Allowed channels and threads**. Allowing a parent channel also allows its threads.
-Direct messages have a separate rule. The optional user-ID list narrows access; leaving it empty
-allows any human who can message the bot or post in those channels. Bots and webhooks are refused.
-Choose a project and the Brain, a team or an agent; save pauses the instance and **Enable** connects.
-Multiple bot accounts keep separate routes, credentials, histories and delivery receipts.
-
-Discord replies stay attached to the source message, with mentions and link previews suppressed.
-Files are fetched from refreshed attachment links without exposing them in saved receipts. Selected
-output files use the same verified channel or thread and saved byte limits. **Reconnect** resumes a
-saved session and honors Discord's requested wait. If Discord cannot replay that session, intake
-stops and **Review recovery** explains the gap. Pause the instance, check Discord for missed messages,
-and confirm **Allow new session** to acknowledge that the missing messages cannot be recovered
-automatically. The instance stays paused until you enable it. Existing work and confirmed deliveries
-stay saved; the review never starts a second run or blindly resends output. Real-account checks
-remain pending.
-
-Open an instance's **Inbox** to see messages needing review, or choose **All messages** for its saved
-history. Expand a message to see its original sender, saved destination, attachments, final reply and
-individual delivery results. **Retry remaining reply** preserves confirmed text parts. Outgoing files
-have separate **Retry file** and **Skip file** controls; uncertain deliveries ask you to check the messaging app
-first because a retry might create a duplicate. Skipping cannot undo a delivery that already happened.
-Enable a paused instance before retrying. To send specific files for the current assignment, enter
-absolute paths under **Files to send**, one per line. The server checks their location, size and content
-hash before upload. These actions never replay model work.
-
-For a completed saved answer, **Review delivery** also works while the instance is paused or its
-platform is unavailable. It shows the original source and saved destination, each text part, outgoing
-file and advisory notice. Check the messaging app first. **Record confirmed delivery** requires the
-app's message or file ID and marks only an attempted uncertain item as sent; other parts keep their
-own receipts. It records your confirmation locally and makes no provider request. Pending,
-unattempted, failed or already confirmed items cannot be promoted this way.
-
-**Recover interrupted receipts** classifies that answer's saved in-flight sends as uncertain before
-review; opening the panel never does this automatically. **Finish delivery locally** permanently
-stops the remaining text and files for that answer. It keeps the saved answer, native operation,
-confirmed deliveries, uncertainty and charged bytes. It cannot recall a message or reopen delivery.
-Later messages can continue after other holds are resolved and the instance is enabled. Native work
-must already be complete; active or held assignments keep their separate controls in Athena.
-These local reviews stay available for old receipts after sender access or relay setup changes,
-and never grant permission to send. Resolved receipts remain eligible for the normal confirmed
-cleanup, with compact replay markers and byte reservations kept.
-
-Telegram albums wait for you to confirm their parts in the inbox. Once all files are saved, choose
-**Group album and start** on the first received part. Check Telegram for the complete album before
-confirming the listed message IDs: Telegram does not provide an album completion marker. One
-assignment receives all saved files, captions and source IDs. Limits apply to the whole album.
-The other parts point to that assignment's work and delivery receipts. A late part or an edit holds
-unfinished work and unsent deliveries for review; it never starts a second assignment automatically.
-Confirmed sends stay confirmed. Album receipts can only be cleaned together, and replay protection
-continues to hold late parts after cleanup.
-
-For a held message with a saved operation, **Check saved work** checks that original operation without
-starting another run. If its completion is verified and the original sender and destination are still
-allowed, its saved reply is queued for delivery. Work still in progress resumes completion tracking.
-Missing records, edited input, changed destinations and unproven completion remain held; this action
-does not override them. Team recovery needs a completed review of the original message, rather than
-the latest team reply.
-
-For reserved or started work without a saved final reply, pause the instance and choose **Review
-saved work**. The panel shows the original source and destination, the saved operation and native
-conversation IDs, and how many other requests will stay held. These are historical gateway
-receipts, not a live native-status check. Review or stop the original work using Athena's native
-controls; it may still be running. An operation reservation alone does not prove that admission
-failed or that nothing happened.
-
-**Keep work in Athena** permanently ends gateway tracking and any future reply or file delivery
-for this request. Confirm that native work may still run, that no gateway reply should follow, and
-that new incoming messages will use a separate private conversation. This does not stop native
-work, mark it complete, approve tools or replay it. It preserves the operation IDs, original
-input, saved files, delivery evidence and byte reservations. These receipts remain in the inbox
-for recovery and are not eligible for normal inbox cleanup.
-
-Already queued requests in the earlier conversation stay held. New messages accepted after the
-review use a fresh private conversation with the instance's current project, destination and
-sender rules; other conversations and threads keep their history. Earlier edits and late grouped
-album parts stay in their original conversation. A changed project, sender identity or relay
-keeps its own separate routing boundary. This local review is also available for unavailable
-platforms and after access changes, but grants no new permission to receive or send. If saved
-notices or files still say they were in flight, **Recover interrupted receipts** classifies only
-this request's interrupted receipts before keeping the work locally. Opening the panel never
-does that automatically.
-
-For a held request that has never started, pause its instance and choose **Dismiss request**. Athena
-checks the current receipt and asks you to confirm. The request will not start an assignment or send
-a reply, and later messages in that conversation can continue once other holds are resolved. Its
-text, files and byte charges stay saved. Ask the sender to send a new message if the work is still
-needed; an old request cannot replay. This action refuses even a reserved operation with no proven
-run, saved native work, replies, outgoing files and albums. Existing native work still uses
-**Check saved work**, and uncertain deliveries still need their separate review. Unconfirmed WhatsApp
-requests require the exact ACK or a reviewed retention gap before they can be dismissed; relay holds
-must be resolved first. Dismissing an abandoned receipt never marks it confirmed.
-
-Under **Clean resolved receipts**, choose a received-before age or **All resolved receipts**, then
-choose **Remove resolved receipts** and confirm **Remove receipts**. Completed and dismissed requests are eligible. Only the displayed eligible selection is removed; unresolved
-conversations keep their earlier context. Paused instances can be cleaned without reconnecting.
-This removes inbox message text and delivery receipts, while native chats, project files and conversation
-links stay. Compact replay markers and daily byte totals stay too, so cleanup cannot resend an old
-request or refill a file budget. These records do not expire; if their storage limit is reached, cleanup
-refuses to remove further receipts. There is no automatic purge of unresolved work.
-
-Removing an instance first saves a permanent removal record and blocks new gateway work. Athena
-stops its worker, claims exclusive ownership, then clears only that instance's local credentials
-and WhatsApp pairing. In-flight replies settle before ownership is released; an interrupted reply
-can remain uncertain. Native chats and work, saved input, uploaded files, byte accounting and
-approved Outbox receipts stay. Manage any native work still running through Athena's usual controls.
-Removal makes no messaging-service or relay-administration request.
-
-If storage or ownership prevents removal from finishing, its saved record keeps the instance
-blocked. Restarting Athena retries valid unfinished removals; the guarded local delete API can
-also be retried with the original instance ID. A broken removal record must be restored before
-cleanup can finish. A newly added instance gets a separate identity and history.
-Read-only recovery is available through the local API: `GET /api/gateways/retired` lists removal
-records and `GET /api/gateways/retired/:id/inbox` reads their saved inbox receipts. These reads
-do not claim ownership, classify interrupted receipts or enable a connection.
-
-In **Settings → Gateways**, choose **View removed instances**. Find the old instance by name,
-platform, account, project or instance ID, then choose **View saved history**. The view shows its
-original identity and destination, source messages, saved native operation/conversation IDs,
-answers and per-part text, notice and file receipts. Confirmed IDs and uncertain or in-flight
-statuses stay as saved. Long histories show 25 entries at a time; expand a message to read its details.
-These are historical gateway records, not a live native-status or messaging-app check.
-
-If removal is unfinished, **Retry removal** asks you to confirm the exact instance and account
-before draining its worker and clearing its local credentials under ownership. The connection
-stays blocked, and receipts remain. Cancel or close the history before confirming to leave removal
-unchanged. Failed reads and failed cleanup show separate reload/retry controls. A direct link uses
-`#/settings?tab=gateways&retired=<instance-id>`; `retired=all` opens the list. Removed history can
-load even when active gateway credentials need recovery. Legacy deleted folders without a removal
-record need separate recovery.
-
-Expand a saved answer or native operation and choose **Review local finish**. Opening the review
-only reads the original source, destination, native work IDs and current saved delivery receipts.
-For a completed answer, **Finish locally** permanently closes its remaining text, file and notice
-delivery. Confirmed IDs, uncertain results, waiting parts and byte reservations remain as evidence.
-For reserved or started work without a final answer, the same action permanently keeps its work in
-Athena and closes future gateway tracking, replies and files. Other saved requests in that conversation
-stay held. Native work may still be running; manage it through Athena's usual controls first. A saved
-reservation does not prove that native admission failed or that the work completed.
-
-If saved sends still say they were in flight, choose **Recover interrupted receipts** explicitly
-before finishing. This classifies only the selected request's interrupted receipts locally. The
-review then needs a fresh receipt revision. **Finish locally** asks for confirmation naming the
-original chat, message and project. It cannot be undone. It sends nothing, starts no work and keeps
-the removed connection blocked. Removal must be complete first, and another process owning the
-account or private state blocks the change. SDK state and saved credentials are not read or rewritten.
-Late gateway callbacks cannot reopen closed delivery or tracking. Queued requests, edits and album
-members keep their saved evidence without a local-finish action. Manual delivery confirmations for
-removed instances remain planned.
-
-New gateway downloads record their temporary files privately before saving any bytes. After removal
-finishes, Athena waits at least 24 hours, then checks at startup and hourly for leftover partial files,
-empty name reservations and uploads interrupted before their saved receipt. It removes only files
-whose original project, batch and file identity still match those records. Files edited after removal,
-replacement files, links, unknown files and older uploads without ownership records stay untouched.
-Missing projects or unreadable ownership/inbox records also prevent cleanup; recover the records
-before a later check. Another process owning the gateway account or state blocks that check.
-
-Saved attachments stay in their project, including files on held or failed requests. Selected outgoing
-files, chat history, replay/quota markers and delivery receipts remain. This policy clears temporary
-leftovers. SDK state and credentials are not
-opened by this cleanup. Filesystems without usable file identities keep their leftovers for recovery.
-
-The sidebar's **Status** panel shows gateway connection state and messages needing review once an instance is set up. Click an
-instance needing review to open its inbox, or a connection warning to open its setup. Its tooltip names
-the bound project. Up to five instances appear, with attention items first; **All gateways** opens the full
-list. If an inbox is unreadable, its status says **check inbox** rather than reporting no problems.
-Uncertain sends need review before retrying; automatic retries preserve confirmed reply parts.
-Slow requests can send one working notice. When a run needs approval, the messaging app says **Needs approval in Athena**;
-review it in the dashboard. Gateway messages cannot approve requests.
-For a Telegram or Discord follow-up, open **Outbox → Gateway message → Draft a message**. Save the
-draft, choose an instance and a known conversation in this project, then choose **Review & send**.
-Only enabled, connected instances and completed source messages with confirmed replies are eligible.
-Review shows the bot account, conversation, thread, source message and every exact text part. It
-saves your edits; cancelling leaves a draft and does not approve delivery. Check the recipient and
-full text, then choose **Approve & send**. Long text is split without truncation or broken emoji.
-
-Outbox keeps a receipt for every approved part. Queued and sending are separate from confirmed
-delivery. Confirmed parts are not resent; provider rate-limit waits survive restart. An interrupted,
-unknown or failed send stops for review. Changes to access, routing, credentials or source messages
-hold the unsent text. Approved text and recipients cannot be edited, rejected, removed or sent back
-to a team through draft actions. Pause the instance and choose **Finish locally** to permanently stop
-the remaining delivery while keeping confirmed IDs and uncertainty. An uncertain part may already
-have arrived: check the messaging app before creating a new draft.
-
-Choose **Review delivery** on an approved post to see the original recipient, text parts and receipts.
-Opening the review only reads saved metadata. Pause its instance before changing receipts. If a send
-was interrupted, choose **Recover interrupted receipts** to classify it as uncertain locally. This
-contacts no messaging service. Choose the exact uncertain part you found in the messaging app,
-enter its messaging-app ID and choose **Record confirmed delivery**. Pending and unattempted parts
-cannot be confirmed. The saved ID, time and attempt stay recorded; this action sends nothing and
-holds that post's remaining parts until you explicitly continue them.
-
-**Retry remaining delivery** starts with the first failed or uncertain part. Check the messaging app
-first: retrying an attempted part can send a duplicate. **Continue remaining delivery** releases the
-pending tail after you recorded a confirmation. Both actions queue only the original approved text
-and recipient and keep every confirmed part. They leave the instance paused; enable it in Gateways
-when ready. Current route, project, sender access, credentials and every source/album part must still
-match the original approval. Changed setup, edited sources or a locally finished post cannot be
-reopened by retry; keep that delivery local and review a new draft instead. Other already approved
-posts can continue under their own rules when the instance is enabled. Review history survives
-restart and is retained with the delivery receipts; native runs, files and byte accounting stay intact.
-
-For a removed instance's approved Outbox post, open **Review delivery** in its original project.
-The view keeps the original recipient and text and links to **View removed instance**. Removal must
-be complete before changing receipts. If a send was interrupted, **Recover interrupted receipts**
-requires the displayed review revision and classifies only that post's interrupted part as uncertain.
-Review the refreshed receipts, then confirm **Finish locally**. The connection stays blocked and
-the old post cannot send again. Delivery retry and manual confirmation remain unavailable here.
-
-The finished post moves to **History**. Open **Review delivery** there to read its closure time,
-confirmed IDs, uncertainty and original attempt counts. Waiting parts stay as historical evidence;
-they will not send after local finish. Missing or corrupt removal records need recovery first.
-Ownership conflicts and stale or changed Outbox rows stop the change and require a reload. Native
-inbox, SDK state and credentials are not opened or rewritten by this flow. A project switch invalidates
-an open review; return to the post's original project to continue.
-
-Telegram and Discord setup now lives in **Settings → Gateways**, with links from Connections. Add
-fresh bot credentials there; old global Telegram tokens/chat IDs and Discord webhooks are not used.
-There is no default test-send button: review a test draft with an explicit recipient in Outbox instead.
-The Social tool `gateway_draft` saves an unsent draft for your recipient choice and approval. The
-high-risk `telegram_send` and `discord_send` tools require explicit instance and source-event IDs
-provided by you and follow the normal tool approval policy. They report queued delivery, with results
-in Outbox. `notify_user` only notifies inside Athena. X and Reddit account handling is unchanged;
-the workflow notification option also saves a Telegram draft for recipient choice and approval.
-Slack and WhatsApp proactive Outbox sends remain unavailable. The
-[gateway plan](internal/plans/CHAT_GATEWAYS_2026-11-01.md) tracks the remaining work;
-`bun run gateways:smoke` checks a fake local Telegram service without using accounts or keys.
-`bun run gateways:slack-smoke` checks Slack Socket Mode, private downloads and selected file replies
-locally with throwaway data. Real-account checks and Windows/Linux verification remain pending.
-`bun run gateways:discord-smoke` checks Discord intake with local REST and WebSocket fixtures:
-bot identity, optional sender rules, explicit guild/channel scopes, permissions, message edits and
-saved-session recovery after a failed inbox write, private downloads and selected document replies.
-It uses no real account or platform messages. Discord setup, supervised connections and explicit
-recovery review are available for testing; real-account checks remain pending.
-
-The separate [WhatsApp relay and deployment guide](../relay/whatsapp/README.md) describes its
-one-phone-per-deployment scope, signature checks, one-time pairing, queue limits and explicit gap
-review/revocation. It keeps Athena's port private and stores no outbound Meta token or model keys.
-`bun run gateways:whatsapp-relay-smoke` proves the bundled Worker across separate local processes;
-no real deployment or account is used. In **Settings → Gateways**, add a WhatsApp instance and choose
-its project, Brain/team/agent destination and allowed phone numbers. Save its business phone ID,
-access token and Meta app secret; blank secret fields keep saved values, and each removal control
-removes only that credential. Each business phone needs its own relay deployment.
-
-Open **Set up relay**, enter the relay HTTPS address, business account ID and a new one-use pairing
-code, then confirm the starting position. **Check setup** reads the Meta phone/account and saved
-relay status; it does not claim or acknowledge messages, download files, start work or send replies.
-It checks that an app secret is saved; a signed webhook is still needed to prove that secret works.
-A successful check is a current observation and leaves the instance paused. Receiving and sending
-remain disabled while the remaining recovery controls and acceptance checks are completed.
-
-If setup was interrupted, **Finish saved pairing** completes a locally saved key without exchanging
-the code again. **Pairing outcome unknown** requires revoking the pairing at the relay and reviewing
-its queue loss before clearing the local attempt and using a new code. For expired queued messages,
-**Check relay gap** saves the observed loss; ask the relay operator to review that exact gap before
-**Review gap locally**. Saved work and delivery receipts remain held for their own review. Changed
-installations or invalid receipts require restoration; gap review cannot reset them.
-
-If **Restore the saved relay** appears, restore the original installation and its saved data at the
-same relay address first. Then choose **Check restored relay** and confirm. Athena checks the saved
-installation, account, phone, queue epoch and receipt position before clearing only the connection
-hold. For example, after accidentally pointing the relay address at a replacement deployment, put
-the original deployment and its data back before checking. A new installation or skipped messages
-will fail the check. Pending acknowledgements still need their exact envelope proof on connection;
-saved work, files and delivery receipts stay held for separate review. This leaves the instance
-paused and does not enable WhatsApp. Retired sender aliases stay blocked.
-
-If the original deployment is gone, use **Replace relay** instead. Revoke or permanently stop the
-old relay and review its queued-message loss first. Enter the replacement's HTTPS address, the
-same business account ID and a new pairing code, then confirm **Pair replacement**. The new key
-is saved privately before **Finish replacement** asks for a separate review of the current work.
-If finishing is interrupted, reopen setup and finish the saved key; do not exchange the code again.
-An unknown replacement outcome requires revoking the new pairing before clearing that attempt.
-
-For example, after losing a relay deployment's stored data, deploy a fresh relay for the same business
-phone, create its pairing code and use this flow. The instance keeps its project, Brain/team/agent
-destination, receipt history and duplicate protection. Old requests, files and delivery receipts
-remain held; running native agents keep their controls in Athena. Senders must message again after
-finishing to establish fresh phone proof and start new private conversations. Delayed messages from
-before replacement are ignored. Retired sender IDs stay blocked, and pending acknowledgements are
-archived as unconfirmed. Setup still leaves WhatsApp disabled and the instance paused.
-
-Open **Review senders** from relay setup to see each allowed phone's signed status: **Needs phone
-proof**, **Verified**, **Needs review** or **Reviewed**. This reads saved local records only. It
-shows counts of retired IDs, missing phone proofs and verified numbers outside the allowed list;
-provider IDs and private pairing details stay hidden. Use **Edit allowed phones** for the guard
-and **Open inbox** to inspect earlier work.
-
-For example, if Alice keeps the same allowed phone but WhatsApp changes her sender ID, Athena
-retires the old ID and holds its requests. Once signed proof confirms the new association and its
-relay acknowledgement is saved, pause the instance and choose **Review sender** for Alice's phone.
-Confirming keeps earlier requests, files and delivery receipts held, and preserves native operation records. Ask
-Alice to message again after the review; that fresh message starts a new private conversation with
-the same Brain, team or agent. The review itself starts no work, sends nothing and keeps the
-instance paused. Retired IDs cannot be restored by this action.
-
-If Alice has a different number, explicitly add that full number to the allowed list and wait for
-signed phone proof. Permission is not copied from her old number. Missing proofs, pending pairing,
-relay recovery and unconfirmed acknowledgements block sender review. Ordinary verified phones
-need no review, and a change after a saved review needs a fresh confirmation.
 
 ## License and credits
 

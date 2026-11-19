@@ -306,7 +306,6 @@ function navStatus(d: AppState) {
     d.outboxPending || d.questions?.length
       ? line('busy', 'Outbox', `${d.outboxPending + (d.questions?.length || 0)} waiting`, '#/outbox')
       : null,
-    // (gateways are out of Settings for now: only ones already set up show here)
     gatewayLinks.length ? h('div', { class: heading }, 'Chat gateways') : null,
     ...gatewayLinks.map((gateway) => line(gateway.dot, gateway.label, gateway.value, gateway.href, gateway.title)),
     gatewayLinks.length && (d.gateways || []).length > gatewayLinks.length
@@ -480,9 +479,10 @@ const STATE_EVENTS = new Set([
   'project-logo',
   'projects',
   'engines',
+  'chat-gateways',
   'gateways',
   'gateway-health',
-  'gateway-inbox',
+  'gateway-messages',
 ]);
 onEvent((ev) => {
   if (STATE_EVENTS.has(ev.type)) refreshSoon();
