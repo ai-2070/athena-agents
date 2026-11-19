@@ -1,7 +1,10 @@
 // Sharing the webhooks port through Cloudflare or Tailscale, with fake tools that print what the real ones do.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
+import { saveRoutine } from '../../server/routines.ts';
+import { createWebhook, setupWebhooks } from '../../server/webhooks/hooks.ts';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getSettings, saveSettings } from '../../server/store.ts';
 import { dataPath, PORT } from '../../server/util.ts';
@@ -153,6 +156,44 @@ describe('Cloudflare', () => {
     expect(tunnelStatus().message).toMatch(/cloudflared stopped: ERR failed to connect/);
   });
 
+  it("never takes the address of Cloudflare's API from an error as its own", async () => {
+    fake.lines = [
+      'ERR failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": dial tcp: i/o timeout',
+    ];
+    fake.exits = true;
+    await pick('cloudflare');
+    await waitFor(() => started.length === 3 && tunnelStatus().state === 'stopped');
+    expect(tunnelStatus().address).toBe('');
+    expect(getSettings().webhooks.tunnelUrl).toBe('');
+    expect(publicAddress()).toBe('');
+  });
+
+  it('starts again when the webhooks port or the program changes', async () => {
+    fake.lines = ['INF |  https://moved.trycloudflare.com  |'];
+    await pick('cloudflare');
+    await waitFor(() => tunnelStatus().state === 'on');
+    const port = await freePort();
+    saveSettings({ webhooks: { port } });
+    await applyShare();
+    await waitFor(() => started.length === 2 && tunnelStatus().state === 'on');
+    expect(started[1].args[3]).toBe(`http://127.0.0.1:${port}`);
+    await waitFor(() => !alive(started[0].pid));
+    // the same choice and port: left running
+    await applyShare();
+    expect(started).toHaveLength(2);
+    const saved = getSettings().webhooks.toolPaths;
+    const other = dataPath('fake-tools', 'cloudflared-2.exe');
+    fs.writeFileSync(other, '');
+    saveSettings({ webhooks: { toolPaths: { ...saved, cloudflared: other } } });
+    try {
+      await applyShare();
+      await waitFor(() => started.length === 3);
+      expect(started[2].exe).toBe(other);
+    } finally {
+      saveSettings({ webhooks: { toolPaths: saved } });
+    }
+  });
+
   it('says to install it when it is missing', async () => {
     const saved = getSettings().webhooks.toolPaths;
     saveSettings({ webhooks: { toolPaths: { ...saved, cloudflared: dataPath('nowhere', 'cloudflared.exe') } } });
@@ -242,4 +283,30 @@ describe('the selector', () => {
     expect(tunnelStatus().state).toBe('off');
     expect(getSettings().webhooks.share).toBe('cloudflare');
   });
+
+  it("switching webhooks off in Settings forgets the tunnel, so adding a webhook doesn't start it again", async () => {
+    fake.lines = ['Available on the internet:', 'https://pc.tail1.ts.net/'];
+    await pick('tailscale-public');
+    await waitFor(() => tunnelStatus().state === 'on');
+    await setupWebhooks({ on: false });
+    expect(getSettings().webhooks).toMatchObject({ on: false, share: 'off' });
+    expect(tunnelStatus().state).toBe('off');
+    // (a choice kept from before this was so is dropped when a webhook turns receiving back on)
+    saveSettings({ webhooks: { on: false, share: 'tailscale-public' } });
+    const r = saveRoutine({ name: 'Local try', text: 'Look.' });
+    await createWebhook({ routineId: r.id, verify: { preset: 'none' } });
+    expect(getSettings().webhooks).toMatchObject({ on: true, share: 'off' });
+    await applyShare();
+    expect(started).toHaveLength(1);
+  });
 });
+
+/** A port nothing listens on right now. */
+function freePort(): Promise<number> {
+  return new Promise((resolve) => {
+    const s = net.createServer().listen(0, '127.0.0.1', () => {
+      const { port } = s.address() as net.AddressInfo;
+      s.close(() => resolve(port));
+    });
+  });
+}

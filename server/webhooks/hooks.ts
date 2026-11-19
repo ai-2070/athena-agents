@@ -132,8 +132,8 @@ export async function createWebhook(input: WebhookInput): Promise<WebhookCreated
     token,
     ...(given || made ? { secret: given || made || '' } : {}),
   });
-  // making a webhook means you want to receive them
-  if (!getSettings().webhooks.on) saveSettings({ webhooks: { on: true } });
+  // making a webhook means you want to receive them, but not that a tunnel switched off with them starts again
+  if (!getSettings().webhooks.on) saveSettings({ webhooks: { on: true, share: 'off' } });
   await syncListener();
   return { webhook: listing(h), address: addressFor(token), secret: made };
 }
@@ -281,6 +281,8 @@ export interface SetupInput extends Partial<Omit<WebhookSettings, 'toolPaths' | 
 export async function setupWebhooks(patch: SetupInput): Promise<WebhookStatus> {
   const next: Partial<WebhookSettings> = {};
   if (patch.on !== undefined) next.on = patch.on;
+  // turning webhooks off stops the tunnel for good: it starts again only when you pick it again
+  if (patch.on === false && patch.share === undefined) Object.assign(next, { share: 'off', tunnelChanged: false });
   if (patch.share !== undefined) {
     next.share = patch.share;
     // picking a tunnel means you want to receive webhooks

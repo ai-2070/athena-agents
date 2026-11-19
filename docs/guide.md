@@ -333,7 +333,7 @@ Athena then shows the webhook's **address** and any secret it made, with where t
 - **Tailscale, public**: Tailscale Funnel. Your computer's `https://<name>.<tailnet>.ts.net` address, which stays the same. Funnel has to be allowed for your tailnet the first time: Athena shows the link.
 - **Tailscale, tailnet only**: Tailscale Serve. Only your own devices on the tailnet can reach it, for senders like Home Assistant or n8n on another machine.
 
-Picking one starts it right away, using `cloudflared` or `tailscale` installed on this computer (Athena shows where to get them), fills in the address and checks that webhooks reach this computer. It starts again whenever Athena starts, and stops when Athena stops or you pick **Off**. Under **Off** you can run your own tunnel instead and type its address; **Check** works for it too. Point your own tunnel at the webhooks port only, never at the dashboard's.
+Picking one starts it right away, using `cloudflared` or `tailscale` installed on this computer (Athena shows where to get them), fills in the address and checks that webhooks reach this computer. It starts again whenever Athena starts, and stops when Athena stops or you pick **Off**. Switching **Receive webhooks** off stops it too, and it stays off until you pick it again. Changing the webhooks port or where the program is starts it again with the new one. Under **Off** you can run your own tunnel instead and type its address; **Check** works for it too. Point your own tunnel at the webhooks port only, never at the dashboard's.
 
 ## The Brain and your teams
 

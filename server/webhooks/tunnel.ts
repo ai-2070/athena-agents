@@ -9,7 +9,7 @@ import path from 'node:path';
 import { bus, emit, getSettings, log, saveSettings } from '../store.ts';
 import { dataPath, exists, IS_WIN, killTree, PORT, readJSON, run, spawnCommand, which, writeJSON } from '../util.ts';
 import type { RunResult } from '../util.ts';
-import { checkNonce, listenerStatus, syncListener } from './listener.ts';
+import { checkNonce, listenerStatus, syncListener, webhookPort } from './listener.ts';
 import type { WebhookShare, WebhookTunnel } from '../../shared/types.ts';
 
 type Tool = 'cloudflared' | 'tailscale';
@@ -228,6 +228,7 @@ async function start(share: Exclude<WebhookShare, 'off'>): Promise<void> {
   changed();
   const tool = TOOL_OF[share];
   const exe = findTool(tool);
+  startedFor = runKey(share);
   if (!exe)
     return stopped(`Install ${NAME[tool]} first, then pick it again.`, {
       link: INSTALL[tool].link,
@@ -316,7 +317,8 @@ async function start(share: Exclude<WebhookShare, 'off'>): Promise<void> {
 function read(share: Exclude<WebhookShare, 'off'>, line: string, gen: number) {
   note(line);
   if (share === 'cloudflare') {
-    const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/i.exec(line);
+    // (api.trycloudflare.com is in cloudflared's errors when it can't get a tunnel: never the address)
+    const m = /https:\/\/(?!api\.)[a-z0-9-]+\.trycloudflare\.com/i.exec(line);
     if (m && st.state !== 'on') return up(share, m[0], gen);
   } else {
     const allow = /https:\/\/login\.tailscale\.com\/\S+/.exec(line);
@@ -365,6 +367,7 @@ export function stopTunnel(): void {
   generation++;
   clearTimers();
   retry = 0;
+  startedFor = '';
   const p = child;
   child = null;
   if (p) killTree(p);
@@ -375,6 +378,12 @@ export function stopTunnel(): void {
   }
 }
 
+/** What a running tunnel was started with: the choice, the webhooks port asked for and the program. Any change to
+ *  them starts it again, so it never keeps forwarding to a port the listener left. */
+let startedFor = '';
+const runKey = (share: Exclude<WebhookShare, 'off'>) =>
+  JSON.stringify([share, webhookPort(), findTool(TOOL_OF[share])]);
+
 /** Starts, switches or stops the tunnel to match Settings › Webhooks. */
 let applying: Promise<void> = Promise.resolve();
 export function applyShare(): Promise<void> {
@@ -382,8 +391,9 @@ export function applyShare(): Promise<void> {
     const s = getSettings().webhooks;
     const want: WebhookShare = s.on ? s.share : 'off';
     if (want === 'off') return stopTunnel();
-    // already going (or waiting to try again) for this choice
-    if (st.share === want && st.state !== 'off' && (child || st.state === 'starting')) return;
+    // already going (or waiting to try again) for this choice, port and program
+    if (st.share === want && st.state !== 'off' && (child || st.state === 'starting') && startedFor === runKey(want))
+      return;
     stopTunnel();
     await start(want);
   });
