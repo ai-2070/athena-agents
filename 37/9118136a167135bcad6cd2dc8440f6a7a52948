@@ -1,0 +1,21 @@
+server/scene/tools.ts
+  s_a8a165d3b5bd65::t_8c1cca8e0d436d 63-64,72
+tests/server/social-posting.test.ts
+  s_a8a165d3b5bd65::t_8c1cca8e0d436d 161-162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "379118136a167135bcad6cd2dc8440f6a7a52948",
+  "prompts": {},
+  "sessions": {
+    "s_a8a165d3b5bd65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "407b6995-f113-4509-afd8-e026bb1382b6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
