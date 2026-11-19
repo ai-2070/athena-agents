@@ -1880,13 +1880,46 @@ export interface WebhookDelivery {
   updatedAt?: number;
 }
 
+/** How the webhooks port is shared: not by Athena, a Cloudflare quick tunnel, Tailscale Funnel or Tailscale Serve. */
+export type WebhookShare = 'off' | 'cloudflare' | 'tailscale-public' | 'tailscale-tailnet';
+
 export interface WebhookSettings {
   /** Receive webhooks at all. */
   on: boolean;
   /** The webhooks port; null: the dashboard's port + 1. */
   port: number | null;
-  /** Where the internet reaches the webhooks port (a tunnel's address), '' when there is none. */
+  /** Where the internet reaches the webhooks port through a tunnel you run yourself ('' when there is none). */
   publicUrl: string;
+  /** The tunnel Athena runs (Settings › Webhooks' selector). Started again when Athena starts. */
+  share: WebhookShare;
+  /** Where cloudflared and tailscale are, when they aren't found by themselves ('' to look for them). */
+  toolPaths: { cloudflared: string; tailscale: string };
+  /** The last address the tunnel had. */
+  tunnelUrl: string;
+  /** The Cloudflare address changed since the senders were told: they need each webhook's new address. */
+  tunnelChanged: boolean;
+}
+
+/** The tunnel Athena runs, as Settings › Webhooks shows it. */
+export interface WebhookTunnel {
+  share: WebhookShare;
+  state: 'off' | 'starting' | 'on' | 'stopped';
+  /** Its public address ('' until known). */
+  address: string;
+  /** Whether Check reached this computer through it (null: not checked yet). */
+  reached: boolean | null;
+  /** What's going on or what to do, in plain words. */
+  message: string | null;
+  /** The message is about the dashboard being reachable. */
+  danger: boolean;
+  /** A link to open (allow Funnel, get the tool) and its words. */
+  link: string | null;
+  linkLabel: string | null;
+  changed: boolean;
+  /** Which tools are installed. */
+  tools: { cloudflared: boolean; tailscale: boolean };
+  /** The tool's last lines of output. */
+  output: string[];
 }
 
 /** How the webhooks listener is doing. */
@@ -1897,6 +1930,8 @@ export interface WebhookStatus {
   publicUrl: string;
   /** Why it isn't listening, in plain words. */
   error: string | null;
+  /** The tunnel Athena runs. */
+  tunnel: WebhookTunnel;
 }
 
 export type SecretKey =

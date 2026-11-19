@@ -19,6 +19,8 @@ const TOKEN = /^\/h\/([A-Za-z0-9_-]{20,128})$/;
 let nonce = crypto.randomBytes(16).toString('hex');
 let server: http.Server | null = null;
 let port = 0;
+/** The port asked for (0: any free one, in tests). */
+let requested = -1;
 let error: string | null = null;
 /** --hooks-port */
 let portArg: number | null = null;
@@ -34,7 +36,7 @@ export const setHooksPortArg = (p: number | null): void => {
 
 /** The port webhooks are received on: the setting, else --hooks-port, else the dashboard's + 1. */
 export function webhookPort(): number {
-  return getSettings().webhooks.port || portArg || PORT + 1;
+  return getSettings().webhooks.port ?? portArg ?? PORT + 1;
 }
 
 const json = (res: http.ServerResponse, status: number, body: unknown) => {
@@ -100,7 +102,7 @@ export async function handle(req: http.IncomingMessage, res: http.ServerResponse
 
 /** Starts listening on a port (stops first if it listens on another). */
 export function startListener(on: number): Promise<void> {
-  if (server && port === on) return Promise.resolve();
+  if (server && requested === on) return Promise.resolve();
   return stopListener().then(
     () =>
       new Promise<void>((resolve) => {
@@ -125,6 +127,7 @@ export function startListener(on: number): Promise<void> {
         });
         s.listen(on, '127.0.0.1', () => {
           server = s;
+          requested = on;
           port = (s.address() as { port: number }).port;
           error = null;
           nonce = crypto.randomBytes(16).toString('hex');
@@ -140,6 +143,7 @@ export function stopListener(): Promise<void> {
   const s = server;
   server = null;
   port = 0;
+  requested = -1;
   if (!s) return Promise.resolve();
   return new Promise<void>((resolve) => {
     s.close(() => resolve());
@@ -149,9 +153,10 @@ export function stopListener(): Promise<void> {
   });
 }
 
-/** Is the listener wanted: webhooks on, and at least one webhook on, in any project. */
+/** Is the listener wanted: webhooks on, and a tunnel shared or at least one webhook on, in any project. */
 export function listenerWanted(): boolean {
-  return getSettings().webhooks.on && allWebhooks().some((h) => h.enabled);
+  const s = getSettings().webhooks;
+  return s.on && (s.share !== 'off' || allWebhooks().some((h) => h.enabled));
 }
 
 let syncing: Promise<void> = Promise.resolve();
@@ -175,7 +180,7 @@ export function syncListener(): Promise<void> {
 
 const dashboardPort = (p: number) => p === PORT;
 
-export function listenerStatus(): WebhookStatus {
+export function listenerStatus(): Omit<WebhookStatus, 'tunnel'> {
   const s = getSettings().webhooks;
   return {
     on: s.on,

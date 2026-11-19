@@ -106,7 +106,15 @@ const DEFAULT_SETTINGS: Settings = {
   toolResultChars: 24_000,
   favoriteModels: [],
   defaultWorld: '',
-  webhooks: { on: false, port: null, publicUrl: '' },
+  webhooks: {
+    on: false,
+    port: null,
+    publicUrl: '',
+    share: 'off',
+    toolPaths: { cloudflared: '', tailscale: '' },
+    tunnelUrl: '',
+    tunnelChanged: false,
+  },
 };
 
 /** What saveSettings takes: any top-level setting, with its own fields optional too (they are merged in). */

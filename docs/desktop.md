@@ -36,6 +36,8 @@ When it opens, the app:
    the app's log folder.
 3. Shows `src-tauri/loading/index.html` until the port answers, then loads `http://localhost:<port>/`.
    If the server stops, the same page shows the error, the log's location and **Try again**.
+   Webhooks, when on, are received on the next port up (14801 with the dashboard on 14800), and a Cloudflare or
+   Tailscale tunnel started from Settings › Webhooks stops when the app quits.
 4. On macOS and Linux, asks the login shell for its `PATH`. Apps opened from the Dock or a menu get a
    short one, and agents' CLIs (`claude`, `codex`, `gh`…) would not be found.
 5. After 30 seconds, and every 6 hours after that, looks for an update (below).

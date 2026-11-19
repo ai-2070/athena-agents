@@ -47,6 +47,17 @@ const setup = z.object({
     .string({ error: 'The public address must be text.' })
     .max(300, { error: 'The public address is too long.' })
     .optional(),
+  share: z
+    .enum(['off', 'cloudflare', 'tailscale-public', 'tailscale-tailnet'], {
+      error: 'Share webhooks: off, Cloudflare, Tailscale public or Tailscale tailnet only.',
+    })
+    .optional(),
+  toolPaths: z
+    .object({
+      cloudflared: z.string({ error: 'A program path must be text.' }).max(500).optional(),
+      tailscale: z.string({ error: 'A program path must be text.' }).max(500).optional(),
+    })
+    .optional(),
 });
 
 export const webhooks = {
@@ -93,5 +104,15 @@ export const webhooks = {
   test: oc.route({ method: 'POST', path: '/webhooks/{id}/test' }).input(oneWebhook).output(type<WebhookDelivery>()),
   /** Whether webhooks are received, on which port and public address. */
   status: oc.route({ method: 'GET', path: '/webhooks-setup' }).output(type<WebhookStatus>()),
+  /** Turns receiving on or off, sets the port, the public address of your own tunnel, or the tunnel Athena runs. */
   setup: oc.route({ method: 'PUT', path: '/webhooks-setup' }).input(setup).output(type<WebhookStatus>()),
+  /** Checks now that webhooks reach this computer through the public address. */
+  check: oc.route({ method: 'POST', path: '/webhooks-setup/check' }).output(type<WebhookStatus>()),
+  /** The senders have the new Cloudflare addresses: stop saying they changed. */
+  seen: oc.route({ method: 'POST', path: '/webhooks-setup/seen' }).output(type<WebhookStatus>()),
+  /** A webhook's full address again (never in a listing). */
+  address: oc
+    .route({ method: 'POST', path: '/webhooks/{id}/show-address' })
+    .input(oneWebhook)
+    .output(type<{ address: string }>()),
 };

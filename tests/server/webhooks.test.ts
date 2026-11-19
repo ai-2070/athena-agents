@@ -301,7 +301,7 @@ describe('a webhook', () => {
 });
 
 describe('secrets', () => {
-  it('stay in data/webhook-secrets.json: not in listings, deliveries, backups or the project folder', async () => {
+  it('stay in data/webhook-secrets.json: not in listings, deliveries or backups', async () => {
     agent('Keeper');
     const r = saveRoutine({ name: 'Secretive', text: '@Keeper keeps.' });
     const made = await hooks.createWebhook({
@@ -318,7 +318,9 @@ describe('secrets', () => {
     const backup = JSON.stringify(packProject(activeProject()));
     expect(backup).not.toContain('TOPSECRET');
     expect(backup).not.toContain(secretsOf(made.webhook.id)!.tokenHash);
-    expect(fs.readFileSync(dataPath('webhook-secrets.json'), 'utf8')).not.toContain(token);
+    // kept only beside the other secrets, so Show address can bring the full address back
+    expect(fs.readFileSync(dataPath('webhook-secrets.json'), 'utf8')).toContain(token);
+    expect(hooks.showAddress(made.webhook.id)).toBe(made.address);
     expect(findByToken(token)?.webhookId).toBe(made.webhook.id);
   });
 
@@ -330,6 +332,14 @@ describe('secrets', () => {
     expect(findByToken(tokenOf(made.address))).toBeNull();
     expect(findByToken(tokenOf(next.address))?.webhookId).toBe(made.webhook.id);
     expect(next.webhook.addressHint).toBe(tokenOf(next.address).slice(-4));
+    expect(hooks.showAddress(made.webhook.id)).toBe(next.address);
+    // a tunnel's address replaces this computer's in every address shown
+    saveSettings({ webhooks: { publicUrl: 'https://hooks.example.com' } });
+    try {
+      expect(hooks.showAddress(made.webhook.id)).toBe(`https://hooks.example.com/h/${tokenOf(next.address)}`);
+    } finally {
+      saveSettings({ webhooks: { publicUrl: '' } });
+    }
     const secret = hooks.newSecret(made.webhook.id);
     expect(secret.address).toBeNull();
     expect(secret.secret).not.toBe(made.secret);

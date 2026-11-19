@@ -1,12 +1,15 @@
-// Making, changing and removing webhooks (each starts one routine), and the webhooks settings. A secret address or a
-// signing secret Athena makes is shown once, in the answer that made it; after that only a new one can be made.
+// Making, changing and removing webhooks (each starts one routine), and the webhooks settings. A signing secret Athena
+// makes is shown once, in the answer that made it. The address can be shown again on request (Show address): a
+// Cloudflare address changes on each start, and the senders then need it again. Neither is ever in a listing.
 import crypto from 'node:crypto';
+import path from 'node:path';
 import { activeProject, getSettings, routines, saveSettings } from '../store.ts';
 import { PORT } from '../util.ts';
 import { deliveries, deliveriesOf, hashToken, newToken, saveSecrets, secretsOf, webhooks } from './store.ts';
 import { SENDER_SECRET, signFor } from './verify.ts';
 import { receiveIn } from './intake.ts';
 import { listenerStatus, syncListener, webhookPort } from './listener.ts';
+import { applyShare, checkTunnel, publicAddress, tunnelStatus } from './tunnel.ts';
 import type {
   Webhook,
   WebhookCreated,
@@ -69,7 +72,7 @@ function routineFor(id: string) {
 
 /** The full address of a token: the public one when there is one, else this computer's. */
 export function addressFor(token: string): string {
-  const base = getSettings().webhooks.publicUrl || `http://127.0.0.1:${webhookPort()}`;
+  const base = publicAddress() || `http://127.0.0.1:${webhookPort()}`;
   return `${base.replace(/\/+$/, '')}/h/${token}`;
 }
 
@@ -126,6 +129,7 @@ export async function createWebhook(input: WebhookInput): Promise<WebhookCreated
   saveSecrets(h.id, {
     projectId: activeProject().id,
     tokenHash: hashToken(token),
+    token,
     ...(given || made ? { secret: given || made || '' } : {}),
   });
   // making a webhook means you want to receive them
@@ -181,10 +185,19 @@ export function newAddress(id: string): WebhookCreated {
   const h = getWebhook(id);
   const token = newToken();
   const s = secretsOf(h.id);
-  saveSecrets(h.id, { ...s, projectId: activeProject().id, tokenHash: hashToken(token) });
+  saveSecrets(h.id, { ...s, projectId: activeProject().id, tokenHash: hashToken(token), token });
   h.addressHint = token.slice(-4);
   webhooks.save(h);
   return { webhook: listing(h), address: addressFor(token), secret: null };
+}
+
+/** The full address again, on request (never in listings): a Cloudflare address changes on each start. */
+export function showAddress(id: string): string {
+  const h = getWebhook(id);
+  const s = secretsOf(h.id);
+  if (!s?.token || s.projectId !== activeProject().id)
+    throw oops("This webhook's address can't be shown again. Make a new address.", 409);
+  return addressFor(s.token);
 }
 
 /** A new signing secret: the one given (from the sender), or one Athena makes and shows this once. */
@@ -249,9 +262,37 @@ function cleanPublicUrl(raw: string): string {
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
 }
 
-export async function setupWebhooks(patch: Partial<WebhookSettings>): Promise<WebhookStatus> {
+/** The listener and the tunnel, as Settings › Webhooks shows them. */
+export function webhookStatus(): WebhookStatus {
+  return { ...listenerStatus(), tunnel: tunnelStatus() };
+}
+
+const cleanToolPath = (raw: string) => {
+  const p = raw.trim();
+  if (p && !path.isAbsolute(p)) throw oops("Give the program's full path, starting at the drive (or /).");
+  return p;
+};
+
+export interface SetupInput extends Partial<Omit<WebhookSettings, 'toolPaths' | 'tunnelUrl' | 'tunnelChanged'>> {
+  toolPaths?: Partial<WebhookSettings['toolPaths']>;
+}
+
+export async function setupWebhooks(patch: SetupInput): Promise<WebhookStatus> {
   const next: Partial<WebhookSettings> = {};
   if (patch.on !== undefined) next.on = patch.on;
+  if (patch.share !== undefined) {
+    next.share = patch.share;
+    // picking a tunnel means you want to receive webhooks
+    if (patch.share !== 'off') next.on = true;
+    if (patch.share !== getSettings().webhooks.share) next.tunnelChanged = false;
+  }
+  if (patch.toolPaths !== undefined) {
+    const now = getSettings().webhooks.toolPaths;
+    next.toolPaths = {
+      cloudflared: cleanToolPath(patch.toolPaths.cloudflared ?? now.cloudflared),
+      tailscale: cleanToolPath(patch.toolPaths.tailscale ?? now.tailscale),
+    };
+  }
   if (patch.port !== undefined) {
     if (patch.port !== null && (patch.port < 1024 || patch.port > 65535)) throw oops('Pick a port from 1024 to 65535.');
     if (patch.port === PORT) throw oops(`Port ${PORT} is the dashboard's. Pick another port for webhooks.`);
@@ -260,5 +301,18 @@ export async function setupWebhooks(patch: Partial<WebhookSettings>): Promise<We
   if (patch.publicUrl !== undefined) next.publicUrl = cleanPublicUrl(patch.publicUrl);
   saveSettings({ webhooks: next });
   await syncListener();
-  return listenerStatus();
+  await applyShare();
+  return webhookStatus();
+}
+
+/** The senders were given the new Cloudflare addresses. */
+export function addressesSeen(): WebhookStatus {
+  saveSettings({ webhooks: { tunnelChanged: false } });
+  return webhookStatus();
+}
+
+/** Checks now that webhooks reach this computer through the public address. */
+export async function checkNow(): Promise<WebhookStatus> {
+  await checkTunnel();
+  return webhookStatus();
 }

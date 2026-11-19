@@ -113,7 +113,30 @@ function CopyBox({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** The address and secret, the one time they are shown. */
+/** A webhook's full address again, with where to paste it. */
+async function showAddress(h: WebhookListing): Promise<void> {
+  const got = await attempt(() => rpc.webhooks.address({ id: h.id }));
+  if (!got) return;
+  openModal(
+    h.name,
+    (close) => (
+      <>
+        <div className="modal-body">
+          <div className="webhook-address flex flex-col gap-4 [&_p]:m-0">
+            <CopyBox label="Address" value={got.address} />
+            <p className="text-[13px] text-dim">{pasteNote(h.verify)}</p>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <Button onClick={close}>Done</Button>
+        </div>
+      </>
+    ),
+    { medium: true },
+  );
+}
+
+/** The address and secret, the one time the secret is shown. */
 export function showMade(made: WebhookCreated, title = 'Webhook ready'): void {
   const local = !!made.address && /^http:\/\/127\.0\.0\.1:/.test(made.address);
   openModal(
@@ -133,13 +156,13 @@ export function showMade(made: WebhookCreated, title = 'Webhook ready'): void {
                   <Button variant="plain" onClick={() => (close(), navigate('#/settings?tab=webhooks'))}>
                     Settings › Webhooks
                   </Button>
-                  , then make a new address here.
+                  , then use Show address on the webhook for its address there.
                 </span>
               </p>
             ) : null}
-            <p className="text-[12.5px] text-faint">
-              Shown only now. If you lose {made.address && made.secret ? 'them' : 'it'}, make a new one.
-            </p>
+            {made.secret ? (
+              <p className="text-[12.5px] text-faint">The secret is shown only now. If you lose it, make a new one.</p>
+            ) : null}
           </div>
         </div>
         <div className="modal-foot">
@@ -501,6 +524,10 @@ function WebhookRow({ h, routineName }: { h: WebhookListing; routineName: string
         <p className="hint m-0 text-amber!">This webhook has no address on this computer. Make a new one.</p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="tiny" onClick={() => void showAddress(h)}>
+          <Icon name="link" size={12} />
+          Show address
+        </Button>
         <Button variant="ghost" size="tiny" onClick={() => void test()}>
           <Icon name="test-tube" size={12} />
           Send a test
@@ -545,6 +572,7 @@ export function RoutineWebhooks({ routineId, routineName }: { routineId: string;
   useEffect(load, [load]);
   useServerEvents((ev) => ['webhooks', 'webhook-deliveries', 'webhook-status', 'settings'].includes(ev.type) && load());
   const quiet = status && list?.some((h) => h.enabled) && !status.listening;
+  const moved = !!status?.tunnel?.changed && !!list?.length;
   return (
     <FormSection
       icon="webhook"
@@ -562,6 +590,21 @@ export function RoutineWebhooks({ routineId, routineName }: { routineId: string;
           <Icon name="triangle-alert" size={12} />
           {status.error || 'Webhooks are not being received.'} <a href="#/settings?tab=webhooks">Settings › Webhooks</a>
         </p>
+      ) : null}
+      {moved ? (
+        <div className="webhook-moved flex flex-wrap items-center gap-2 rounded-ctl border border-line bg-panel-2 px-3 py-2.5 text-[13px] text-amber">
+          <Icon name="triangle-alert" size={13} />
+          <span className="min-w-0 flex-1">
+            The Cloudflare address changed. Give each sender its webhook's new address (Show address).
+          </span>
+          <Button
+            variant="ghost"
+            size="tiny"
+            onClick={() => void attempt(() => rpc.webhooks.seen()).then((s) => s && setStatus(s))}
+          >
+            Done
+          </Button>
+        </div>
       ) : null}
       {list === null ? (
         <p className="hint m-0">Loading…</p>

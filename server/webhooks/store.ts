@@ -17,6 +17,8 @@ export interface WebhookSecrets {
   tokenHash: string;
   /** The signing secret or token the sender uses. */
   secret?: string;
+  /** The address's token, so the full address can be shown again (a Cloudflare address changes on each start). */
+  token?: string;
 }
 
 const SECRETS_FILE = () => dataPath('webhook-secrets.json');

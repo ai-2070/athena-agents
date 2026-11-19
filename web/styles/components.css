@@ -130,11 +130,16 @@ div.field > span:first-child {
     0 0 0 1px var(--color-line-2),
     0 1px 2px light-dark(rgb(20 22 40 / 0.08), transparent);
 }
-.seg button:not(.on):not([data-checked]):not([data-pressed]):hover {
+.seg button:not(.on):not([data-checked]):not([data-pressed]):not(:disabled):hover {
   color: var(--color-ink);
 }
 .seg button:focus-visible {
   outline-offset: 1px;
+}
+/* a choice that can't be picked now (its title says why) */
+.seg button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* on/off: a checkbox in a label (.toggle), or Base UI's Switch (web/ui/controls.tsx) — one look, two markups */

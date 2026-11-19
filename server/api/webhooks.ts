@@ -3,7 +3,6 @@ import { implement } from '@orpc/server';
 import { webhooks as contract } from '../../shared/api/webhooks.ts';
 import * as hooks from '../webhooks/hooks.ts';
 import { runAgain } from '../webhooks/intake.ts';
-import { listenerStatus } from '../webhooks/listener.ts';
 import { refusing } from './refuse.ts';
 
 const os = implement(contract);
@@ -21,6 +20,9 @@ export const webhooksRouter = os.router({
   ),
   runAgain: os.runAgain.handler(({ input }) => refusing(() => runAgain(input.id))),
   test: os.test.handler(({ input }) => refusing(() => hooks.testWebhook(input.id))),
-  status: os.status.handler(() => listenerStatus()),
+  status: os.status.handler(() => hooks.webhookStatus()),
   setup: os.setup.handler(({ input }) => refusing(() => hooks.setupWebhooks(input))),
+  check: os.check.handler(() => hooks.checkNow()),
+  seen: os.seen.handler(() => hooks.addressesSeen()),
+  address: os.address.handler(({ input }) => refusing(() => ({ address: hooks.showAddress(input.id) }))),
 });

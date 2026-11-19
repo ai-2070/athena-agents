@@ -3,8 +3,14 @@ import { act } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mountReact } from '../../web/ui/react.tsx';
 import { pasteNote, RoutineWebhooks } from '../../web/views/routine-webhooks.tsx';
-import { statusLine, WebhooksTab } from '../../web/views/webhooks.tsx';
-import type { WebhookCreated, WebhookDelivery, WebhookListing, WebhookStatus } from '../../shared/types.ts';
+import { statusLine, tunnelLine, WebhooksTab } from '../../web/views/webhooks.tsx';
+import type {
+  WebhookCreated,
+  WebhookDelivery,
+  WebhookListing,
+  WebhookStatus,
+  WebhookTunnel,
+} from '../../shared/types.ts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -37,6 +43,20 @@ const delivery: WebhookDelivery = {
   routineRunId: null,
 };
 let status: WebhookStatus;
+const tunnel = (over: Partial<WebhookTunnel> = {}): WebhookTunnel => ({
+  share: 'off',
+  state: 'off',
+  address: '',
+  reached: null,
+  message: null,
+  danger: false,
+  link: null,
+  linkLabel: null,
+  changed: false,
+  tools: { cloudflared: true, tailscale: true },
+  output: [],
+  ...over,
+});
 let list: WebhookListing[];
 let calls: { url: string; method: string; body: Record<string, unknown> }[];
 let host: HTMLElement;
@@ -52,7 +72,7 @@ const click = async (label: string, root: ParentNode = document) => {
 beforeEach(() => {
   document.body.innerHTML = '<div id="view"></div><div id="modal-root"></div><div id="toasts"></div>';
   host = document.getElementById('view')!;
-  status = { on: true, listening: true, port: 4801, publicUrl: '', error: null };
+  status = { on: true, listening: true, port: 4801, publicUrl: '', error: null, tunnel: tunnel() };
   list = [hook];
   calls = [];
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
@@ -69,7 +89,22 @@ beforeEach(() => {
         secret: 'f'.repeat(64),
       };
       out = made;
-    } else if (path === '/api/webhooks-setup') out = method === 'PUT' ? (status = { ...status, ...body }) : status;
+    } else if (path === '/api/webhooks-setup') {
+      if (method === 'PUT' && body.share)
+        status = {
+          ...status,
+          tunnel: tunnel({
+            share: body.share as WebhookTunnel['share'],
+            state: 'on',
+            address: 'https://red-fox.trycloudflare.com',
+            reached: true,
+          }),
+        };
+      else if (method === 'PUT') status = { ...status, ...body };
+      out = status;
+    } else if (path === '/api/webhooks-setup/seen') out = status = { ...status, tunnel: tunnel() };
+    else if (path === '/api/webhooks/w1/show-address')
+      out = { address: 'https://red-fox.trycloudflare.com/h/abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG' };
     else if (path === '/api/webhooks/w1/deliveries') out = [delivery];
     else if (path === '/api/webhooks/w1/test')
       out = { ...delivery, id: 'd2', status: 'skipped', reason: 'A test from Athena: every check passed.' };
@@ -113,7 +148,7 @@ it('adds a webhook and shows its address and secret once, with where to paste th
   expect(made.textContent).toContain('f'.repeat(64));
   expect(made.textContent).toContain('Payload URL: the address');
   expect(made.textContent).toContain("This is this computer's address");
-  expect(made.textContent).toContain('Shown only now');
+  expect(made.textContent).toContain('The secret is shown only now');
 });
 
 it('says where each sender takes the address', () => {
@@ -141,6 +176,8 @@ it('Settings › Webhooks turns receiving on and off and saves the public addres
   });
   await settle();
   expect(host.textContent).toContain('Listening on 127.0.0.1:4801, for webhooks only.');
+  await click('I run my own tunnel');
+  expect(host.textContent).toContain('cloudflared tunnel --url http://127.0.0.1:4801');
   const input = [...host.querySelectorAll<HTMLInputElement>('input')].find((i) => i.placeholder === 'https://…')!;
   await act(async () => {
     const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
@@ -149,6 +186,51 @@ it('Settings › Webhooks turns receiving on and off and saves the public addres
   });
   await click('Save address');
   expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ publicUrl: 'https://pc.tail1234.ts.net' });
+});
+
+it('Settings › Webhooks starts a tunnel on pick, with no confirm, and shows that webhooks reach it', async () => {
+  await act(async () => {
+    unmount = mountReact(host, <WebhooksTab />).unmount;
+  });
+  await settle();
+  await click('Cloudflare');
+  expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ share: 'cloudflare' });
+  expect(document.querySelector('.modal')).toBeNull();
+  expect(host.querySelector('.tunnel-line')?.textContent).toBe('On. Webhooks reach this computer.');
+  expect(host.textContent).toContain('https://red-fox.trycloudflare.com');
+  expect(host.textContent).toContain('changes every time it starts');
+});
+
+it("greys out a tool that isn't installed, and says how to get it", async () => {
+  status = { ...status, tunnel: tunnel({ tools: { cloudflared: false, tailscale: true } }) };
+  await act(async () => {
+    unmount = mountReact(host, <WebhooksTab />).unmount;
+  });
+  await settle();
+  expect(button('Cloudflare')?.disabled).toBe(true);
+  expect(button('Tailscale, public')?.disabled).toBe(false);
+  expect(host.textContent).toContain('winget install --id Cloudflare.cloudflared');
+});
+
+it('tunnelLine says what the tunnel is doing', () => {
+  expect(tunnelLine(tunnel()).text).toBe('Not shared by Athena.');
+  expect(tunnelLine(tunnel({ state: 'starting', message: 'Tailscale needs your OK first.' })).tone).toBe('busy');
+  expect(tunnelLine(tunnel({ state: 'on', reached: false, message: 'No answer.' }))).toEqual({
+    text: 'No answer.',
+    tone: 'warn',
+  });
+});
+
+it("shows a webhook's address again, and says when the Cloudflare address changed", async () => {
+  status = { ...status, tunnel: tunnel({ share: 'cloudflare', state: 'on', changed: true }) };
+  await openRoutine();
+  expect(host.querySelector('.webhook-moved')?.textContent).toContain('The Cloudflare address changed');
+  await click('Show address');
+  expect(document.querySelector('.webhook-address')?.textContent).toContain('red-fox.trycloudflare.com/h/');
+  await click('Done', document.querySelector('.modal-foot')!);
+  await click('Done');
+  expect(calls.some((c) => c.url.endsWith('/api/webhooks-setup/seen'))).toBe(true);
+  expect(host.querySelector('.webhook-moved')).toBeNull();
 });
 
 it('describes the listener in plain words', () => {

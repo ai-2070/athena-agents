@@ -49,6 +49,7 @@ import * as uploads from './uploads.ts';
 import * as files from './files.ts';
 import * as routinesMod from './routines.ts';
 import * as webhookListener from './webhooks/listener.ts';
+import * as webhookTunnel from './webhooks/tunnel.ts';
 import { dropOldBodies, markInterruptedDeliveries } from './webhooks/store.ts';
 import * as backup from './backup.ts';
 import { devPage, pageCsp, viteFromArgs } from './devpage.ts';
@@ -795,7 +796,7 @@ markInterruptedDeliveries();
 dropOldBodies();
 setInterval(() => dropOldBodies(), 3_600_000).unref();
 webhookListener.watchWebhooks();
-void webhookListener.syncListener();
+void webhookListener.syncListener().then(() => webhookTunnel.watchTunnel());
 projectSync.startAutoSave();
 startSceneWatch();
 programs.startProgramScan();
@@ -825,6 +826,8 @@ const shutdown = () => {
   if (stopping) return;
   stopping = true;
   terms.closeAll();
+  // the tunnel goes first: nothing outside should reach a dashboard that is stopping
+  webhookTunnel.stopTunnel();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
   void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns(), webhookListener.stopListener()])
     .finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()]))
