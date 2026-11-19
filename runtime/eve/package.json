@@ -9,6 +9,6 @@
     "ai": "7.0.173",
     "@ai-sdk/openai-compatible": "3.0.92",
     "zod": "4.6.7",
-    "just-bash": "3.6.0"
+    "just-bash": "3.6.1"
   }
 }
