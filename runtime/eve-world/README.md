@@ -1,12 +1,12 @@
 # Eve's local store
 
-This package selects `@workflow/world-local` 5.2.1 through Eve's public custom-world option.
+This package selects `@workflow/world-local` 5.3.0 through Eve's public custom-world option.
 Eve otherwise substitutes its own compiled copy for that package name. The factory imports it at
 runtime because the store reads its own package metadata; both packages stay external in the
 runtime build and are copied into the desktop package. The factory protects queue deliveries with
 a private process token and requeues active work after the store has recovered.
 
-`patches/@workflow%2Fworld-local@5.2.1.patch` fixes a crash between a terminal claim, its step
+`patches/@workflow%2Fworld-local@5.3.0.patch` fixes a crash between a terminal claim, its step
 checkpoint and its event. The original empty claim survives a crash but prevents any subsequent
 completion. The patch puts the exact step and event in the atomic claim until both are saved.
 Startup finishes pending claims before Eve requeues work, then drops the temporary payload. It
