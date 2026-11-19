@@ -1,0 +1,21 @@
+tests/web/gateways.test.tsx
+  s_b7072c0362beaa::t_4989548129163c 99-100
+web/views/gateways.tsx
+  s_b7072c0362beaa::t_2620dd15be1ec3 13-14,80,112-123,144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f7af66588d0ba6317016df7f05710b9039155d8",
+  "prompts": {},
+  "sessions": {
+    "s_b7072c0362beaa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "33ed18d3-a4be-4114-982f-20ea8ce766a5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
