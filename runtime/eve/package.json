@@ -7,7 +7,7 @@
     "@workflow/world-local": "5.2.1",
     "eve": "1.0.2",
     "ai": "7.0.173",
-    "@ai-sdk/openai-compatible": "3.0.92",
+    "@ai-sdk/openai-compatible": "3.0.93",
     "zod": "4.6.7",
     "just-bash": "3.6.1"
   }
