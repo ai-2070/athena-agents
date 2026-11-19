@@ -265,6 +265,20 @@ describe('a webhook', () => {
     await expect(runAgain(d.id)).rejects.toThrow(/no longer kept/);
   });
 
+  it('Send a test signs a sample as the sender would and passes every check, without running', async () => {
+    agent('Tester');
+    const r = saveRoutine({ name: 'Tested', text: '@Tester runs.' });
+    for (const preset of ['github', 'linear', 'standard'] as const) {
+      const secret = preset === 'standard' ? `whsec_${Buffer.from('k').toString('base64')}` : 'k';
+      const made = await hooks.createWebhook({ routineId: r.id, verify: { preset }, secret });
+      const d = await hooks.testWebhook(made.webhook.id);
+      expect(d, preset).toMatchObject({ status: 'skipped', reason: /test from Athena/ });
+    }
+    expect(routineRuns.list().some((x) => x.routineId === r.id)).toBe(false);
+    const off = await hooks.createWebhook({ routineId: r.id, verify: { preset: 'none' }, enabled: false });
+    expect(await hooks.testWebhook(off.webhook.id)).toMatchObject({ status: 'refused', reason: /off/ });
+  });
+
   it('marks deliveries whose run never started after a restart', async () => {
     agent('Late');
     const r = saveRoutine({ name: 'Interrupted', text: '@Late works.' });

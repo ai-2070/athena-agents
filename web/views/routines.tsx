@@ -20,6 +20,7 @@ import { Field, Switch } from '../ui/controls.tsx';
 import { CollapsePanel, CollapseRoot, CollapseTrigger } from '../ui/collapse.tsx';
 import { DomNode, Icon, ProjectScoped, reactPage, useAppState, useServerEvents } from '../ui/react.tsx';
 import { Dot, Pill } from '../ui/marks.tsx';
+import { RoutineWebhooks } from './routine-webhooks.tsx';
 import type { PillTone } from '../ui/classes.ts';
 import type {
   AppState,
@@ -615,6 +616,11 @@ function EditorForm({ first, teams }: { first: Routine; teams: TeamListing[] }) 
             </div>
           </Plate>
         </aside>
+        {!isNew && (
+          <Plate className="col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
+            <RoutineWebhooks routineId={id} routineName={name} />
+          </Plate>
+        )}
         <Plate className="col-span-2 rounded-box p-5 sm:p-6 max-lg:col-span-1">
           <FormSection icon="history" title="Runs" hint="What each agent and team did, newest first.">
             <Runs id={id} onLatest={setLast} />

@@ -20,6 +20,7 @@ export const webhooksRouter = os.router({
     refusing(() => (hooks.getWebhook(input.id), hooks.removeBodies(input.id), { ok: true as const })),
   ),
   runAgain: os.runAgain.handler(({ input }) => refusing(() => runAgain(input.id))),
+  test: os.test.handler(({ input }) => refusing(() => hooks.testWebhook(input.id))),
   status: os.status.handler(() => listenerStatus()),
   setup: os.setup.handler(({ input }) => refusing(() => hooks.setupWebhooks(input))),
 });

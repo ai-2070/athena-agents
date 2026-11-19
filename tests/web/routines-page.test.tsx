@@ -51,6 +51,9 @@ beforeEach(() => {
     if (url === '/api/routines' && method === 'POST') return json({ ...routine, ...body, id: 'r2', mentions: [] });
     if (url.startsWith('/api/routine-runs')) return json(runsData);
     if (url.startsWith('/api/skills')) return json({ skills: [], claude: [] });
+    if (url.startsWith('/api/webhooks-setup'))
+      return json({ on: false, listening: false, port: 4801, publicUrl: '', error: null });
+    if (url.startsWith('/api/webhooks')) return json([]);
     return json(
       url.includes('/workflows')
         ? [{ id: 't1', name: 'Content Team', members: ['a1'], description: '' }]

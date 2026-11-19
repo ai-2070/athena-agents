@@ -89,6 +89,8 @@ export const webhooks = {
     .route({ method: 'POST', path: '/webhook-deliveries/{id}/run' })
     .input(oneWebhook)
     .output(type<RoutineRun>()),
+  /** A signed sample through every check, without running anything. */
+  test: oc.route({ method: 'POST', path: '/webhooks/{id}/test' }).input(oneWebhook).output(type<WebhookDelivery>()),
   /** Whether webhooks are received, on which port and public address. */
   status: oc.route({ method: 'GET', path: '/webhooks-setup' }).output(type<WebhookStatus>()),
   setup: oc.route({ method: 'PUT', path: '/webhooks-setup' }).input(setup).output(type<WebhookStatus>()),

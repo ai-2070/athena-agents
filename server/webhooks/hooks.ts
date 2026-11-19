@@ -4,7 +4,8 @@ import crypto from 'node:crypto';
 import { activeProject, getSettings, routines, saveSettings } from '../store.ts';
 import { PORT } from '../util.ts';
 import { deliveries, deliveriesOf, hashToken, newToken, saveSecrets, secretsOf, webhooks } from './store.ts';
-import { SENDER_SECRET } from './verify.ts';
+import { SENDER_SECRET, signFor } from './verify.ts';
+import { receiveIn } from './intake.ts';
 import { listenerStatus, syncListener, webhookPort } from './listener.ts';
 import type {
   Webhook,
@@ -210,6 +211,25 @@ export function removeBodies(webhookId: string): void {
       delete d.body;
       deliveries.save(d);
     }
+}
+
+/** Send a test: a sample signed the way the sender signs, through every check of a real delivery. Nothing runs. */
+export async function testWebhook(id: string): Promise<WebhookDelivery> {
+  const h = getWebhook(id);
+  const now = Date.now();
+  const sample: Record<string, unknown> = { type: 'athena.test', test: true, text: 'A test from Athena.' };
+  if (h.verify.preset === 'linear') sample.webhookTimestamp = now;
+  const body = JSON.stringify(sample);
+  const reply = await receiveIn(h.id, {
+    token: '',
+    body: Buffer.from(body),
+    headers: { 'content-type': 'application/json', ...signFor(h.verify, secretsOf(h.id)?.secret ?? null, body, now) },
+    now,
+    test: true,
+  });
+  const latest = deliveriesOf(h.id)[0];
+  if (!latest) throw oops(`The test got no answer (${reply.status}).`, 500);
+  return latest;
 }
 
 // ---------- settings ----------

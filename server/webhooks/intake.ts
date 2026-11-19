@@ -14,6 +14,8 @@ export interface Incoming {
   headers: Headers;
   body: Buffer;
   now?: number;
+  /** Send a test: every check, but nothing runs. */
+  test?: boolean;
 }
 
 export interface Reply {
@@ -101,7 +103,8 @@ export async function receive(req: Incoming): Promise<Reply> {
   return withProject(found.project, () => receiveIn(found.webhookId, req));
 }
 
-async function receiveIn(webhookId: string, req: Incoming): Promise<Reply> {
+/** Answers a request for one webhook (its address already matched, or a test from the page). */
+export async function receiveIn(webhookId: string, req: Incoming): Promise<Reply> {
   const h = webhooks.get(webhookId);
   if (!h) return NOT_FOUND;
   const now = req.now ?? Date.now();
@@ -149,6 +152,10 @@ async function receiveIn(webhookId: string, req: Incoming): Promise<Reply> {
   if (!routine.enabled) {
     save('refused', 'Its routine is switched off.');
     return { status: 409, body: { error: 'This webhook is paused.' } };
+  }
+  if (req.test) {
+    save('skipped', 'A test from Athena: every check passed. Nothing ran.');
+    return { status: 200, body: { ok: true, test: true } };
   }
   if (verdict.ping) {
     save('skipped', 'The sender checked the address.');
