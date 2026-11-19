@@ -1,0 +1,19 @@
+tests/skills/maps/test_maps_tool.py
+  s_a8a165d3b5bd65::t_fcba878fafd851 448-449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "674936394f31b42e0996302dc48904738c90edd6",
+  "prompts": {},
+  "sessions": {
+    "s_a8a165d3b5bd65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "407b6995-f113-4509-afd8-e026bb1382b6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
