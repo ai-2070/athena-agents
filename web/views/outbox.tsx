@@ -1,5 +1,6 @@
-// The Outbox: questions agents asked you, and posts, comments and DMs they drafted, waiting for you to
-// answer, or to approve, edit, discuss or reject.
+// The Outbox: questions agents asked you, and posts, comments, DMs and chat app messages they drafted, waiting for
+// you to answer, or to approve, edit, discuss or reject. A Telegram, Slack or Discord message goes to a chat you
+// choose, one the project's gateways have talked in.
 // A page of its own (the left menu) and a tab in Settings > Connections.
 import { Plate } from '../ui/surface.tsx';
 import { Button, ButtonLink } from '../ui/button.tsx';
@@ -17,7 +18,7 @@ import type { PillTone } from '../ui/marks.tsx';
 import { QuestionCard } from '../questions.tsx';
 import { xLength, X_MAX_LENGTH } from '../../shared/xtext.ts';
 import type { AgentQuestion, OutboxPost } from '../../shared/types.ts';
-import { GatewayCompose, GatewayOutboxCard } from './gateway-outbox.tsx';
+import type { GatewayChatChoice } from '../../shared/api/outbox.ts';
 
 /** X's limit for one post. */
 const LIMIT = X_MAX_LENGTH;
@@ -48,11 +49,14 @@ async function copyImage(url: string): Promise<void> {
 export function Outbox() {
   const data = useAppState();
   const [list, setList] = useState<OutboxPost[] | null>(null);
+  const [chats, setChats] = useState<GatewayChatChoice[]>([]);
   const version = useRef(0);
   const reload = useCallback(async () => {
     const next = ++version.current;
-    const value = await rpc.outbox.list();
-    if (next === version.current) setList(value);
+    const [value, known] = await Promise.all([rpc.outbox.list(), rpc.outbox.chats().catch(() => [])]);
+    if (next !== version.current) return;
+    setList(value);
+    setChats(known);
   }, []);
   useEffect(() => void reload().catch(() => setList([])), [reload]);
   useEffect(
@@ -63,8 +67,7 @@ export function Outbox() {
   );
   useServerEvents((ev) => {
     if (ev.type === 'project') setList(null);
-    if (['outbox', 'project', 'gateway-inbox', 'gateway-health', 'gateways'].includes(ev.type))
-      void reload().catch(() => {});
+    if (['outbox', 'project', 'chat-gateways', 'gateway-messages'].includes(ev.type)) void reload().catch(() => {});
   });
   if (!list || !data) return null;
   const pending = list.filter((p) => ['pending', 'failed', 'posting'].includes(p.status));
@@ -76,7 +79,6 @@ export function Outbox() {
       {data.accounts.x.length ? (
         <Compose accounts={data.accounts.x.map((a) => a.username)} added={() => void reload()} />
       ) : null}
-      <GatewayCompose key={`compose-${data.project?.id ?? ''}`} added={() => void reload()} />
       {/* nothing waiting: the heading goes above, so the note is in the middle of the page, not of the right column */}
       <Section
         title={`Waiting for you (${pending.length})`}
@@ -86,13 +88,9 @@ export function Outbox() {
       >
         {pending.length ? (
           <div className="flex flex-col gap-4">
-            {pending.map((p) =>
-              p.platform === 'telegram' || p.platform === 'discord' ? (
-                <GatewayOutboxCard key={`${data.project?.id ?? ''}-${p.id}`} p={p} changed={changed} />
-              ) : (
-                <PostCard key={p.id} p={p} changed={changed} />
-              ),
-            )}
+            {pending.map((p) => (
+              <PostCard key={p.id} p={p} chats={chats} changed={changed} />
+            ))}
           </div>
         ) : (
           <div className="empty mx-auto max-w-[56ch] py-12">
@@ -103,15 +101,9 @@ export function Outbox() {
       {done.length ? (
         <Section title="History" headingClassName="section" bare>
           <div className="flex flex-col gap-4">
-            {done
-              .slice(0, 40)
-              .map((p) =>
-                p.platform === 'telegram' || p.platform === 'discord' ? (
-                  <GatewayOutboxCard key={`${data.project?.id ?? ''}-${p.id}`} p={p} changed={changed} />
-                ) : (
-                  <PostCard key={p.id} p={p} changed={changed} />
-                ),
-              )}
+            {done.slice(0, 40).map((p) => (
+              <PostCard key={p.id} p={p} chats={chats} changed={changed} />
+            ))}
           </div>
         </Section>
       ) : null}
@@ -202,7 +194,10 @@ const STATUS: Record<string, [PillTone, string]> = {
   returned: ['info', 'Sent back'],
 };
 
-function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
+const GATEWAY_PLATFORMS = ['telegram', 'slack', 'discord'];
+const chatValue = (g: { instanceId: string; chatKey: string } | undefined) => (g ? `${g.instanceId} ${g.chatKey}` : '');
+
+function PostCard({ p, chats, changed }: { p: OutboxPost; chats: GatewayChatChoice[]; changed: () => void }) {
   // the desktop app opens an image in its own program
   const desktop = !!useAppState()?.desktop;
   const editable = p.status === 'pending' || p.status === 'failed';
@@ -234,7 +229,19 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
   const [discussing, setDiscussing] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const edits = () => ({ parts, ...(p.images ? { images } : {}), ...(title !== null ? { title } : {}) });
+  // Telegram, Slack, Discord: the chat it goes to (fixed once part of it went out)
+  const gateway = GATEWAY_PLATFORMS.includes(p.platform);
+  const options = chats
+    .filter((c) => c.platform === p.platform)
+    .map((c) => ({ value: chatValue(c), label: `${c.title} · ${c.instanceName}` }));
+  const [chat, setChat] = useState(chatValue(p.gateway));
+  const picked = chats.find((c) => chatValue(c) === chat);
+  const edits = () => ({
+    parts,
+    ...(p.images ? { images } : {}),
+    ...(title !== null ? { title } : {}),
+    ...(picked && !p.sentParts ? { gateway: { instanceId: picked.instanceId, chatKey: picked.chatKey } } : {}),
+  });
 
   const approve = async () => {
     setBusy(true);
@@ -285,6 +292,24 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
             disabled={!editable}
             onChange={(e) => setTitle(e.target.value)}
           />
+        </div>
+      ) : null}
+      {gateway && editable && !p.sentParts ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <span className="hint">Send to</span>
+          {options.length ? (
+            <SelectControl
+              aria-label="Send to"
+              value={chat}
+              onChange={setChat}
+              options={[...(chat ? [] : [{ value: '', label: 'Choose a chat' }]), ...options]}
+            />
+          ) : (
+            <span className="hint">
+              No {p.platform === 'telegram' ? 'Telegram' : p.platform === 'slack' ? 'Slack' : 'Discord'} chats yet: a
+              gateway can send only where someone has talked to it. <a href="#/settings?tab=gateways">Gateways</a>
+            </span>
+          )}
         </div>
       ) : null}
       {p.note ? <p className="hint mt-4">{p.note}</p> : null}
@@ -376,7 +401,7 @@ function PostCard({ p, changed }: { p: OutboxPost; changed: () => void }) {
       {editable ? (
         <>
           <div className="flex flex-wrap items-center gap-3 mt-4">
-            <Button size="small" disabled={busy} onClick={() => void approve()}>
+            <Button size="small" disabled={busy || (gateway && !picked && !p.gateway)} onClick={() => void approve()}>
               <Icon name="check" size={13} />
               {p.platform === 'x' ? 'Approve & post' : 'Approve & send'}
             </Button>

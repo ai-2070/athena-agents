@@ -1,6 +1,6 @@
 // Each test run takes its own share of the lock ports (server/ownershipport.ts), so two runs on one computer at the
 // same time (two worktrees, two agents) don't claim each other's ports: before, worker 1 of every run used the same
-// block, and the second run's gateway claims failed at once.
+// block, and the second run's claims failed at once.
 //
 // A run holds its slot by listening on a guard port just below the lock ports for as long as it runs; the system lets
 // go of it when the run ends, however it ends.

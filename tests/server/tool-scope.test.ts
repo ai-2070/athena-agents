@@ -25,11 +25,10 @@ describe('tools by conversation', () => {
     ).toEqual(['none', 'none', 'none', 'none', 'low', 'high']);
   });
 
-  it('lists the gateway file tools only in a gateway conversation', () => {
-    expect(names(toolDefs(agent))).not.toContain('prepare_gateway_files');
-    expect(names(toolDefs(agent, { conversationId: 'a'.repeat(64) }))).toEqual(
-      expect.arrayContaining(['prepare_gateway_files', 'send_gateway_files']),
-    );
+  it('lists the gateway file tool only in a gateway conversation, asking first', () => {
+    expect(names(toolDefs(agent))).not.toContain('send_gateway_files');
+    expect(names(toolDefs(agent, { conversationId: 'gw-g1-abc' }))).toContain('send_gateway_files');
+    expect(riskOf('send_gateway_files', {})).toBe('high');
     expect(names(toolDefs(agent, { conversationId: 'a'.repeat(64) }))).not.toContain('board_task');
   });
 

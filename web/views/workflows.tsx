@@ -486,7 +486,7 @@ function StepFields({
         <Switch checked={!!s.telegram} onChange={(v) => set({ telegram: v })}>
           Also draft a Telegram message in Outbox
         </Switch>
-        <p className="hint">Choose the gateway recipient and approve the draft in Outbox before it sends.</p>
+        <p className="hint">In the Outbox, choose the chat it goes to and approve it before it sends.</p>
       </>
     );
   return null;

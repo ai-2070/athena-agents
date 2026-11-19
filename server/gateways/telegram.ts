@@ -1,343 +1,161 @@
-import { TelegramAdapter } from '@chat-adapter/telegram';
-import type { TelegramUpdate } from '@chat-adapter/telegram';
-import type { ChatInstance, Logger } from 'chat';
-import { z } from 'zod';
-import type { GatewayInbound, GatewayInboxEvent, GatewayOutgoingFile } from '../../shared/types.ts';
-import { verifyGatewayDocument } from './outgoing.ts';
-import { getGatewayInstance } from './instances.ts';
-import { gatewayInputAllowed, GatewayFileLimitError } from './inbox.ts';
-import type { GatewayInbox } from './inbox.ts';
-import { GatewaySendError } from './replies.ts';
-import type { GatewayApprovedTextSend } from './replies.ts';
-import { withGatewayRoute } from './instances.ts';
-import { requireTelegramSetupReviewed } from './telegram-setup.ts';
+// Telegram through the Bot API: long polling (getUpdates), so nothing has to reach this computer from outside.
+import { GatewaySetupError, fileBlob, isObject, readJson, str } from './transport.ts';
+import type { ChatRef, Incoming, RemoteFile, Transport } from './transport.ts';
 
-export class GatewaySetupError extends Error {}
+const API = 'https://api.telegram.org';
+/** Bots may fetch files up to 20 MB. */
+const MAX_DOWNLOAD = 20 * 1024 * 1024;
 
-const updateEnvelope = z.object({ update_id: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) });
-const webhookInfo = z.object({ url: z.string() });
-// SDK logs may contain credential-bearing URLs or denied message text. Publish our own health only.
-const quiet: Logger = { child: () => quiet, debug() {}, info() {}, warn() {}, error() {} };
+type Json = Record<string, unknown>;
 
-/** The pinned SDK owns polling/backoff. Athena commits receipts before returning each fetched batch. */
-export class TelegramIntakeAdapter extends TelegramAdapter {
-  private readonly instanceId: string;
-  private readonly inbox: GatewayInbox;
-  private readonly activity: (connected: boolean) => void;
-  private readonly signal: AbortSignal | undefined;
-  private identityUserName: string | undefined;
+export class TelegramTransport implements Transport {
+  readonly maxText = 4096;
+  private readonly token: string;
+  private readonly offset: { get(): number | undefined; set(value: number): void };
+  private bot = { id: '', username: '' };
 
-  constructor(
-    instanceId: string,
-    inbox: GatewayInbox,
-    botToken: string,
-    activity: (connected: boolean) => void,
-    options: { apiUrl?: string; signal?: AbortSignal } = {},
-  ) {
-    super({
-      botToken,
-      apiUrl: options.apiUrl ?? 'https://api.telegram.org',
-      logger: quiet,
-      mode: 'polling',
-      mentionOnReply: true,
-      // Polling must never silently take over a bot's existing webhook.
-      longPolling: { deleteWebhook: false, allowedUpdates: ['message', 'edited_message'] },
-      allowedUserIds: [],
-      secretToken: '',
-      allowUnverifiedWebhooks: false,
-      businessMode: false,
+  constructor(token: string, offset: { get(): number | undefined; set(value: number): void }) {
+    this.token = token;
+    this.offset = offset;
+  }
+
+  private async call(method: string, body?: Json | FormData, signal?: AbortSignal): Promise<unknown> {
+    const res = await fetch(`${API}/bot${this.token}/${method}`, {
+      method: 'POST',
+      ...(body instanceof FormData
+        ? { body }
+        : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) }),
+      signal,
     });
-    this.instanceId = instanceId;
-    this.inbox = inbox;
-    this.activity = activity;
-    this.signal = options.signal;
-  }
-
-  protected override async ensureBotIdentity(): Promise<void> {
-    await super.ensureBotIdentity();
-    // Chat's display name must not replace the bot username used for group mentions.
-    this.identityUserName ??= this.userName;
-    this._userName = this.identityUserName;
-  }
-
-  override async initialize(chat: ChatInstance): Promise<void> {
-    const instance = getGatewayInstance(this.instanceId);
-    if (!instance.enabled || instance.platform !== 'telegram')
-      throw new GatewaySetupError('This Telegram instance is paused.');
-    try {
-      requireTelegramSetupReviewed(this.instanceId);
-    } catch {
+    const data = await readJson(res);
+    if (isObject(data) && data.ok === true) return data.result;
+    const said = isObject(data) ? str(data.description) : '';
+    if (res.status === 401 || res.status === 404) throw new GatewaySetupError('Telegram refused the bot token.');
+    if (res.status === 409)
       throw new GatewaySetupError(
-        'Pause this instance and check Telegram setup before connecting. Its switch receipts need review.',
+        'Another program reads this bot’s messages (a webhook, or Athena on another computer). Stop it there first.',
       );
-    }
-    // SDK initialize catches identity failures; resolve explicitly so a wrong bot cannot start polling.
-    await this.ensureBotIdentity();
-    if (this.botUserId !== instance.accountId)
-      throw new GatewaySetupError('The Telegram token belongs to a different bot. Check the account ID.');
-    const info = webhookInfo.safeParse(await this.telegramFetch('getWebhookInfo'));
-    if (!info.success) throw new GatewaySetupError('Telegram webhook setup could not be checked. Try reconnecting.');
-    if (info.data.url)
-      throw new GatewaySetupError('This bot has a webhook. Switch it to polling explicitly before connecting.');
-    await super.initialize(chat);
+    throw new Error(`Telegram: ${said || res.status}`);
   }
 
-  private receive(update: TelegramUpdate): void {
-    const instance = getGatewayInstance(this.instanceId);
-    if (!instance.enabled) throw new GatewaySetupError('This Telegram instance is paused.');
-    const message = update.message ?? update.edited_message;
-    if (
-      !message ||
-      !message.from ||
-      message.sender_chat ||
-      message.sender_business_bot ||
-      message.business_connection_id
-    )
-      return;
-    const sender = message.from;
-    if (!Number.isSafeInteger(sender.id) || sender.id <= 0 || sender.is_bot || String(sender.id) === this.botUserId)
-      return;
-    if (!Number.isSafeInteger(message.message_id) || !Number.isSafeInteger(message.chat.id)) return;
-    if (
-      message.message_thread_id !== undefined &&
-      (!Number.isSafeInteger(message.message_thread_id) || message.message_thread_id < 1)
-    )
-      return;
-    if (!['private', 'group', 'supergroup'].includes(message.chat.type)) return;
-    const input: GatewayInbound = {
-      platform: 'telegram',
-      accountId: instance.accountId,
-      conversationId: String(message.chat.id),
-      threadId: message.message_thread_id === undefined ? '' : String(message.message_thread_id),
-      sourceEventId: String(update.update_id),
-      sourceMessageId: String(message.message_id),
-      kind: update.edited_message ? 'edit' : 'message',
-      actor: {
-        id: String(sender.id),
-        label: [sender.first_name, sender.last_name].filter(Boolean).join(' ').slice(0, 200),
-        kind: 'user',
+  async run(
+    { onMessage, onReady }: { onMessage: (m: Incoming) => void; onReady: (bot: string) => void },
+    signal: AbortSignal,
+  ): Promise<void> {
+    const me = await this.call('getMe', {}, signal);
+    if (!isObject(me)) throw new Error('Telegram: no bot details.');
+    this.bot = { id: str(me.id), username: str(me.username) };
+    onReady(`@${this.bot.username}`);
+    while (!signal.aborted) {
+      const next = this.offset.get();
+      const updates = await this.call(
+        'getUpdates',
+        { timeout: 30, allowed_updates: ['message'], ...(next !== undefined ? { offset: next } : {}) },
+        signal,
+      );
+      if (!Array.isArray(updates)) continue;
+      for (const update of updates) {
+        if (!isObject(update)) continue;
+        const incoming = isObject(update.message) ? this.incoming(update.message) : null;
+        // (saved by onMessage before the offset moves past it, so a restart never loses one)
+        if (incoming) onMessage(incoming);
+        this.offset.set(Number(update.update_id) + 1);
+      }
+    }
+  }
+
+  private incoming(m: Json): Incoming | null {
+    const chat = isObject(m.chat) ? m.chat : null;
+    const from = isObject(m.from) ? m.from : null;
+    if (!chat || !from) return null;
+    const direct = chat.type === 'private';
+    const text = str(m.text) || str(m.caption);
+    const entities = [
+      ...(Array.isArray(m.entities) ? m.entities : []),
+      ...(Array.isArray(m.caption_entities) ? m.caption_entities : []),
+    ].filter(isObject);
+    const mention = `@${this.bot.username}`.toLowerCase();
+    const mentioned = entities.some(
+      (e) =>
+        (e.type === 'mention' &&
+          text.slice(Number(e.offset), Number(e.offset) + Number(e.length)).toLowerCase() === mention) ||
+        (e.type === 'text_mention' && isObject(e.user) && str(e.user.id) === this.bot.id),
+    );
+    const reply = isObject(m.reply_to_message) && isObject(m.reply_to_message.from) ? m.reply_to_message.from : null;
+    const name = [str(from.first_name), str(from.last_name)].filter(Boolean).join(' ') || str(from.username);
+    const thread = m.is_topic_message === true ? str(m.message_thread_id) : '';
+    return {
+      sourceId: str(m.message_id),
+      chat: {
+        chatId: str(chat.id),
+        ...(thread ? { threadId: thread } : {}),
+        title: direct ? name : str(chat.title) || str(chat.id),
+        direct,
       },
-      directMessage: message.chat.type === 'private',
-      triggered: false,
-      text: '',
-      media: [],
-      ...(message.media_group_id ? { mediaGroupId: message.media_group_id } : {}),
+      sender: { id: str(from.id), name, bot: from.is_bot === true },
+      text: mention.length > 1 ? text.replace(new RegExp(`${escape(mention)}\\b`, 'gi'), '').trim() : text,
+      addressed: direct || mentioned || (!!reply && str(reply.id) === this.bot.id),
+      files: files(m),
     };
-    if (!gatewayInputAllowed(instance, input)) return;
-    // Parsing supplies SDK media IDs and mention/reply detection without fetching any attachment.
-    const parsed = this.parseMessage(message);
-    input.text = parsed.text;
-    input.triggered = parsed.isMention === true;
-    input.media = parsed.attachments.map((attachment) => {
-      const fileId = attachment.fetchMetadata?.fileId;
-      if (!fileId) throw new Error('Telegram did not supply a durable attachment ID.');
-      return {
-        kind: attachment.type,
-        fileId,
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        size: attachment.size,
-      };
+  }
+
+  async send(chat: ChatRef, text: string, replyTo?: string): Promise<void> {
+    await this.call('sendMessage', {
+      chat_id: chat.chatId,
+      text,
+      ...(chat.threadId ? { message_thread_id: Number(chat.threadId) } : {}),
+      ...(replyTo ? { reply_parameters: { message_id: Number(replyTo), allow_sending_without_reply: true } } : {}),
+      link_preview_options: { is_disabled: true },
     });
-    this.inbox.accept(input);
   }
 
-  protected override processUpdate(update: TelegramUpdate): Promise<void>[] {
-    // Replay any pending SDK receipts through the same idempotent application inbox.
-    this.receive(update);
-    return [];
-  }
-
-  async replyText(
-    event: GatewayInboxEvent,
-    text: string,
-    signal: AbortSignal,
-    approved?: GatewayApprovedTextSend,
-  ): Promise<string> {
-    const instance = getGatewayInstance(this.instanceId);
-    if (
-      event.route.instanceId !== this.instanceId ||
-      !gatewayInputAllowed(instance, event.input) ||
-      event.input.accountId !== this.botUserId
-    )
-      throw new GatewaySendError('failed');
-    withGatewayRoute(event.route, () => {});
-    if (
-      !text ||
-      text.length > 3000 ||
-      !/^-?\d+$/.test(event.input.conversationId) ||
-      !/^\d+$/.test(event.input.sourceMessageId)
-    )
-      throw new GatewaySendError('failed');
-    try {
-      approved?.authorize(event, text);
-    } catch {
-      throw new GatewaySendError('failed');
-    }
-    try {
-      // Plain text avoids formatter expansion, truncation and fallback posts with ambiguous outcomes.
-      const result = z
-        .object({ message_id: z.number().int().positive(), chat: z.object({ id: z.number().int() }) })
-        .parse(
-          await this.telegramFetch(
-            'sendMessage',
-            {
-              chat_id: event.input.conversationId,
-              text,
-              ...(event.input.threadId ? { message_thread_id: Number(event.input.threadId) } : {}),
-              reply_parameters: { message_id: Number(event.input.sourceMessageId) },
-              link_preview_options: { is_disabled: true },
-            },
-            { signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]) },
-          ),
-        );
-      if (String(result.chat.id) !== event.input.conversationId) throw new GatewaySendError('uncertain');
-      return this.encodeMessageId(event.input.conversationId, result.message_id);
-    } catch (error) {
-      if (error instanceof Error && 'code' in error) {
-        if (error.code === 'RATE_LIMITED') {
-          const seconds =
-            'retryAfter' in error && typeof error.retryAfter === 'number' && Number.isFinite(error.retryAfter)
-              ? error.retryAfter
-              : 1;
-          throw new GatewaySendError('retry', Math.ceil(Math.max(1, seconds) * 1000));
-        }
-        if (['AUTH_FAILED', 'PERMISSION_DENIED', 'NOT_FOUND', 'VALIDATION_ERROR'].includes(String(error.code)))
-          throw new GatewaySendError('failed');
-      }
-      throw new GatewaySendError('uncertain');
-    }
-  }
-
-  async replyDocument(event: GatewayInboxEvent, file: GatewayOutgoingFile, signal: AbortSignal): Promise<string> {
-    // (the message it answers as it was when this began: one edited or added to while the file is read is held for
-    // review, not answered with this file, as on Slack and Discord)
-    const version = this.inbox.deliveryVersion(event.id);
-    let bytes: Buffer;
-    try {
-      bytes = await verifyGatewayDocument(event, file, signal);
-    } catch {
-      throw new GatewaySendError('failed');
-    }
-    if (version !== this.inbox.deliveryVersion(event.id)) throw new GatewaySendError('failed');
-    const instance = getGatewayInstance(this.instanceId);
-    if (
-      event.route.instanceId !== this.instanceId ||
-      !gatewayInputAllowed(instance, event.input) ||
-      event.input.accountId !== this.botUserId
-    )
-      throw new GatewaySendError('failed');
-    withGatewayRoute(event.route, () => {});
+  async sendFile(chat: ChatRef, file: { path: string; name: string }, replyTo?: string): Promise<void> {
     const form = new FormData();
-    form.set('chat_id', event.input.conversationId);
-    if (event.input.threadId) form.set('message_thread_id', event.input.threadId);
-    form.set('reply_parameters', JSON.stringify({ message_id: Number(event.input.sourceMessageId) }));
-    form.set('document', new Blob([new Uint8Array(bytes)], { type: 'application/octet-stream' }), file.name);
-    try {
-      // One SDK request per file: no media groups, formatter fallback or hidden resend.
-      const result = z
-        .object({ message_id: z.number().int().positive(), chat: z.object({ id: z.number().int() }) })
-        .parse(
-          await this.telegramFetch('sendDocument', form, {
-            signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
-          }),
-        );
-      if (String(result.chat.id) !== event.input.conversationId) throw new GatewaySendError('uncertain');
-      return this.encodeMessageId(event.input.conversationId, result.message_id);
-    } catch (error) {
-      if (error instanceof Error && 'code' in error) {
-        if (error.code === 'RATE_LIMITED') {
-          const seconds =
-            'retryAfter' in error && typeof error.retryAfter === 'number' && Number.isFinite(error.retryAfter)
-              ? error.retryAfter
-              : 1;
-          throw new GatewaySendError('retry', Math.ceil(Math.max(1, seconds) * 1000));
-        }
-        if (['AUTH_FAILED', 'PERMISSION_DENIED', 'NOT_FOUND', 'VALIDATION_ERROR'].includes(String(error.code)))
-          throw new GatewaySendError('failed');
-      }
-      throw new GatewaySendError('uncertain');
-    }
+    form.set('chat_id', chat.chatId);
+    if (chat.threadId) form.set('message_thread_id', chat.threadId);
+    if (replyTo)
+      form.set('reply_parameters', JSON.stringify({ message_id: Number(replyTo), allow_sending_without_reply: true }));
+    form.set('document', await fileBlob(file.path), file.name);
+    await this.call('sendDocument', form);
   }
 
-  /** Unlike the SDK's buffered helper, this exposes a bounded stream and refuses redirects. */
-  async downloadFileSource(
-    fileId: string,
-    maxBytes: number,
-    signal: AbortSignal,
-  ): Promise<{ source: AsyncIterable<Uint8Array>; declaredBytes: number; cancel(): Promise<void> }> {
-    const combined = AbortSignal.any([signal, AbortSignal.timeout(45000), ...(this.signal ? [this.signal] : [])]);
-    const metadata = z
-      .object({ file_path: z.string().min(1), file_size: z.number().int().nonnegative().optional() })
-      .parse(await this.telegramFetch('getFile', { file_id: fileId }, { signal: combined }));
-    const parts = metadata.file_path.split('/');
-    if (parts.some((part) => !part || part === '.' || part === '..' || /[\\\u0000-\u001f?#:%]/.test(part)))
-      throw new Error('Telegram returned an unsafe file path.');
-    if ((metadata.file_size ?? 0) > maxBytes)
-      throw new GatewayFileLimitError('This Telegram file exceeds its download limit.');
-    const token = encodeURIComponent(await this.resolveBotToken()).replace(/%3A/gi, ':');
-    const response = await fetch(`${this.apiBaseUrl}/file/bot${token}/${parts.map(encodeURIComponent).join('/')}`, {
-      signal: combined,
-      redirect: 'error',
+  async download(file: RemoteFile, signal: AbortSignal): Promise<Response> {
+    if (file.size && file.size > MAX_DOWNLOAD) throw new Error('Over 20 MB, more than Telegram lets bots fetch.');
+    const found = await this.call('getFile', { file_id: file.ref }, signal);
+    const path = isObject(found) ? str(found.file_path) : '';
+    if (!path || path.includes('..')) throw new Error('Telegram has no copy of this file.');
+    const res = await fetch(`${API}/file/bot${this.token}/${path}`, { signal, redirect: 'error' });
+    if (!res.ok || !res.body) throw new Error(`Telegram: the file download failed (${res.status}).`);
+    return res;
+  }
+
+  async typing(chat: ChatRef): Promise<void> {
+    await this.call('sendChatAction', {
+      chat_id: chat.chatId,
+      action: 'typing',
+      ...(chat.threadId ? { message_thread_id: Number(chat.threadId) } : {}),
     });
-    const declaredBytes = Number(response.headers.get('content-length') || metadata.file_size || 0);
-    if (
-      !response.ok ||
-      !response.body ||
-      !Number.isSafeInteger(declaredBytes) ||
-      declaredBytes < 0 ||
-      declaredBytes > maxBytes
-    ) {
-      await response.body?.cancel();
-      if (declaredBytes > maxBytes) throw new GatewayFileLimitError('This Telegram file exceeds its download limit.');
-      throw new Error('This Telegram file could not be downloaded within its limit.');
-    }
-    const body = response.body;
-    async function* source(): AsyncGenerator<Uint8Array> {
-      const reader = body.getReader();
-      let size = 0;
-      try {
-        for (;;) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          size += chunk.value.byteLength;
-          if (size > maxBytes) throw new GatewayFileLimitError('This Telegram file exceeds its download limit.');
-          yield chunk.value;
-        }
-      } finally {
-        try {
-          await reader.cancel();
-        } finally {
-          reader.releaseLock();
-        }
-      }
-    }
-    return { source: source(), declaredBytes, cancel: () => body.cancel() };
   }
+}
 
-  protected override async telegramFetch<TResult>(
-    method: string,
-    payload?: Record<string, unknown> | FormData,
-    request?: { signal?: AbortSignal },
-  ): Promise<TResult> {
-    try {
-      const signals = [AbortSignal.timeout(method === 'getUpdates' ? 45000 : 15000)];
-      if (request?.signal) signals.push(request.signal);
-      if (this.signal) signals.push(this.signal);
-      const result = await super.telegramFetch<TResult>(method, payload, { signal: AbortSignal.any(signals) });
-      if (method !== 'getUpdates') return result;
-      if (!Array.isArray(result)) throw new Error('Telegram returned an invalid update batch.');
-      const acknowledged = result.map((value: unknown) => {
-        const envelope = updateEnvelope.parse(value);
-        this.receive(value as TelegramUpdate);
-        // The SDK can advance its cursor without retaining raw denied or duplicate message bodies.
-        return { update_id: envelope.update_id };
-      });
-      this.activity(true);
-      return acknowledged as TResult;
-    } catch (error) {
-      if (!request?.signal?.aborted && !this.signal?.aborted) this.activity(false);
-      throw error;
-    }
-  }
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function files(m: Json): RemoteFile[] {
+  const out: RemoteFile[] = [];
+  const add = (f: unknown, fallback: string) => {
+    if (!isObject(f) || !str(f.file_id)) return;
+    out.push({
+      name: str(f.file_name) || fallback,
+      ...(typeof f.file_size === 'number' ? { size: f.file_size } : {}),
+      ref: str(f.file_id),
+    });
+  };
+  add(m.document, 'document');
+  // (a photo comes in several sizes: the largest is last)
+  if (Array.isArray(m.photo) && m.photo.length) add(m.photo[m.photo.length - 1], `photo-${str(m.message_id)}.jpg`);
+  add(m.video, `video-${str(m.message_id)}.mp4`);
+  add(m.audio, `audio-${str(m.message_id)}.mp3`);
+  add(m.voice, `voice-${str(m.message_id)}.ogg`);
+  add(m.video_note, `video-note-${str(m.message_id)}.mp4`);
+  return out;
 }

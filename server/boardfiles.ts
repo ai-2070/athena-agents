@@ -1,7 +1,7 @@
 // Files on Tasks board tasks and comments. Each is a copy in the task's own project's uploads folder, saved with its
 // path relative to that folder (so a copied or restored project points at its own copy). Files you attach come
-// from the open project's uploads; files a worker hands in come from its own workspace and pass the same checks a
-// gateway uses before a file leaves the dashboard (gateways/outgoing.ts).
+// from the open project's uploads; files a worker hands in come from its own workspace and pass the checks
+// finishedFile() makes (a gateway uses them too, before a file leaves the dashboard).
 import fs from 'node:fs';
 import { constants } from 'node:fs';
 import path from 'node:path';
@@ -20,8 +20,8 @@ const unavailable = () =>
     'This file cannot be attached. Check that it is a finished file in your workspace or the project uploads, and not a link.',
   );
 
-// Credentials, runtime stores and account material never become task files, even inside a broad workspace.
-// (the same names gateways/outgoing.ts refuses)
+// Credentials, runtime stores and account material never become task files or leave through a gateway, even inside
+// a broad workspace.
 const forbidden = (value: string) =>
   value
     .split(/[\\/]/)
@@ -121,22 +121,29 @@ export async function workerFiles(run: RunInfo, raw: unknown, by: string): Promi
   if (!Array.isArray(raw) || raw.some((x) => typeof x !== 'string' || !x))
     return fail('files must be a list of full paths.');
   const out: TaskFile[] = [];
-  for (const file of raw as string[]) {
-    if (!path.isAbsolute(file)) return unavailable();
-    const real = withProject(run.project, () => {
-      const brain = run.project.brainPath;
-      const uploads = safeUploadsRoot();
-      const workspace = run.agent.workspace && path.isAbsolute(run.agent.workspace) ? run.agent.workspace : brain;
-      const found = insideRoots(file, [workspace, ...(uploads ? [uploads] : [])]);
-      const unrelated =
-        found &&
-        !insideRoots(found, [brain]) &&
-        listProjects().some((x) => x.id !== run.projectId && insideRoots(found, [x.brainPath]));
-      return !found || insideRoots(found, [DATA]) || unrelated || forbidden(file) || forbidden(found) ? null : found;
-    });
-    // (the path itself must be the file, not a link to one)
-    if (!real || fs.lstatSync(file).isSymbolicLink()) return unavailable();
-    out.push(await copyInto(run.project, real, by));
-  }
+  for (const file of raw as string[]) out.push(await copyInto(run.project, finishedFile(run, file), by));
   return out;
+}
+
+/**
+ * A file a run may hand out of its chat (onto a task, or back through a gateway): an absolute path in the agent's own
+ * workspace or the project's uploads, a regular file (not a link), not credentials, not a data folder and not another
+ * project's. Gives its real path, or refuses.
+ */
+export function finishedFile(run: RunInfo, file: string): string {
+  if (!path.isAbsolute(file)) return unavailable();
+  const real = withProject(run.project, () => {
+    const brain = run.project.brainPath;
+    const uploads = safeUploadsRoot();
+    const workspace = run.agent.workspace && path.isAbsolute(run.agent.workspace) ? run.agent.workspace : brain;
+    const found = insideRoots(file, [workspace, ...(uploads ? [uploads] : [])]);
+    const unrelated =
+      found &&
+      !insideRoots(found, [brain]) &&
+      listProjects().some((x) => x.id !== run.projectId && insideRoots(found, [x.brainPath]));
+    return !found || insideRoots(found, [DATA]) || unrelated || forbidden(file) || forbidden(found) ? null : found;
+  });
+  // (the path itself must be the file, not a link to one)
+  if (!real || fs.lstatSync(file).isSymbolicLink() || !fs.statSync(real).isFile()) return unavailable();
+  return real;
 }

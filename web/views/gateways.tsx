@@ -1,1015 +1,485 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { confirmBox, toast } from '../core.ts';
+// Settings › Gateways: Telegram, Slack and Discord bots that bring messages to the Brain, a team or an agent of a
+// project, and answer in the same chat. A list of them, a form to add or change one (tokens go in, never come back),
+// and each one's messages, with Retry for one that failed.
+// Links: #/settings?tab=gateways&instance=<id> opens its form, &messages=<id> its messages.
+import { useCallback, useEffect, useState } from 'react';
+import { ago, attempt, confirmBox } from '../core.ts';
 import { rpc } from '../client/rpc.ts';
 import { Button } from '../ui/button.tsx';
-import { Pill } from '../ui/marks.tsx';
-import { FieldRow, PanelNote, Row, RowActions, Section } from '../ui/controls.tsx';
+import { Dot, Pill } from '../ui/marks.tsx';
+import type { PillTone } from '../ui/marks.tsx';
+import { FieldRow, PanelNote, Row, RowActions, Section, Sections, Switch } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import { useServerEvents } from '../ui/react.tsx';
-import { gatewayPlatformAvailable } from '../../shared/gateways.ts';
-import { DiscordRecoveryView } from './gateway-discord-recovery.tsx';
-import { GatewayInboxView } from './gateway-inbox.tsx';
-import { WhatsAppSetupView } from './gateway-whatsapp-setup.tsx';
-import { TelegramSetupView } from './gateway-telegram-setup.tsx';
-import { GatewayRetiredView } from './gateway-retired.tsx';
-import type { GatewayHealth, GatewayInstance, GatewayTarget, GatewayTargets } from '../../shared/types.ts';
+import { Icon, useAppState, useServerEvents } from '../ui/react.tsx';
+import type { DotTone } from '../ui/classes.ts';
+import type {
+  GatewayListing,
+  GatewayMessage,
+  GatewayPlatform,
+  GatewayTarget,
+  ServerEvent,
+} from '../../shared/types.ts';
 
-type Listed = GatewayInstance & { credentials: Record<string, boolean>; targetName?: string };
-type Config = Omit<GatewayInstance, 'id' | 'createdAt' | 'updatedAt' | 'routeGeneration'>;
-interface Listing {
-  instances: Listed[];
-  health: GatewayHealth[];
+export const PLATFORM: Record<GatewayPlatform, string> = { telegram: 'Telegram', slack: 'Slack', discord: 'Discord' };
+
+const query = () => new URLSearchParams(location.hash.split('?')[1] || '');
+const ids = (text: string) => [...new Set(text.split(/[\s,]+/).filter(Boolean))];
+const GATEWAY_EVENTS = new Set(['chat-gateways', 'gateways', 'gateway-health', 'gateway-messages', 'projects']);
+
+/** How an instance is doing, as a dot and a few words. */
+export function gatewayState(g: { enabled: boolean; health: GatewayListing['health'] }): [DotTone, string] {
+  if (!g.enabled) return ['off', 'Off'];
+  const h = g.health;
+  if (h.status === 'connected') return ['on', h.bot ? `Connected as ${h.bot}` : 'Connected'];
+  if (h.status === 'error') return ['warn', h.error || 'Not connected'];
+  return ['busy', 'Connecting…'];
 }
-interface ProjectChoice {
-  id: string;
-  name: string;
-}
-const MiB = 1024 * 1024;
-const message = (error: unknown) =>
-  error instanceof Error ? error.message : 'Could not save this gateway. Try again.';
-const lines = (text: string) => [...new Set(text.split(/[\s,]+/).filter(Boolean))];
-export function gatewayConfig(instance: GatewayInstance): Config {
-  return {
-    name: instance.name,
-    platform: instance.platform,
-    accountId: instance.accountId,
-    projectId: instance.projectId,
-    target: instance.target,
-    senderPolicy: instance.senderPolicy,
-    scope: instance.scope,
-    fileLimits: instance.fileLimits,
-    enabled: instance.enabled,
-  };
-}
+
+type View = { kind: 'edit'; id: string | null; platform: GatewayPlatform } | { kind: 'messages'; id: string } | null;
 
 export function GatewaysTab() {
-  const [listing, setListing] = useState<Listing | null>(null);
-  const [projects, setProjects] = useState<ProjectChoice[]>([]);
-  const [editor, setEditor] = useState<Listed | 'telegram' | 'slack' | 'discord' | 'whatsapp' | null>(null);
-  const [relay, setRelay] = useState<string | null>(null);
-  const [telegram, setTelegram] = useState<string | null>(null);
-  const [recovery, setRecovery] = useState<string | null>(null);
-  const [inbox, setInbox] = useState<string | null>(null);
-  const [retired, setRetired] = useState<string | null>(() => {
-    const params = new URLSearchParams(location.hash.split('?')[1] || '');
-    return params.has('retired') ? (params.get('retired') === 'all' ? '' : params.get('retired') || '') : null;
-  });
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const mounted = useRef(false);
-  const request = useRef(0);
-  const linked = useRef(false);
+  const [list, setList] = useState<GatewayListing[] | null>(null);
+  const [view, setView] = useState<View>(null);
   const load = useCallback(async () => {
-    const version = ++request.current;
-    try {
-      const [gateways, all] = await Promise.all([rpc.gateways.list(), rpc.projects.list()]);
-      if (!mounted.current || version !== request.current) return;
-      setListing(gateways);
-      setProjects(all.projects);
-      setError('');
-      if (!linked.current) {
-        linked.current = true;
-        if (new URLSearchParams(location.hash.split('?')[1] || '').has('retired')) return;
-        const id = new URLSearchParams(location.hash.split('?')[1] || '').get('instance');
-        if (id) {
-          const found = gateways.instances.find((item) => item.id === id);
-          if (found && (found.platform === 'whatsapp' || gatewayPlatformAvailable(found.platform))) setEditor(found);
-          else setError('This gateway is unavailable. Choose an instance below.');
-        }
-        const relayId = new URLSearchParams(location.hash.split('?')[1] || '').get('relay');
-        if (relayId) {
-          setEditor(null);
-          setRelay(relayId);
-        }
-        const inboxId = new URLSearchParams(location.hash.split('?')[1] || '').get('inbox');
-        if (inboxId) {
-          setEditor(null);
-          setInbox(inboxId);
-        }
-        const telegramId = new URLSearchParams(location.hash.split('?')[1] || '').get('telegram');
-        if (telegramId) {
-          setEditor(null);
-          setInbox(null);
-          setRelay(null);
-          setTelegram(telegramId);
-        }
-      }
-    } catch (failure) {
-      if (mounted.current && version === request.current) setError(message(failure));
-    }
+    const next = await rpc.gateways.list();
+    setList(next);
+    return next;
   }, []);
   useEffect(() => {
-    mounted.current = true;
-    void load();
-    return () => {
-      mounted.current = false;
-      request.current++;
-    };
+    void load()
+      .then((next) => {
+        const q = query();
+        const edit = next.find((g) => g.id === q.get('instance'));
+        const messages = next.find((g) => g.id === q.get('messages'));
+        if (edit) setView({ kind: 'edit', id: edit.id, platform: edit.platform });
+        else if (messages) setView({ kind: 'messages', id: messages.id });
+      })
+      .catch(() => setList([]));
   }, [load]);
-  useServerEvents((event) => {
-    if (event.type === 'gateways' || event.type === 'gateway-health' || event.type === 'projects') void load();
+  useServerEvents((ev: ServerEvent) => {
+    if (GATEWAY_EVENTS.has(ev.type)) void load().catch(() => {});
   });
-  const action = async (work: () => Promise<unknown>) => {
-    setBusy(true);
-    setError('');
-    try {
-      await work();
-      await load();
-    } catch (failure) {
-      setError(message(failure));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const edit = (instance: Listed) => {
-    setRecovery(null);
-    setRelay(null);
-    setTelegram(null);
-    setInbox(null);
-    setEditor(instance);
-    history.replaceState(null, '', `#/settings?tab=gateways&instance=${encodeURIComponent(instance.id)}`);
-  };
-  const close = () => {
-    setEditor(null);
-    history.replaceState(null, '', '#/settings?tab=gateways');
-  };
-  const closeInbox = () => {
-    setInbox(null);
-    history.replaceState(null, '', '#/settings?tab=gateways');
-  };
-  const closeRelay = () => {
-    setRelay(null);
-    history.replaceState(null, '', '#/settings?tab=gateways');
-  };
-  const closeTelegram = () => {
-    setTelegram(null);
-    history.replaceState(null, '', '#/settings?tab=gateways');
-  };
-  const panelOpen = editor !== null || recovery !== null || relay !== null || telegram !== null || retired !== null;
-  const selectRetired = (id: string) => {
-    setInbox(null);
-    setRetired(id);
-    history.replaceState(null, '', `#/settings?tab=gateways&retired=${encodeURIComponent(id || 'all')}`);
-  };
-  const recoveryInstance = listing?.instances.find((instance) => instance.id === recovery);
-  const relayInstance = listing?.instances.find(
-    (instance) => instance.id === relay && instance.platform === 'whatsapp',
-  );
-  const inboxInstance = listing?.instances.find((instance) => instance.id === inbox);
-  const telegramInstance = listing?.instances.find(
-    (instance) => instance.id === telegram && instance.platform === 'telegram',
-  );
+  if (!list) return null;
+  const open = view && view.kind !== 'edit' ? list.find((g) => g.id === view.id) : null;
+  // (undefined: a new one; null: the one being edited is gone)
+  const editing = view?.kind === 'edit' && view.id ? (list.find((g) => g.id === view.id) ?? null) : undefined;
   return (
-    <div className="flex flex-col gap-10">
+    <Sections>
       <Section
         title="Chat gateways"
-        description="Talk to the Brain, a team or an agent from a messaging app. Each instance has its own account, project and sender rules."
-        action={(['telegram', 'slack', 'discord', 'whatsapp'] as const).map((platform) => (
+        description="Talk to the Brain, a team or an agent from Telegram, Slack or Discord. Each bot answers in one project, in a conversation of its own per chat. Nothing on this computer is opened to the internet."
+        action={(['telegram', 'slack', 'discord'] as const).map((platform) => (
           <Button
             key={platform}
+            variant="ghost"
             size="small"
-            disabled={busy || !listing || panelOpen || !projects.length}
-            onClick={() => {
-              setRecovery(null);
-              setRelay(null);
-              setInbox(null);
-              setEditor(platform);
-            }}
+            onClick={() => setView({ kind: 'edit', id: null, platform })}
           >
-            Add {{ telegram: 'Telegram', slack: 'Slack', discord: 'Discord', whatsapp: 'WhatsApp' }[platform]} instance
+            <Icon name="plus" size={13} />
+            {PLATFORM[platform]}
           </Button>
         ))}
       >
-        {error && (
-          <div role="alert" className="px-5 py-4 text-red">
-            {error}{' '}
-            <Button size="tiny" variant="ghost" onClick={() => void load()}>
-              Reload
-            </Button>
-          </div>
-        )}
-        {!listing ? (
-          <Row title={error ? 'Gateways could not load' : 'Loading gateways…'} />
-        ) : !listing.instances.length ? (
-          <Row
-            title="No gateway instances yet"
-            description="Add a messaging account, choose who answers, then set sender and conversation rules. WhatsApp setup is available while its connection is still in development."
-          />
+        {list.length ? (
+          list.map((g) => <GatewayRow key={g.id} g={g} open={setView} />)
         ) : (
-          listing.instances.map((instance) => {
-            const health = listing.health.find((item) => item.instanceId === instance.id);
-            const status = !instance.enabled
-              ? 'Paused'
-              : health?.status === 'connected'
-                ? 'Connected'
-                : health?.status === 'connecting'
-                  ? 'Connecting'
-                  : health?.status === 'retrying'
-                    ? 'Retrying'
-                    : 'Needs setup';
-            const credentialsReady =
-              instance.platform === 'whatsapp'
-                ? instance.credentials.accessToken &&
-                  instance.credentials.signingSecret &&
-                  instance.credentials.relayKey
-                : instance.credentials.botToken && (instance.platform !== 'slack' || instance.credentials.appToken);
-            return (
-              <Row
-                key={instance.id}
-                title={
-                  <span className="flex flex-wrap items-center gap-2">
-                    {instance.name}
-                    <Pill tone={status === 'Connected' ? 'ok' : instance.enabled ? 'warn' : undefined}>{status}</Pill>
-                  </span>
-                }
-                description={
-                  <span className="break-words">
-                    {instance.platform === 'telegram'
-                      ? 'Telegram'
-                      : instance.platform === 'slack'
-                        ? 'Slack'
-                        : instance.platform === 'discord'
-                          ? 'Discord'
-                          : 'WhatsApp'}{' '}
-                    · {projects.find((item) => item.id === instance.projectId)?.name || 'Project unavailable'} ·{' '}
-                    {instance.targetName ||
-                      (instance.target.kind === 'brain'
-                        ? 'The Brain'
-                        : instance.target.kind === 'team'
-                          ? 'Team'
-                          : 'Agent')}
-                    {(instance.platform === 'telegram' || instance.platform === 'discord') &&
-                    !instance.credentials.botToken ? (
-                      <span className="mt-1 block">Add a bot token before enabling.</span>
-                    ) : null}
-                    {instance.platform === 'slack' &&
-                    (!instance.credentials.botToken || !instance.credentials.appToken) ? (
-                      <span className="mt-1 block">Add bot and app tokens before enabling.</span>
-                    ) : null}
-                    {health?.reason ? <span className="mt-1 block">{health.reason}</span> : null}
-                    {health?.retryAt && health.retryAt > Date.now() ? (
-                      <span className="mt-1 block">
-                        Next connection attempt after {new Date(health.retryAt).toLocaleString()}.
-                      </span>
-                    ) : null}
-                  </span>
+          <PanelNote>
+            No gateways yet. Add a Telegram, Slack or Discord bot to talk to your agents from there.
+          </PanelNote>
+        )}
+      </Section>
+      {view?.kind === 'edit' && editing !== null ? (
+        <GatewayForm
+          key={view.id || `new-${view.platform}`}
+          platform={view.platform}
+          g={editing}
+          done={(id) => {
+            void load();
+            setView(id ? { kind: 'messages', id } : null);
+          }}
+          close={() => setView(null)}
+        />
+      ) : null}
+      {view?.kind === 'messages' && open ? (
+        <GatewayMessages key={open.id} g={open} close={() => setView(null)} />
+      ) : null}
+    </Sections>
+  );
+}
+
+function GatewayRow({ g, open }: { g: GatewayListing; open: (v: View) => void }) {
+  const [tone, state] = gatewayState(g);
+  const toggle = (on: boolean) =>
+    void attempt(() => rpc.gateways.enable({ id: g.id, enabled: on }), on ? `${g.name} is on` : `${g.name} is off`);
+  const remove = async () => {
+    if (
+      !(await confirmBox(`Remove ${g.name}? Its messages go too; files it saved stay in the project.`, {
+        danger: true,
+        ok: 'Remove',
+      }))
+    )
+      return;
+    await attempt(() => rpc.gateways.remove({ id: g.id }), 'Removed');
+  };
+  return (
+    <div className="set-row gateway-row px-5 py-4" data-gateway={g.id}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-[14px] leading-snug font-medium text-ink">
+            <Dot tone={tone} />
+            <span className="truncate">{g.name}</span>
+          </div>
+          <div className="mt-1 text-[13px] text-dim">
+            {`${PLATFORM[g.platform]} · ${g.projectName} · answered by ${g.targetName}`}
+          </div>
+          <div className={`mt-1 text-[13px] ${tone === 'warn' ? 'text-amber' : 'text-dim'}`}>{state}</div>
+        </div>
+        <div className="flex flex-none flex-wrap items-center gap-2">
+          <Switch checked={g.enabled} onChange={toggle}>
+            <span className="sr-only">{`${g.name} on`}</span>
+          </Switch>
+          {g.enabled && g.health.status === 'error' ? (
+            <Button
+              variant="ghost"
+              size="small"
+              onClick={() => void attempt(() => rpc.gateways.reconnect({ id: g.id }))}
+            >
+              <Icon name="refresh-cw" size={13} />
+              Reconnect
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="small" onClick={() => open({ kind: 'messages', id: g.id })}>
+            <Icon name="message-circle" size={13} />
+            Messages
+          </Button>
+          <Button variant="ghost" size="small" onClick={() => open({ kind: 'edit', id: g.id, platform: g.platform })}>
+            <Icon name="pencil" size={13} />
+            Edit
+          </Button>
+          <Button variant="ghost" size="small" aria-label={`Remove ${g.name}`} onClick={() => void remove()}>
+            <Icon name="trash-2" size={13} />
+          </Button>
+        </div>
+      </div>
+      {g.refused.length ? (
+        <div className="mt-3 flex flex-col gap-1.5 text-[13px] text-dim">
+          {g.refused.slice(0, 3).map((r) => (
+            <div key={`${r.kind}-${r.id}`} className="flex flex-wrap items-center gap-2">
+              <span>
+                {r.kind === 'user'
+                  ? `Ignored ${r.name} (user ${r.id}), ${ago(r.at)}.`
+                  : `Ignored a mention in ${r.name} (channel ${r.id}), ${ago(r.at)}.`}
+              </span>
+              <Button
+                variant="ghost"
+                size="tiny"
+                onClick={() =>
+                  void attempt(
+                    () => rpc.gateways.allow({ id: g.id, kind: r.kind, value: r.id }),
+                    r.kind === 'user' ? `${r.name} can talk to ${g.name} now` : 'The channel is on the list now',
+                  )
                 }
               >
-                {(instance.platform === 'whatsapp' || gatewayPlatformAvailable(instance.platform)) && (
-                  <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => edit(instance)}>
-                    Edit
-                  </Button>
-                )}
-                {instance.platform === 'telegram' && (
-                  <Button
-                    size="small"
-                    variant="ghost"
-                    disabled={busy || panelOpen}
-                    onClick={() => {
-                      setInbox(null);
-                      setTelegram(instance.id);
-                      history.replaceState(
-                        null,
-                        '',
-                        `#/settings?tab=gateways&telegram=${encodeURIComponent(instance.id)}`,
-                      );
-                    }}
-                  >
-                    Set up Telegram
-                  </Button>
-                )}
-                {instance.platform === 'whatsapp' && (
-                  <Button
-                    size="small"
-                    variant="ghost"
-                    disabled={busy || panelOpen}
-                    onClick={() => {
-                      setInbox(null);
-                      setRelay(instance.id);
-                      history.replaceState(
-                        null,
-                        '',
-                        `#/settings?tab=gateways&relay=${encodeURIComponent(instance.id)}`,
-                      );
-                    }}
-                  >
-                    Set up relay
-                  </Button>
-                )}
-                <Button
-                  size="small"
-                  variant="ghost"
-                  disabled={busy || panelOpen}
-                  onClick={() => {
-                    setRecovery(null);
-                    setRelay(null);
-                    setInbox(instance.id);
-                    history.replaceState(null, '', `#/settings?tab=gateways&inbox=${encodeURIComponent(instance.id)}`);
-                  }}
-                >
-                  Inbox
-                </Button>
-                <Button
-                  size="small"
-                  variant="ghost"
-                  disabled={
-                    busy ||
-                    panelOpen ||
-                    (!instance.enabled && (!gatewayPlatformAvailable(instance.platform) || !credentialsReady))
-                  }
-                  onClick={() =>
-                    void action(() =>
-                      rpc.gateways.change({
-                        params: { id: instance.id },
-                        body: { ...gatewayConfig(instance), enabled: !instance.enabled },
-                      }),
-                    )
-                  }
-                >
-                  {instance.enabled ? 'Pause' : 'Enable'}
-                </Button>
-                {instance.platform === 'discord' && (!instance.enabled || health?.recoveryRequired) && (
-                  <Button
-                    size="small"
-                    variant="ghost"
-                    disabled={busy || panelOpen}
-                    onClick={() => {
-                      setInbox(null);
-                      setRecovery(instance.id);
-                    }}
-                  >
-                    Review recovery
-                  </Button>
-                )}
-                {instance.enabled && (
-                  <Button
-                    size="small"
-                    variant="ghost"
-                    disabled={busy || panelOpen}
-                    onClick={() => void action(() => rpc.gateways.reconnect({ id: instance.id }))}
-                  >
-                    Reconnect
-                  </Button>
-                )}
-                <Button
-                  size="small"
-                  variant="danger"
-                  disabled={busy || panelOpen}
-                  onClick={() =>
-                    void (async () => {
-                      if (
-                        await confirmBox(
-                          `Delete ${instance.name}? Its connection and token will be removed. Saved conversation receipts remain for recovery.`,
-                          { ok: 'Delete', danger: true },
-                        )
-                      )
-                        await action(() => rpc.gateways.remove({ id: instance.id }));
-                    })()
-                  }
-                >
-                  Delete
-                </Button>
-              </Row>
-            );
-          })
-        )}
-        <Row
-          title="Removed instances"
-          description="Read saved history and finish an interrupted removal. Old connections stay blocked."
-        >
-          <Button size="small" variant="ghost" disabled={busy || panelOpen} onClick={() => selectRetired('')}>
-            View removed instances
-          </Button>
-        </Row>
-        <PanelNote>
-          Telegram, Slack and Discord are available for testing. WhatsApp setup is available, but receiving and sending
-          remain disabled. Review Telegram and Discord follow-ups in Outbox. Approvals are reviewed in Athena.
-        </PanelNote>
-      </Section>
-      {editor && (
-        <GatewayEditor
-          key={typeof editor === 'string' ? editor : editor.id}
-          platform={typeof editor === 'string' ? editor : editor.platform}
-          instance={typeof editor === 'string' ? null : editor}
-          projects={projects}
-          close={close}
-          saved={async () => {
-            close();
-            await load();
-          }}
-        />
-      )}
-      {recoveryInstance && (
-        <DiscordRecoveryView
-          key={recoveryInstance.id}
-          instance={recoveryInstance}
-          close={() => setRecovery(null)}
-          changed={load}
-        />
-      )}
-      {recovery && listing && !recoveryInstance && (
-        <Row title="This gateway is no longer available">
-          <Button size="small" variant="ghost" onClick={() => setRecovery(null)}>
-            Close recovery
-          </Button>
-        </Row>
-      )}
-      {relayInstance && (
-        <WhatsAppSetupView
-          key={relayInstance.id}
-          instance={relayInstance}
-          close={closeRelay}
-          changed={load}
-          edit={() => edit(relayInstance)}
-          pause={async () => {
-            await rpc.gateways.change({
-              params: { id: relayInstance.id },
-              body: { ...gatewayConfig(relayInstance), enabled: false },
-            });
-            await load();
-          }}
-        />
-      )}
-      {relay && listing && !relayInstance && (
-        <Row title="This WhatsApp instance is no longer available">
-          <Button size="small" variant="ghost" onClick={closeRelay}>
-            Close setup
-          </Button>
-        </Row>
-      )}
-      {inboxInstance && <GatewayInboxView key={inboxInstance.id} instance={inboxInstance} close={closeInbox} />}
-      {inbox && listing && !inboxInstance && (
-        <Row title="This gateway is no longer available">
-          <Button size="small" variant="ghost" onClick={closeInbox}>
-            Close inbox
-          </Button>
-        </Row>
-      )}
-      {telegramInstance && (
-        <TelegramSetupView
-          key={telegramInstance.id}
-          instance={telegramInstance}
-          close={closeTelegram}
-          edit={() => edit(telegramInstance)}
-          changed={load}
-          pause={async () => {
-            await rpc.gateways.change({
-              params: { id: telegramInstance.id },
-              body: { ...gatewayConfig(telegramInstance), enabled: false },
-            });
-            await load();
-          }}
-        />
-      )}
-      {telegram && listing && !telegramInstance && (
-        <Row title="This Telegram instance is no longer available">
-          <Button size="small" variant="ghost" onClick={closeTelegram}>
-            Close setup
-          </Button>
-        </Row>
-      )}
-      {retired !== null && (
-        <GatewayRetiredView
-          id={retired}
-          select={selectRetired}
-          close={() => {
-            setRetired(null);
-            history.replaceState(null, '', '#/settings?tab=gateways');
-          }}
-          changed={load}
-        />
-      )}
+                {r.kind === 'user' ? 'Let them in' : 'Add the channel'}
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function GatewayEditor({
-  instance,
+// ---------- the form ----------
+const STEPS: Record<GatewayPlatform, string[]> = {
+  telegram: [
+    'In Telegram, talk to @BotFather: send /newbot and follow along. Paste the token it gives you here.',
+    'Then write to your bot. It ignores people not on its list, and shows them here with a button to let them in.',
+    'In a group, it answers when someone mentions it or replies to it.',
+  ],
+  slack: [
+    'Make an app at api.slack.com/apps. Turn on Socket Mode and make an app-level token with connections:write (xapp-…).',
+    'Bot token scopes: chat:write, app_mentions:read, im:history, files:read, files:write (and users:read, channels:read for names). Subscribe to the bot events app_mention and message.im, and allow messages in the App Home.',
+    'Install it to your workspace and paste the Bot User OAuth Token (xoxb-…).',
+  ],
+  discord: [
+    'Make an application at discord.com/developers, add a bot, and turn on Message Content Intent. Paste its token here.',
+    'Invite it to your server (OAuth2 › URL Generator: scope bot; Send Messages, Read Message History, Attach Files).',
+    'Write to it or mention it in a channel: who it ignored shows here, to let them in. (Or copy IDs with Developer Mode on.)',
+  ],
+};
+
+function GatewayForm({
   platform,
-  projects,
+  g,
+  done,
   close,
-  saved,
 }: {
-  instance: Listed | null;
-  platform: GatewayInstance['platform'];
-  projects: ProjectChoice[];
+  platform: GatewayPlatform;
+  g: GatewayListing | undefined;
+  done: (id: string | null) => void;
   close: () => void;
-  saved: () => Promise<void>;
 }) {
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  const [id, setId] = useState(instance?.id);
-  const [config, setConfig] = useState<Config>(() =>
-    instance
-      ? gatewayConfig(instance)
-      : {
-          name: '',
-          platform,
-          accountId: '',
-          projectId: projects[0]?.id || '',
-          target: { kind: 'brain' },
-          senderPolicy:
-            platform === 'whatsapp'
-              ? { platform: 'whatsapp', allowedPhones: [] }
-              : {
-                  platform: platform === 'discord' ? 'discord' : platform === 'slack' ? 'slack' : 'telegram',
-                  allowedUserIds: [],
-                },
-          scope: { directMessages: true, conversationIds: [], guildIds: [] },
-          fileLimits: { perFileBytes: 20 * MiB, perMessageBytes: 50 * MiB, filesPerMessage: 10, dailyBytes: 200 * MiB },
-          enabled: false,
-        },
-  );
-  const [senders, setSenders] = useState(
-    instance
-      ? ('allowedUserIds' in instance.senderPolicy
-          ? instance.senderPolicy.allowedUserIds
-          : instance.senderPolicy.allowedPhones
-        ).join('\n')
-      : '',
-  );
-  const [scope, setScope] = useState(instance?.scope.conversationIds.join('\n') || '');
-  const slack = platform === 'slack';
-  const discord = platform === 'discord';
-  const whatsapp = platform === 'whatsapp';
-  const [accessToken, setAccessToken] = useState('');
-  const [appSecret, setAppSecret] = useState('');
-  const [removeAccess, setRemoveAccess] = useState(false);
-  const [removeSecret, setRemoveSecret] = useState(false);
-  const [guilds, setGuilds] = useState(instance?.scope.guildIds.join('\n') || '');
+  const app = useAppState();
+  const projects = app?.projects || [];
+  const [name, setName] = useState(g?.name ?? `${PLATFORM[platform]} bot`);
+  const [projectId, setProjectId] = useState(g?.projectId ?? app?.project.id ?? '');
+  const [target, setTarget] = useState(targetValue(g?.target ?? { kind: 'brain' }));
+  const [users, setUsers] = useState((g?.users ?? []).join(', '));
+  const [channels, setChannels] = useState((g?.channels ?? []).join(', '));
+  const [botToken, setBotToken] = useState('');
   const [appToken, setAppToken] = useState('');
-  const [removeAppToken, setRemoveAppToken] = useState(false);
-  const [token, setToken] = useState('');
-  const [removeToken, setRemoveToken] = useState(false);
-  const [targets, setTargets] = useState<GatewayTargets | null>(null);
-  const [targetError, setTargetError] = useState('');
-  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // (set once saved: saving again changes the same gateway, also when its token or turning it on failed)
+  const [id, setId] = useState(g?.id);
+  const [choices, setChoices] = useState<{ value: string; label: string }[]>([{ value: 'brain', label: 'The Brain' }]);
   useEffect(() => {
-    let active = true;
-    setTargets(null);
-    setTargetError('');
+    if (!projectId) return;
+    let live = true;
     void rpc.gateways
-      .targets({ projectId: config.projectId })
-      .then((value) => {
-        if (active) setTargets(value);
+      .targets({ projectId })
+      .then((t) => {
+        if (!live) return;
+        setChoices([
+          { value: 'brain', label: 'The Brain' },
+          ...t.teams.map((x) => ({ value: `team:${x.id}`, label: `Team: ${x.name}` })),
+          ...t.agents.map((x) => ({ value: `agent:${x.id}`, label: `Agent: ${x.name}` })),
+        ]);
       })
-      .catch((failure: unknown) => {
-        if (active) setTargetError(message(failure));
-      });
+      .catch(() => {});
     return () => {
-      active = false;
+      live = false;
     };
-  }, [config.projectId]);
-  const patch = (value: Partial<Config>) => setConfig((before) => ({ ...before, ...value }));
-  const accountLabel = whatsapp ? 'Business phone ID' : slack ? 'Workspace ID' : 'Bot account ID';
-  const targetValue = config.target.kind === 'brain' ? 'brain' : `${config.target.kind}:${config.target.id}`;
-  const options = [
-    { value: 'brain', label: 'The Brain' },
-    ...(targets?.teams || []).map((item) => ({ value: `team:${item.id}`, label: `Team · ${item.name}` })),
-    ...(targets?.agents || []).map((item) => ({ value: `agent:${item.id}`, label: `Agent · ${item.name}` })),
-  ];
-  if (!options.some((item) => item.value === targetValue))
-    options.push({ value: targetValue, label: 'Destination unavailable — choose another' });
-  const submit = async () => {
+  }, [projectId]);
+  const save = async () => {
     setBusy(true);
-    setError('');
-    let configured = false;
-    const body = {
-      ...config,
-      senderPolicy: whatsapp
-        ? { platform: 'whatsapp', allowedPhones: lines(senders) }
-        : { platform: discord ? 'discord' : slack ? 'slack' : 'telegram', allowedUserIds: lines(senders) },
-      scope: {
-        ...config.scope,
-        conversationIds: whatsapp ? [] : lines(scope),
-        ...(discord ? { guildIds: lines(guilds) } : whatsapp ? { guildIds: [] } : {}),
-      },
-      enabled: false,
-    };
-    try {
-      const record = id ? await rpc.gateways.change({ params: { id }, body }) : await rpc.gateways.create({ body });
-      if (mounted.current) setId(record.id);
-      configured = true;
-      if (whatsapp) {
-        const changes = {
-          ...(removeAccess ? { accessToken: null } : accessToken.trim() ? { accessToken: accessToken.trim() } : {}),
-          ...(removeSecret ? { signingSecret: null } : appSecret.trim() ? { signingSecret: appSecret.trim() } : {}),
-        };
-        if (Object.keys(changes).length)
-          await rpc.gateways.updateCredentials({ params: { id: record.id }, body: changes });
-      } else if (slack) {
-        const changes = {
-          ...(removeToken ? { botToken: null } : token.trim() ? { botToken: token.trim() } : {}),
-          ...(removeAppToken ? { appToken: null } : appToken.trim() ? { appToken: appToken.trim() } : {}),
-        };
-        if (Object.keys(changes).length)
-          await rpc.gateways.updateCredentials({ params: { id: record.id }, body: changes });
-      } else if (removeToken || token.trim())
-        await rpc.gateways.setCredentials({
-          params: { id: record.id },
-          body: removeToken ? {} : { botToken: token.trim() },
-        });
-      if (mounted.current) {
-        setToken('');
-        setAppToken('');
-        setAccessToken('');
-        setAppSecret('');
-        toast('Gateway saved');
-        await saved();
-      }
-    } catch (failure) {
-      if (mounted.current) setError(`${configured ? 'The instance is saved paused. ' : ''}${message(failure)}`);
-    } finally {
-      if (mounted.current) setBusy(false);
+    const saved = await attempt(() =>
+      rpc.gateways.save({
+        ...(id ? { id } : {}),
+        platform,
+        name,
+        projectId,
+        target: targetOf(target),
+        users: ids(users),
+        channels: ids(channels),
+      }),
+    );
+    if (!saved) return setBusy(false);
+    setId(saved.id);
+    if (botToken.trim() || appToken.trim()) {
+      const stored = await attempt(() =>
+        rpc.gateways.tokens({
+          id: saved.id,
+          ...(botToken.trim() ? { botToken } : {}),
+          ...(appToken.trim() ? { appToken } : {}),
+        }),
+      );
+      if (!stored) return setBusy(false);
+      setBotToken('');
+      setAppToken('');
     }
+    // a new one goes on at once when it has what it needs; otherwise it says what is missing
+    if (!g && !saved.enabled) {
+      const on = await attempt(() => rpc.gateways.enable({ id: saved.id, enabled: true }), `${saved.name} is on`);
+      if (!on) return setBusy(false);
+    }
+    setBusy(false);
+    done(saved.id);
   };
+  const tokenHint = (set: boolean | undefined) => (set ? 'Saved. Type a new one to replace it.' : undefined);
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        void submit();
-      }}
+    <Section
+      title={g ? `Edit ${g.name}` : `New ${PLATFORM[platform]} gateway`}
+      description={
+        <span className="flex flex-col gap-2">
+          {STEPS[platform].map((s) => (
+            <span key={s}>{s}</span>
+          ))}
+        </span>
+      }
     >
-      <fieldset disabled={busy} className="m-0 min-w-0 border-0 p-0">
-        <Section
-          title={
-            instance
-              ? `Edit ${instance.name}`
-              : whatsapp
-                ? 'New WhatsApp instance'
-                : discord
-                  ? 'New Discord instance'
-                  : slack
-                    ? 'New Slack instance'
-                    : 'New Telegram instance'
-          }
-          description={
-            whatsapp
-              ? 'Save this instance, then choose Set up relay to pair and check it. Receiving and sending remain disabled while WhatsApp support is in development.'
-              : 'Saving leaves this instance paused. Enable it above once setup is ready. Changing its project or destination holds earlier queued work for review.'
+      <FieldRow label="Name">
+        <input value={name} onChange={(e) => setName(e.target.value)} />
+      </FieldRow>
+      <FieldRow
+        label={platform === 'slack' ? 'Bot token (xoxb-…)' : 'Bot token'}
+        hint={tokenHint(g?.credentials.botToken)}
+      >
+        <input
+          type="password"
+          autoComplete="off"
+          value={botToken}
+          placeholder={g?.credentials.botToken ? '••••••••' : ''}
+          onChange={(e) => setBotToken(e.target.value)}
+        />
+      </FieldRow>
+      {platform === 'slack' ? (
+        <FieldRow label="App-level token (xapp-…)" hint={tokenHint(g?.credentials.appToken)}>
+          <input
+            type="password"
+            autoComplete="off"
+            value={appToken}
+            placeholder={g?.credentials.appToken ? '••••••••' : ''}
+            onChange={(e) => setAppToken(e.target.value)}
+          />
+        </FieldRow>
+      ) : null}
+      <FieldRow label="Project" group="gateway-project">
+        <SelectControl
+          aria-label="Project"
+          value={projectId}
+          onChange={(v) => {
+            setProjectId(v);
+            setTarget('brain');
+          }}
+          options={projects.map((p) => ({ value: p.id, label: p.name }))}
+        />
+      </FieldRow>
+      <FieldRow label="Who answers" group="gateway-target">
+        <SelectControl aria-label="Who answers" value={target} onChange={setTarget} options={choices} />
+      </FieldRow>
+      <FieldRow
+        label={platform === 'telegram' ? 'Telegram user IDs it answers' : 'User IDs it answers'}
+        hint={
+          platform === 'telegram'
+            ? 'Only they get answers: anyone can find a Telegram bot. Empty at first? Write to your bot, then let yourself in from the list above.'
+            : platform === 'slack'
+              ? 'Leave empty to answer everyone in your workspace.'
+              : 'Empty: everyone in the channels below, and no direct messages (anyone who shares a server with the bot could write).'
+        }
+      >
+        <input value={users} placeholder="123456789" onChange={(e) => setUsers(e.target.value)} />
+      </FieldRow>
+      {platform !== 'telegram' ? (
+        <FieldRow
+          label="Channel IDs"
+          hint={
+            platform === 'slack'
+              ? 'Channels where it answers when mentioned (invite the bot there too). Empty: direct messages only.'
+              : 'Channels where it answers when mentioned (threads in them too).'
           }
         >
-          <FieldRow label="Instance name">
-            <input
-              aria-label="Instance name"
-              required
-              maxLength={100}
-              value={config.name}
-              onChange={(event) => patch({ name: event.target.value })}
-            />
-          </FieldRow>
-          <FieldRow
-            label={accountLabel}
-            hint={
-              whatsapp
-                ? 'The numeric phone-number ID from your Meta business account. Use a separate relay deployment for each business phone.'
-                : discord
-                  ? 'The numeric bot user ID for your Discord app. Turn on Developer Mode in Discord to copy IDs.'
-                  : slack
-                    ? 'Slack workspace ID, starting with T. One workspace installation per instance.'
-                    : 'The numeric bot ID before the colon in its BotFather token. One bot account per instance.'
-            }
-          >
-            <input
-              aria-label={accountLabel}
-              className="font-mono"
-              required
-              inputMode={slack ? 'text' : 'numeric'}
-              pattern={
-                slack ? 'T[A-Z0-9]+' : whatsapp ? '[1-9][0-9]{0,29}' : discord ? '[1-9][0-9]{0,19}' : '[1-9][0-9]*'
-              }
-              disabled={Boolean(id)}
-              value={config.accountId}
-              onChange={(event) => patch({ accountId: event.target.value })}
-            />
-          </FieldRow>
-          {!whatsapp && (
-            <>
-              <FieldRow
-                label="Bot token"
-                hint={
-                  removeToken
-                    ? 'The saved token will be removed when you save.'
-                    : instance?.credentials.botToken
-                      ? 'A token is saved. Leave blank to keep it, or paste a replacement.'
-                      : discord
-                        ? 'Bot token from the Bot page in the Discord Developer Portal. It stays on this PC.'
-                        : slack
-                          ? 'Bot OAuth token (xoxb-) from your Slack app. It stays on this PC.'
-                          : 'Get a bot token from @BotFather. It stays on this PC and is never shown again.'
-                }
-              >
-                <input
-                  aria-label="Bot token"
-                  type="password"
-                  autoComplete="new-password"
-                  disabled={removeToken}
-                  value={token}
-                  onChange={(event) => setToken(event.target.value)}
-                />
-              </FieldRow>
-              {instance?.credentials.botToken && (
-                <Row title="Saved token" description="Remove it on save, or keep the existing token.">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-pressed={removeToken}
-                    onClick={() => setRemoveToken((before) => !before)}
-                  >
-                    {removeToken ? 'Keep saved token' : 'Remove saved token'}
-                  </Button>
-                </Row>
-              )}
-            </>
-          )}
-          {whatsapp &&
-            [
-              {
-                label: 'Access token',
-                subject: 'access token',
-                value: accessToken,
-                remove: removeAccess,
-                setValue: setAccessToken,
-                setRemove: setRemoveAccess,
-                saved: instance?.credentials.accessToken,
-              },
-              {
-                label: 'Meta app secret',
-                subject: 'Meta app secret',
-                value: appSecret,
-                remove: removeSecret,
-                setValue: setAppSecret,
-                setRemove: setRemoveSecret,
-                saved: instance?.credentials.signingSecret,
-              },
-            ].map((field) => (
-              <div key={field.label}>
-                <FieldRow
-                  label={field.label}
-                  hint={
-                    field.remove
-                      ? 'The saved value will be removed on save.'
-                      : field.saved
-                        ? 'A value is saved. Leave blank to keep it, or paste a replacement.'
-                        : 'From your Meta business app. It stays on this computer and is never shown again.'
-                  }
-                >
-                  <input
-                    aria-label={field.label}
-                    type="password"
-                    autoComplete="new-password"
-                    disabled={field.remove}
-                    value={field.value}
-                    onChange={(event) => field.setValue(event.target.value)}
-                  />
-                </FieldRow>
-                {field.saved && (
-                  <Row title={`Saved ${field.subject}`}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      aria-pressed={field.remove}
-                      onClick={() => field.setRemove((before) => !before)}
-                    >
-                      {field.remove ? `Keep saved ${field.subject}` : `Remove saved ${field.subject}`}
-                    </Button>
-                  </Row>
-                )}
-              </div>
+          <input
+            value={channels}
+            placeholder={platform === 'slack' ? 'C0123ABCD' : '1234567890'}
+            onChange={(e) => setChannels(e.target.value)}
+          />
+        </FieldRow>
+      ) : null}
+      <RowActions>
+        <Button variant="ghost" size="small" onClick={close}>
+          Cancel
+        </Button>
+        <Button size="small" disabled={busy || !projectId} onClick={() => void save()}>
+          <Icon name="check" size={13} />
+          {g ? 'Save' : 'Add and turn on'}
+        </Button>
+      </RowActions>
+    </Section>
+  );
+}
+
+const targetValue = (t: GatewayTarget) => (t.kind === 'brain' ? 'brain' : `${t.kind}:${t.id}`);
+function targetOf(value: string): GatewayTarget {
+  const [kind, id] = value.split(':');
+  return kind === 'team' || kind === 'agent' ? { kind, id } : { kind: 'brain' };
+}
+
+// ---------- messages ----------
+const STATUS: Record<GatewayMessage['status'], [PillTone, string]> = {
+  queued: ['dim', 'Waiting'],
+  working: ['info', 'Working…'],
+  done: ['ok', 'Answered'],
+  failed: ['bad', 'Failed'],
+};
+
+function GatewayMessages({ g, close }: { g: GatewayListing; close: () => void }) {
+  const [list, setList] = useState<GatewayMessage[] | null>(null);
+  const load = useCallback(() => rpc.gateways.messages({ id: g.id }).then(setList), [g.id]);
+  useEffect(() => void load().catch(() => setList([])), [load]);
+  useServerEvents((ev) => {
+    if (ev.type === 'gateway-messages' && ev.id === g.id) void load().catch(() => {});
+  });
+  return (
+    <Section
+      title={`Messages · ${g.name}`}
+      description="What people sent it and how each answer went, newest first. A failed one can be tried again: what already arrived isn't sent twice."
+      action={
+        <Button variant="ghost" size="small" onClick={close}>
+          Close
+        </Button>
+      }
+    >
+      {list?.length ? (
+        list.slice(0, 50).map((m) => <MessageRow key={m.id} g={g} m={m} />)
+      ) : (
+        <PanelNote>{list ? 'No messages yet.' : 'Loading…'}</PanelNote>
+      )}
+    </Section>
+  );
+}
+
+function MessageRow({ g, m }: { g: GatewayListing; m: GatewayMessage }) {
+  const [tone, label] = STATUS[m.status];
+  const [open, setOpen] = useState(m.status === 'failed');
+  const files = [...m.files, ...(m.outFiles || [])];
+  return (
+    <Row
+      stack
+      className="gateway-message"
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          <Pill tone={tone}>{label}</Pill>
+          <span>{m.sender.name}</span>
+          <span className="text-[13px] font-normal text-dim">{`in ${m.chatTitle} · ${ago(m.createdAt)}`}</span>
+        </span>
+      }
+      description={<span className="line-clamp-3 whitespace-pre-wrap">{m.text || '(files only)'}</span>}
+    >
+      <div className="flex flex-col gap-2 text-[13px]">
+        {m.error ? <div className="text-red">{m.error}</div> : null}
+        {files.length ? (
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-dim">
+            {files.map((f, i) => (
+              <span key={`${f.name}-${i}`} title={f.error || f.path || ''} className={f.error ? 'text-red' : ''}>
+                {`${i < m.files.length ? '↓' : '↑'} ${f.name}${f.error ? ' (failed)' : ''}`}
+              </span>
             ))}
-          {slack && (
+          </div>
+        ) : null}
+        {m.answer !== undefined && open ? (
+          <div className="max-h-60 overflow-auto whitespace-pre-wrap rounded-box bg-panel-2 px-3 py-2 text-ink">
+            {m.answer || '(No answer)'}
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {m.answer !== undefined ? (
+            <Button variant="ghost" size="tiny" aria-expanded={open} onClick={() => setOpen(!open)}>
+              {open ? 'Hide the answer' : 'Show the answer'}
+            </Button>
+          ) : null}
+          {m.status === 'failed' ? (
             <>
-              <FieldRow
-                label="App token"
-                hint={
-                  removeAppToken
-                    ? 'The saved app token will be removed when you save.'
-                    : instance?.credentials.appToken
-                      ? 'An app token is saved. Leave blank to keep it, or paste a replacement.'
-                      : 'App-level token (xapp-) with connections:write. Enable Socket Mode in the same Slack app.'
-                }
+              <Button
+                size="tiny"
+                disabled={!g.enabled}
+                title={g.enabled ? '' : 'Turn the gateway on first'}
+                onClick={() => void attempt(() => rpc.gateways.retry({ id: g.id, messageId: m.id }))}
               >
-                <input
-                  aria-label="App token"
-                  type="password"
-                  autoComplete="new-password"
-                  disabled={removeAppToken}
-                  value={appToken}
-                  onChange={(event) => setAppToken(event.target.value)}
-                />
-              </FieldRow>
-              {instance?.credentials.appToken && (
-                <Row title="Saved app token" description="Change or remove this token separately from the bot token.">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-pressed={removeAppToken}
-                    onClick={() => setRemoveAppToken((before) => !before)}
-                  >
-                    {removeAppToken ? 'Keep saved app token' : 'Remove saved app token'}
-                  </Button>
-                </Row>
-              )}
+                <Icon name="refresh-cw" size={12} />
+                Retry
+              </Button>
+              <Button
+                variant="ghost"
+                size="tiny"
+                onClick={() => void attempt(() => rpc.gateways.dismiss({ id: g.id, messageId: m.id }))}
+              >
+                Dismiss
+              </Button>
             </>
-          )}
-          <FieldRow label="Project" group="gateway-project">
-            <SelectControl
-              aria-label="Gateway project"
-              value={config.projectId}
-              options={projects.map((item) => ({ value: item.id, label: item.name }))}
-              onChange={(projectId) => {
-                patch({ projectId, target: { kind: 'brain' } });
-              }}
-            />
-          </FieldRow>
-          <FieldRow
-            label="Who answers"
-            group="gateway-target"
-            hint={
-              targetError ||
-              (!targets
-                ? 'Loading destinations…'
-                : 'Each conversation gets a separate private history in this project.')
-            }
-          >
-            <SelectControl
-              aria-label="Gateway destination"
-              value={targetValue}
-              options={options}
-              onChange={(value) => {
-                const at = value.indexOf(':');
-                const target: GatewayTarget =
-                  at < 0
-                    ? { kind: 'brain' }
-                    : value.startsWith('team:')
-                      ? { kind: 'team', id: value.slice(at + 1) }
-                      : { kind: 'agent', id: value.slice(at + 1) };
-                patch({ target });
-              }}
-            />
-          </FieldRow>
-          <FieldRow
-            label={whatsapp ? 'Allowed phone numbers' : 'Allowed user IDs'}
-            hint={
-              whatsapp
-                ? 'Full international numbers such as +436641234567, one per line. At least one is required before checking setup. Names, forwarded authors and number suffixes do not grant access.'
-                : discord
-                  ? 'Optional numeric Discord user IDs, one per line. Empty allows any human who can message the bot or post in the selected channels. Bots and webhooks are refused.'
-                  : slack
-                    ? 'Optional Slack user IDs (U or W), one per line. Empty allows local workspace users within the configured scope. Bots and external users are refused.'
-                    : 'Numeric Telegram user IDs, one per line. An enabled instance requires at least one. Names and forwarded authors do not grant access.'
-            }
-            stack
-          >
-            <textarea
-              aria-label={whatsapp ? 'Allowed phone numbers' : 'Allowed user IDs'}
-              className="font-mono"
-              rows={3}
-              value={senders}
-              onChange={(event) => setSenders(event.target.value)}
-            />
-          </FieldRow>
-          <Row title="Allow direct messages">
-            <SelectControl
-              aria-label="Allow direct messages"
-              value={config.scope.directMessages ? 'yes' : 'no'}
-              options={[
-                {
-                  value: 'yes',
-                  label: discord
-                    ? 'Users within sender rules'
-                    : slack
-                      ? 'Workspace users within sender rules'
-                      : 'Allowed users only',
-                },
-                { value: 'no', label: 'No direct messages' },
-              ]}
-              onChange={(value) => patch({ scope: { ...config.scope, directMessages: value === 'yes' } })}
-            />
-          </Row>
-          {discord && (
-            <FieldRow
-              label="Allowed servers"
-              hint="Numeric server IDs, one per line. Required for server channels; direct messages use their own rule."
-              stack
-            >
-              <textarea
-                aria-label="Allowed servers"
-                className="font-mono"
-                rows={3}
-                value={guilds}
-                onChange={(event) => setGuilds(event.target.value)}
-              />
-            </FieldRow>
-          )}
-          {!whatsapp && (
-            <FieldRow
-              label={
-                discord
-                  ? 'Allowed channels and threads'
-                  : slack
-                    ? 'Allowed channels and threads'
-                    : 'Allowed groups and topics'
-              }
-              hint={
-                discord
-                  ? 'Numeric channel or native thread IDs, one per line. A selected parent channel also allows its threads. List its server above. New channel topics need a bot mention or reply.'
-                  : slack
-                    ? 'One channel ID or channel ID/thread timestamp per line. Invite the bot to each channel. Start with a bot mention; continue in that thread. Shared channels and group DMs are refused.'
-                    : 'One chat ID or chat ID/topic ID per line, for example -100123/7. New shared conversations need a bot mention or reply.'
-              }
-              stack
-            >
-              <textarea
-                aria-label={
-                  discord
-                    ? 'Allowed channels and threads'
-                    : slack
-                      ? 'Allowed channels and threads'
-                      : 'Allowed groups and topics'
-                }
-                className="font-mono"
-                rows={3}
-                value={scope}
-                onChange={(event) => setScope(event.target.value)}
-              />
-            </FieldRow>
-          )}
-          {(
-            [
-              ['perFileBytes', 'File limit (MiB)', 20],
-              ['perMessageBytes', 'Message limit (MiB)', 50],
-              ['dailyBytes', 'Daily limit (MiB)', Math.floor(Number.MAX_SAFE_INTEGER / MiB)],
-              ['filesPerMessage', 'Files per message', 10],
-            ] as const
-          ).map(([key, label, max]) => (
-            <FieldRow key={key} label={label}>
-              <input
-                aria-label={label}
-                type="number"
-                min={key === 'filesPerMessage' ? 1 : 1 / MiB}
-                max={max}
-                step={key === 'filesPerMessage' ? 1 : 'any'}
-                required
-                value={key === 'filesPerMessage' ? config.fileLimits[key] : config.fileLimits[key] / MiB}
-                onChange={(event) =>
-                  patch({
-                    fileLimits: {
-                      ...config.fileLimits,
-                      [key]: Math.round(Number(event.target.value) * (key === 'filesPerMessage' ? 1 : MiB)),
-                    },
-                  })
-                }
-              />
-            </FieldRow>
-          ))}
-          <PanelNote>
-            Incoming and outgoing byte limits are tracked separately. The file limit must fit within the message limit,
-            and the message limit within the daily limit.{' '}
-            {whatsapp
-              ? 'Pair the relay after saving. Replies need a fresh user message within 24 hours; selected text, PDF and Office files send as documents. Finish any pending pairing before changing credentials.'
-              : discord
-                ? 'Discord replies and files stay with the saved source message in its channel or thread. Keep Athena open to receive messages.'
-                : slack
-                  ? 'Slack messages and files reply in the original thread. Direct messages also start a new thread; reply there to continue.'
-                  : 'After saving, choose Set up Telegram to check this bot and explicitly switch an existing webhook to polling. Connecting never removes one automatically.'}
-          </PanelNote>
-          {discord && (
-            <PanelNote>
-              In the Discord Developer Portal, enable the Message content intent on the Bot page. Invite the bot with
-              the bot scope and View channels, Read message history, Send messages, Send messages in threads and Attach
-              files permissions. No webhook URL or public Athena address is needed. Approvals stay in Athena.
-            </PanelNote>
-          )}
-          {slack && (
-            <PanelNote>
-              In your Slack app, enable Socket Mode and subscribe to app_mention, message.channels, message.groups and
-              message.im. Bot scopes: app_mentions:read, channels:history, channels:read, groups:history, groups:read,
-              im:history, im:read, users:read, chat:write, files:read and files:write. Reinstall the app after changing
-              scopes. Approvals stay in Athena.
-            </PanelNote>
-          )}
-          {error && (
-            <div role="alert" className="px-5 py-4 text-red">
-              {error}
-            </div>
-          )}
-          <RowActions>
-            <Button type="button" variant="ghost" onClick={close}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!targets || Boolean(targetError)}>
-              {busy ? 'Saving…' : 'Save instance'}
-            </Button>
-          </RowActions>
-        </Section>
-      </fieldset>
-    </form>
+          ) : null}
+        </div>
+      </div>
+    </Row>
   );
 }

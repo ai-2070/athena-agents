@@ -29,9 +29,11 @@ describe('searchSettings()', () => {
     expect(searchSettings('accent')[0].label).toBe('Accent colour');
     expect(searchSettings('zoom').map((h) => h.label)).toEqual(['UI scale']);
     expect(searchSettings('codex')[0].label).toBe('OpenAI Codex');
-    // (Gateways is hidden for now, so search leaves it out)
-    expect(searchSettings('sender guard')).toEqual([]);
-    expect(searchSettings('telegram').some((h) => h.tab === 'gateways')).toBe(false);
+    expect(searchSettings('telegram')[0]).toMatchObject({
+      tab: 'gateways',
+      label: 'Telegram, Slack and Discord chat gateways',
+    });
+    expect(searchSettings('botfather')[0].tab).toBe('gateways');
     expect(searchSettings('nothing like this')).toEqual([]);
     expect(searchSettings('   ')).toEqual([]);
   });
@@ -52,20 +54,15 @@ describe('the Settings page', () => {
     expect(el.textContent).toContain('Accent colour');
   });
 
-  it('leaves the hidden Gateways tab out of the row, but its link still opens it', async () => {
-    await open('#/settings?tab=look');
-    const tabs = () =>
-      [...el.querySelectorAll('[role="tablist"][aria-label="Settings"] [role="tab"]')].map((t) => t.textContent);
-    expect(tabs()).not.toContain('Gateways');
-    act(() => settings.unmount());
-    const replies: Record<string, unknown> = {
-      '/api/gateways': { instances: [], health: [] },
-      '/api/projects': { projects: [] },
-    };
-    vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(replies[url] ?? {})));
+  it('has a Gateways tab that its link opens', async () => {
+    vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url === '/api/gateways' ? [] : {})));
     await open('#/settings?tab=gateways');
-    expect(tabs()).toContain('Gateways');
+    const tabs = [...el.querySelectorAll('[role="tablist"][aria-label="Settings"] [role="tab"]')].map(
+      (t) => t.textContent,
+    );
+    expect(tabs).toContain('Gateways');
     expect(el.querySelector('[role="tab"].on')!.textContent).toBe('Gateways');
+    expect(el.textContent).toContain('No gateways yet');
   });
 
   it('search lists matching settings and jumps to the one picked', async () => {

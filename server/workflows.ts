@@ -214,9 +214,9 @@ async function execute(wf: Workflow, run: WorkflowRun, ctl: RunControl) {
             platform: 'telegram',
             text,
             agentName: `Workflow: ${wf.name}`,
-            note: `From workflow "${wf.name}". Choose a gateway recipient and approve in Outbox.`,
+            note: `From workflow "${wf.name}". Choose the chat it goes to and approve it.`,
           });
-          output += ` Telegram draft saved to Outbox (${draft.id}); choose its recipient and approve before it sends.`;
+          output += ` Telegram draft saved to Outbox (${draft.id}); choose its chat and approve it before it sends.`;
         }
       } else throw new Error(`Unknown step type ${step.type}`);
       // A stopped agent answers normally (with nothing), so check again before calling the step done.
