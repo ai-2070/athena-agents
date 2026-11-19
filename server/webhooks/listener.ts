@@ -7,11 +7,11 @@ import http from 'node:http';
 import { bus, emit, getSettings, log } from '../store.ts';
 import { PORT } from '../util.ts';
 import { receive } from './intake.ts';
-import { allWebhooks } from './store.ts';
+import { allWebhooks, findByToken } from './store.ts';
 import type { WebhookStatus } from '../../shared/types.ts';
 
 export const MAX_BODY = 1024 * 1024;
-/** Refused requests a minute before the listener stops reading any for a minute. */
+/** Refused requests a minute from one sender before the listener stops reading its for a minute. */
 const BRAKE = 60;
 const TOKEN = /^\/h\/([A-Za-z0-9_-]{20,128})$/;
 
@@ -25,8 +25,10 @@ let error: string | null = null;
 /** --hooks-port */
 let portArg: number | null = null;
 
-let refusedAt: number[] = [];
-let brakeUntil = 0;
+/** Refused requests by who sent them (and, for a webhook's own address, which webhook), so a flood from one sender,
+ *  or to addresses that lead nowhere, never holds back the deliveries of another. */
+const brakes = new Map<string, { at: number[]; until: number }>();
+const MAX_BRAKES = 10_000;
 let brakeLogged = 0;
 
 export const checkNonce = (): string => nonce;
@@ -49,17 +51,41 @@ const json = (res: http.ServerResponse, status: number, body: unknown) => {
 };
 const notFound = (res: http.ServerResponse) => json(res, 404, { error: 'Not found.' });
 
-function refused(now: number) {
-  refusedAt = refusedAt.filter((t) => now - t < 60_000);
-  refusedAt.push(now);
-  if (refusedAt.length >= BRAKE) {
-    brakeUntil = now + 60_000;
-    refusedAt = [];
+const braked = (key: string, now: number) => (brakes.get(key)?.until ?? 0) > now;
+
+function refused(key: string, now: number) {
+  if (!brakes.has(key) && brakes.size >= MAX_BRAKES)
+    for (const [k, b] of brakes) if (b.until <= now && b.at.every((t) => now - t >= 60_000)) brakes.delete(k);
+  if (!brakes.has(key) && brakes.size >= MAX_BRAKES) return;
+  const b = brakes.get(key) || { at: [], until: 0 };
+  b.at = b.at.filter((t) => now - t < 60_000);
+  b.at.push(now);
+  brakes.set(key, b);
+  if (b.at.length >= BRAKE) {
+    b.until = now + 60_000;
+    b.at = [];
     if (now - brakeLogged > 60_000) {
       brakeLogged = now;
-      log('error', `Webhooks: over ${BRAKE} refused requests in a minute. Not reading any for a minute.`);
+      log(
+        'error',
+        `Webhooks: over ${BRAKE} refused requests in a minute from one sender. Not reading its for a minute.`,
+      );
     }
   }
+}
+
+/** Who sent a request: the address the tunnel in use says it came from (the last one it added), else the socket's. */
+export function sourceOf(headers: http.IncomingHttpHeaders, socketAddress: string | undefined): string {
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v || '').trim();
+  if (getSettings().webhooks.share === 'cloudflare') {
+    const cf = one(headers['cf-connecting-ip']);
+    if (cf) return cf.slice(0, 64);
+  }
+  const forwarded = one(headers['x-forwarded-for'])
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return (forwarded.at(-1) || socketAddress || 'local').slice(0, 64);
 }
 
 const ACCEPTED = /^(application\/(json|[\w.+-]+\+json|x-www-form-urlencoded)|text\/[\w.+-]+)(;|$)/i;
@@ -89,14 +115,17 @@ export async function handle(req: http.IncomingMessage, res: http.ServerResponse
   if (req.method === 'GET' && pathname === '/h/_check') return json(res, 200, { athena: 'webhooks', nonce });
   const m = req.method === 'POST' ? TOKEN.exec(pathname) : null;
   if (!m) return notFound(res);
-  if (now < brakeUntil) return json(res, 429, { error: 'Too many refused requests. Try again later.' });
+  // (requests to addresses that lead nowhere are braked apart from each webhook's)
+  const found = findByToken(m[1]);
+  const key = `${sourceOf(req.headers, req.socket.remoteAddress)} ${found?.webhookId ?? '-'}`;
+  if (braked(key, now)) return json(res, 429, { error: 'Too many refused requests. Try again later.' });
   const type = String(req.headers['content-type'] || '');
   if (type && !ACCEPTED.test(type)) return json(res, 415, { error: 'Send JSON, a form or text.' });
   if (Number(req.headers['content-length'] || 0) > MAX_BODY) return json(res, 413, { error: 'Too big.' });
   const body = await readBody(req);
   if (!body) return json(res, 413, { error: 'Too big.' });
   const reply = await receive({ token: m[1], headers: req.headers, body, now });
-  if (reply.refused) refused(now);
+  if (reply.refused) refused(key, now);
   json(res, reply.status, reply.body);
 }
 

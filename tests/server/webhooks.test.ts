@@ -17,7 +17,14 @@ import { deleteRoutine, saveRoutine } from '../../server/routines.ts';
 import { activeRuns, runInfo } from '../../server/engines/index.ts';
 import * as hooks from '../../server/webhooks/hooks.ts';
 import { receive, webhookInput } from '../../server/webhooks/intake.ts';
-import { checkNonce, listenerStatus, MAX_BODY, startListener, stopListener } from '../../server/webhooks/listener.ts';
+import {
+  checkNonce,
+  listenerStatus,
+  MAX_BODY,
+  sourceOf,
+  startListener,
+  stopListener,
+} from '../../server/webhooks/listener.ts';
 import {
   deliveries,
   deliveriesOf,
@@ -136,11 +143,38 @@ describe('the listener', () => {
     await expect(hooks.setupWebhooks({ publicUrl: 'https://a.b/?x=1' })).rejects.toThrow(/only the start/);
   });
 
-  it('stops reading for a minute after many refused requests', async () => {
-    const token = 'y'.repeat(43);
+  it('stops reading a sender for a minute after many refused requests, and only that sender', async () => {
+    agent('Braked');
+    const r = saveRoutine({ name: 'Braked', text: '@Braked works.' });
+    // (port 0 keeps the listener this test started where it is, when making the webhook turns receiving on)
+    saveSettings({ webhooks: { port: 0 } });
+    const made = await hooks.createWebhook({ routineId: r.id, verify: { preset: 'github' } });
+    saveSettings({ webhooks: { port: null } });
+    const post = (token: string, from: string) =>
+      fetch(`${base}/h/${token}`, { method: 'POST', body: '{}', headers: { 'x-forwarded-for': `9.9.9.9, ${from}` } });
     let last = 0;
-    for (let i = 0; i < 61; i++) last = (await fetch(`${base}/h/${token}`, { method: 'POST', body: '{}' })).status;
+    for (let i = 0; i < 61; i++) last = (await post('y'.repeat(43), '1.1.1.1')).status;
     expect(last).toBe(429);
+    // addresses that lead nowhere don't hold back a webhook's own, even from the same sender, nor other senders
+    expect((await post(tokenOf(made.address), '1.1.1.1')).status).toBe(401);
+    expect((await post('y'.repeat(43), '2.2.2.2')).status).toBe(404);
+    // wrong signatures brake that sender for that webhook only
+    for (let i = 0; i < 61; i++) last = (await post(tokenOf(made.address), '3.3.3.3')).status;
+    expect(last).toBe(429);
+    expect((await post(tokenOf(made.address), '4.4.4.4')).status).toBe(401);
+  });
+
+  it('knows a sender by the address the tunnel added, last', () => {
+    expect(sourceOf({ 'x-forwarded-for': '6.6.6.6, 5.5.5.5' }, '127.0.0.1')).toBe('5.5.5.5');
+    expect(sourceOf({}, '127.0.0.1')).toBe('127.0.0.1');
+    // Cloudflare's own header counts only while Cloudflare shares the port (anyone can send it through another)
+    expect(sourceOf({ 'cf-connecting-ip': '7.7.7.7', 'x-forwarded-for': '5.5.5.5' }, '127.0.0.1')).toBe('5.5.5.5');
+    saveSettings({ webhooks: { share: 'cloudflare' } });
+    try {
+      expect(sourceOf({ 'cf-connecting-ip': '7.7.7.7', 'x-forwarded-for': '5.5.5.5' }, '127.0.0.1')).toBe('7.7.7.7');
+    } finally {
+      saveSettings({ webhooks: { share: 'off' } });
+    }
   });
 });
 
