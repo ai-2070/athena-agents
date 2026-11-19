@@ -38,7 +38,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(
 export function zoomView(src: string, name: string): ZoomView {
   const box = el(
     'div',
-    'zoom-box relative flex h-[calc(100vh-210px)] min-h-50 w-full touch-none items-center justify-center overflow-hidden rounded-ctl bg-panel-2 select-none',
+    'zoom-box relative flex h-[calc(var(--spacing-window)-210px)] min-h-50 w-full touch-none items-center justify-center overflow-hidden rounded-ctl bg-panel-2 select-none',
     { tabindex: '0', 'aria-label': `${name}. Click, scroll or pinch to zoom.` },
   );
   const img = el('img', 'block max-h-full max-w-full cursor-zoom-in object-contain will-change-transform', {

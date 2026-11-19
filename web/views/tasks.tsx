@@ -508,7 +508,7 @@ function TaskBoardPage() {
       {/* the columns fill the window and each scrolls on its own; the board scrolls sideways when it is narrow */}
       <div
         ref={board}
-        className="relative grid h-[calc(100dvh-13.5rem)] min-h-96 auto-cols-[minmax(13.5rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-1"
+        className="relative grid h-[calc(var(--spacing-window)-13.5rem)] min-h-96 auto-cols-[minmax(13.5rem,1fr)] grid-flow-col gap-3 overflow-x-auto pb-1"
         aria-label="Task board"
       >
         {columns.map((c) => {

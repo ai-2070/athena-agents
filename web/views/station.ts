@@ -946,7 +946,7 @@ export async function render(el: HTMLElement): Promise<void> {
   refreshPalette();
   glyphCache.clear();
   furniture = null;
-  const root = h('div.st-root', { class: 'group/root relative h-screen overflow-hidden bg-floor select-none' });
+  const root = h('div.st-root', { class: 'group/root relative h-window overflow-hidden bg-floor select-none' });
   const host = h('div', { class: 'absolute inset-0 block [&_canvas]:absolute [&_canvas]:inset-0 [&_canvas]:block' });
   // the labels are moved every frame by script (transform): their classes only change with their state
   const labels = h('div', {

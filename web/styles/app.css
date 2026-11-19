@@ -74,6 +74,8 @@
   --shadow-lift: 0 8px 24px -8px rgb(20 22 40 / 0.14), 0 1px 3px rgb(20 22 40 / 0.06);
   --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --spacing-nav: 248px;
+  /* the window's height: under the UI scale (zoom on <html>) 100vh is scaled too, so 110% would overflow the window */
+  --spacing-window: calc(100dvh / var(--ui-zoom, 1));
 
   /* the app's own breakpoints: md: is 821px and up (sidebar beside the page), max-md: is 820px and less */
   --breakpoint-*: initial;

@@ -177,7 +177,7 @@ function ChatScreen({ agent, first, firstChats }: { agent: AgentDetail; first: C
   const groups = dayGroups(shown);
   return (
     <div
-      className="grid h-[calc(100vh-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[280px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(100vh-57px)] max-md:grid-cols-1"
+      className="grid h-[calc(var(--spacing-window)-56px)] grid-rows-[minmax(0,1fr)] grid-cols-[280px_minmax(0,1fr)] max-md:h-auto max-md:min-h-[calc(var(--spacing-window)-57px)] max-md:grid-cols-1"
       ref={page}
     >
       <aside className="flex min-h-0 flex-col border-r border-line bg-bg max-md:border-r-0 max-md:border-b">

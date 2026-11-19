@@ -482,7 +482,7 @@ function OverviewPage() {
   const open = (p: OverviewProject, s: OverviewSession) => void openSession(p, s);
   const panes = layout ? panesInOrder(layout).length : 0;
   return (
-    <div className="flex h-[calc(100vh-56px)] min-h-0 max-md:h-auto max-md:flex-col">
+    <div className="flex h-[calc(var(--spacing-window)-56px)] min-h-0 max-md:h-auto max-md:flex-col">
       <aside
         aria-label="Projects and sessions"
         className="overview-sidebar flex w-(--side-w) flex-none flex-col gap-3 overflow-y-auto border-r border-line bg-panel p-2 max-md:w-full max-md:border-r-0 max-md:border-b"

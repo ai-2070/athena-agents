@@ -51,6 +51,18 @@ describe('chat fonts', () => {
   });
 });
 
+describe('UI scale', () => {
+  // zoom on <html> scales 100vh too: --spacing-window divides by --ui-zoom so the Station still fits the window
+  it('sets --ui-zoom with the zoom, and clears both at 100%', () => {
+    const root = document.documentElement;
+    applyLook({ scale: 110 });
+    expect(root.style.getPropertyValue('--ui-zoom')).toBe('1.1');
+    applyLook({ scale: 100 });
+    expect(root.style.zoom).toBe('');
+    expect(root.style.getPropertyValue('--ui-zoom')).toBe('');
+  });
+});
+
 describe('Station quality', () => {
   it('fewer frames and pixels the lower it is, Balanced by default', () => {
     expect(DEFAULT_LOOK.station).toBe('balanced');
