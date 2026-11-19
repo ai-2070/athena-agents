@@ -445,7 +445,8 @@ def test_out_never_replaces_the_list_it_reads(run, maps, tmp_path):
 def test_the_reference_lists_the_same_categories(run):
     table = {}
     text = (SKILL_DIR / "references" / "categories.md").read_text(encoding="utf-8")
-    for name, tags in re.findall(r"^\| `([a-z_]+)` \| (.+?) \|$", text, re.M):
+    # bun fmt pads the table's columns
+    for name, tags in re.findall(r"^\| `([a-z_]+)` +\| (.+?) *\|$", text, re.M):
         table[name] = [" + ".join(re.findall(r"`([^`]+)`", alt)) for alt in tags.split(" or ")]
     script = run(SKILL, SCRIPT, "categories").json()["categories"]
     assert table == {name: c["any_of"] for name, c in script.items()}

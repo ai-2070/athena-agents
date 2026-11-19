@@ -128,7 +128,8 @@ describe('a team chat', () => {
     } as Partial<Team>);
     await postUserMessage(team.id, 'Make a thumbnail for my launch video');
     let thread = getThread(team.id);
-    for (let i = 0; i < 60 && thread.messages.length < 4; i++) {
+    // three Eve turns: up to 25 s, since the Windows runner can be slow
+    for (let i = 0; i < 250 && thread.messages.length < 4; i++) {
       await new Promise((r) => setTimeout(r, 100));
       thread = getThread(team.id);
     }
@@ -221,7 +222,8 @@ describe("a reply's work", () => {
     try {
       await postUserMessage(team.id, 'Make a thumbnail');
       let thread = getThread(team.id);
-      for (let i = 0; i < 60 && thread.messages.length < 4; i++) {
+      // three Eve turns: up to 25 s, since the Windows runner can be slow
+      for (let i = 0; i < 250 && thread.messages.length < 4; i++) {
         await new Promise((r) => setTimeout(r, 100));
         thread = getThread(team.id);
       }

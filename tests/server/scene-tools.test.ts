@@ -78,7 +78,7 @@ describe('writing the scene', () => {
     fs.mkdirSync(path.dirname(dir), { recursive: true });
     fs.symlinkSync(target, dir, 'junction');
     try {
-      noteSceneWrite(path.join(fs.realpathSync(target), 'index.html'), builder, 'r1');
+      noteSceneWrite(path.join(fs.realpathSync.native(target), 'index.html'), builder, 'r1');
       expect(sceneAuthor(activeProject(), [])).toMatchObject({ kind: 'agent', id: 'scene-agent', runId: 'r1' });
     } finally {
       fs.rmSync(dir, { force: true });
