@@ -1880,6 +1880,16 @@ export interface WebhookDelivery {
   updatedAt?: number;
 }
 
+/** The sender ids a webhook started runs for in the last day (its delivery log keeps only the latest few). */
+export interface WebhookSeen {
+  /** The webhook's id. */
+  id: string;
+  /** Sender id → when it started a run. */
+  ids: Record<string, number>;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
 /** How the webhooks port is shared: not by Athena, a Cloudflare quick tunnel, Tailscale Funnel or Tailscale Serve. */
 export type WebhookShare = 'off' | 'cloudflare' | 'tailscale-public' | 'tailscale-tailnet';
 

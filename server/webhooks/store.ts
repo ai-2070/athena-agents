@@ -5,10 +5,34 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { collection, listProjects, withProject } from '../store.ts';
 import { dataPath, readJSON, writeJSON } from '../util.ts';
-import type { Project, Webhook, WebhookDelivery } from '../../shared/types.ts';
+import type { Project, Webhook, WebhookDelivery, WebhookSeen } from '../../shared/types.ts';
 
 export const webhooks = collection<Webhook>('webhooks');
 export const deliveries = collection<WebhookDelivery>('webhook-deliveries');
+/** Repeats are found here, not in the deliveries: a flood of refused ones would push the started ones out. */
+const seen = collection<WebhookSeen>('webhook-seen');
+
+const REPEAT_MS = 24 * 3_600_000;
+const MAX_SEEN = 5_000;
+
+/** Did this sender id start a run in the last day? */
+export function seenBefore(webhookId: string, senderId: string, now: number): boolean {
+  const at = seen.get(webhookId)?.ids[senderId];
+  return at !== undefined && now - at < REPEAT_MS;
+}
+
+/** Remembers a sender id that started a run (for a day, and at most the newest MAX_SEEN). */
+export function rememberSeen(webhookId: string, senderId: string, now: number): void {
+  const kept = Object.entries(seen.get(webhookId)?.ids || {}).filter(
+    ([k, at]) => k !== senderId && now - at < REPEAT_MS,
+  );
+  kept.sort((a, b) => b[1] - a[1]);
+  const ids: Record<string, number> = Object.create(null);
+  for (const [k, at] of [[senderId, now] as const, ...kept.slice(0, MAX_SEEN - 1)]) ids[k] = at;
+  seen.save({ id: webhookId, ids });
+}
+
+export const forgetSeen = (webhookId: string): void => seen.remove(webhookId);
 
 /** What is kept for a webhook outside its project. */
 export interface WebhookSecrets {

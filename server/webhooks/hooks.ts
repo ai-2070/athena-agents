@@ -7,7 +7,7 @@ import { activeProject, getSettings, routines, saveSettings } from '../store.ts'
 import { PORT } from '../util.ts';
 import { deliveries, deliveriesOf, hashToken, newToken, saveSecrets, secretsOf, webhooks } from './store.ts';
 import { SENDER_SECRET, signFor } from './verify.ts';
-import { receiveIn } from './intake.ts';
+import { forgetWebhook, receiveIn } from './intake.ts';
 import { listenerStatus, syncListener, webhookPort } from './listener.ts';
 import { applyShare, checkTunnel, publicAddress, tunnelStatus } from './tunnel.ts';
 import type {
@@ -177,6 +177,7 @@ export async function removeWebhook(id: string): Promise<void> {
   webhooks.remove(h.id);
   saveSecrets(h.id, null);
   for (const d of deliveriesOf(h.id)) deliveries.remove(d.id);
+  forgetWebhook(h.id);
   await syncListener();
 }
 
