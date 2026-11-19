@@ -1,12 +1,11 @@
-# Athena Agents
+<p align="center">
+  <img src="docs/images/athena-emblem.png" alt="" width="112" height="112">
+</p>
 
-<img src="public/brand/athena-wordmark.png" alt="Athena Agents" width="320" />
-
-**A home for your AI agents.** Build teams of agents, give each one a job, a model and the tools it needs, and watch them work together on a live map. Everything runs on your own computer, with no account and no login.
+<h1 align="center">Athena Agents</h1>
 
 <p align="center">
-  <img src="docs/images/hero.png" alt="The Station in dark mode: three teams around the Brain, with the Brain chat open listing what still needs the user before a Friday launch" width="100%">
-  <br><sub>Asking the Brain what still needs you. Pictures on this page use a made-up coffee shop, Fernwood Coffee.</sub>
+  <b>A home for your AI agents.</b> Build teams of agents, give each one a job, a model and the tools it needs, and watch them work together on a live map. Everything runs on your own computer, with no account and no login.
 </p>
 
 <p align="center">
@@ -16,7 +15,14 @@
   <img alt="MCP ready" src="https://img.shields.io/badge/MCP-ready-2b2e3b?style=flat-square">
 </p>
 
-[Get started](#get-started) · [Connect a model](#connect-a-model) · [A tour](#a-tour) · [Safety](#safety) · [Your data](#your-data) · [Development](#development) · [Full guide](docs/guide.md)
+<p align="center">
+  <a href="#get-started">Get started</a> · <a href="#connect-a-model">Connect a model</a> · <a href="#a-tour">A tour</a> · <a href="#safety">Safety</a> · <a href="#your-data">Your data</a> · <a href="#development">Development</a> · <a href="docs/guide.md">Full guide</a>
+</p>
+
+<p align="center">
+  <img src="docs/images/hero.png" alt="The Station in dark mode: three teams around the Brain, with the Brain chat open listing what still needs the user before a Friday launch" width="100%">
+  <br><sub>Asking the Brain what still needs you. Pictures on this page use a made-up coffee shop, Fernwood Coffee.</sub>
+</p>
 
 ## Why Athena
 
