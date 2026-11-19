@@ -304,6 +304,37 @@ For example, with those agents and skills already created:
 
 > @Researcher finds the week's main product updates. @Content Team turns them into a short report using @Brand voice.
 
+## Webhooks: let other services start a routine
+
+A webhook lets another service start a routine: GitHub when someone pushes or opens an issue, Stripe when an invoice is paid, Linear, Slack, GitLab, n8n, Home Assistant, a CI job or a plain `curl`. What the service sends becomes the routine's input, marked as coming from outside this computer, so agents treat it as data and not as instructions.
+
+**Add one on the routine.** Open a routine and, under **Webhooks**, press **Add webhook**. Pick who sends it:
+
+| Sender                                   | How it proves itself                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| GitHub, GitLab                           | A secret Athena makes (or you type) that you paste into GitHub or GitLab                |
+| Stripe, Slack, Linear                    | The signing secret the service shows you, pasted into Athena                            |
+| Standard Webhooks (Svix, Resend, Clerk…) | The `whsec_…` signing secret the service shows you                                      |
+| Other, signed                            | An HMAC signature in a header you name (SHA-256 or SHA-1, hex or base64)                |
+| Other, with a token                      | A token in a header (`Authorization: Bearer …` by default), for n8n, Zapier, `curl`, CI |
+| Address only                             | Only the secret address. The weakest choice: anyone with the address can start it       |
+
+Athena then shows the webhook's **address** and any secret it made, with where to paste them in the service. A secret Athena made is shown only then: if you lose it, make a new one. Changing who sends an existing webhook makes a new secret the same way (shown once), unless you paste one or the service gives its own. **Show address** brings the full address back whenever you need it (Cloudflare's changes, see below).
+
+- **Only these events** limits which events start a run (`push`, `issues.opened`, `invoice.paid`…). Others are recorded and skipped.
+- **Agents ask before risky steps** (on by default): for these runs, the agents the routine mentions work at **Ask first**, whatever their own setting, in every engine. Their **Always allow** lists don't count in these runs, and work they hand to another agent runs at **Ask first** too. Team members pick the work up in the team chat with their own settings.
+- Repeats of the same delivery are ignored for a day; more than the limits you set (20 a minute and 3 at once by default) are held back, and the service tries again later.
+- **Deliveries** lists what came in and what came of it. **Run again** starts the routine again from what was sent; Athena keeps it for 7 days (switch that off per webhook, or **Remove what was kept**).
+- **Send a test** signs a sample the way the service would and puts it through every check, without starting anything.
+
+**Share it with the internet.** Webhooks have their own port (the dashboard's + 1, so 4801), which answers webhooks and nothing else. In **Settings › Webhooks**, pick how to share it:
+
+- **Cloudflare**: a Cloudflare quick tunnel. No account needed, but its address changes every time it starts, and the services then need each webhook's new address. Good for trying webhooks out.
+- **Tailscale, public**: Tailscale Funnel. Your computer's `https://<name>.<tailnet>.ts.net` address, which stays the same. Funnel has to be allowed for your tailnet the first time: Athena shows the link.
+- **Tailscale, tailnet only**: Tailscale Serve. Only your own devices on the tailnet can reach it, for senders like Home Assistant or n8n on another machine.
+
+Picking one starts it right away, using `cloudflared` or `tailscale` installed on this computer (Athena shows where to get them), fills in the address and checks that webhooks reach this computer. It starts again whenever Athena starts, and stops when Athena stops or you pick **Off**. Switching **Receive webhooks** off stops it too, and it stays off until you pick it again. Changing the webhooks port or where the program is (under **Advanced**) starts it again with the new one; empty either field to go back to the usual port, or to have Athena find the program by itself. Under **Off** you can run your own tunnel instead and type its address; **Check** works for it too. Point your own tunnel at the webhooks port only, never at the dashboard's.
+
 ## The Brain and your teams
 
 **The Brain works like an agent.** It runs on the engine its model setting picks (Claude Code, an API model, Hermes, Codex or opencode) and uses its own tools as it answers: building teams, hiring, handing out work, the Tasks board, saved tasks, routines, skills, MCP servers, models, the voxel world and its memory. What it does happens as it does it and shows as steps in Brain chat. It only ever reads the project's files; changing them is work it hands to an agent. Each message comes with a short summary of the project (its agents and teams, what they are doing, work it handed out, what waits for you); the Brain looks up the rest, such as files, skills, routines or the Agent library, when it needs it. Each Brain conversation keeps its own memory, like an agent's chat; when it picks up a conversation from before, its last messages come along, and notes it put in the chat about finished work reach it with your next message. One answer makes at most 12 changes and hands work to one agent or team. If you switch projects while it answers, it finishes in the project you asked it in.
@@ -489,6 +520,7 @@ Workflow checkpoints and approval requests from outside MCP clients always come 
 
 - The server listens on **127.0.0.1** only. Host checks, custom headers for API changes and browser-origin checks help stop other websites from controlling it. X and Reddit sign-in callbacks are allowed back from those services.
 - There is **no dashboard login**. Anyone with local access to the running service may be able to use it. Do not expose it through a public tunnel or reverse proxy.
+- **Webhooks** have a port of their own that answers webhooks and nothing else. A tunnel Athena starts (Cloudflare or Tailscale) always points there; if you run your own, point it at the webhooks port too, never at the dashboard's. Athena checks this, and stops its tunnel if an address ever leads to the dashboard. What a webhook sends reaches agents marked as outside data, and by default they ask before risky steps.
 - Stored API keys and account tokens are kept server-side, not sent to the browser or included in project exports. They are saved in local files; protect the machine and its data folder.
 - Hosted models, MCP servers and connected services have their own access and data handling. Only enable tools, folders and accounts that an agent needs. Built-in file tools enforce allowed roots; this does not constrain arbitrary shell commands or outside tools.
 

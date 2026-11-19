@@ -123,6 +123,11 @@ scripts' tests (`python -m pytest tests/skills`, Python 3.10). `.github/workflow
   Decisions), because every change there is kept.
 - A run belongs to the project it started in: use `withProject()` / the run's project, not the active one.
 - Skill installs from GitHub only come from links the user typed, unless the user opted in.
+- The webhooks listener (`server/webhooks/listener.ts`) is its own server on its own port and answers only
+  `POST /h/<token>` and `GET /h/_check`: never route anything of the dashboard through it. A tunnel only ever points
+  at the webhooks port, never the dashboard's: the tunnels Athena starts (`server/webhooks/tunnel.ts`) build their
+  arguments from fixed parts and that port, and no agent tool starts or changes one. Webhook secrets stay in
+  `data/webhook-secrets.json`; what a webhook sends reaches agents fenced as data.
 
 ## Tests
 

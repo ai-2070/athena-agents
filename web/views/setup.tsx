@@ -1,5 +1,5 @@
-// Settings: everything you set up once, in tabs. General · Connections · Gateways · MCP servers · Programs · Appearance
-// · About.
+// Settings: everything you set up once, in tabs. General · Connections · Gateways · MCP servers · Programs · Webhooks ·
+// Appearance · About.
 // A search box finds any setting: it switches to its tab, scrolls to it and flashes it.
 // Links can do the same with #/settings?tab=general&find=OpenAI Codex
 // React and Base UI: the tabs, the search (an autocomplete) and every tab's page.
@@ -10,13 +10,14 @@ import { ConnectionsTab } from './connections.tsx';
 import { GatewaysTab } from './gateways.tsx';
 import { McpTab } from './mcp.tsx';
 import { ProgramsTab } from './programs.tsx';
+import { WebhooksTab } from './webhooks.tsx';
 import { LookTab } from './look.tsx';
 import { AboutTab } from './about.tsx';
 import { Tabs } from '../ui/controls.tsx';
 import { Icon, reactPage } from '../ui/react.tsx';
 import type { ComponentType } from 'react';
 
-type TabId = 'general' | 'connections' | 'gateways' | 'mcp' | 'programs' | 'look' | 'about';
+type TabId = 'general' | 'connections' | 'gateways' | 'mcp' | 'programs' | 'webhooks' | 'look' | 'about';
 interface Tab {
   id: TabId;
   label: string;
@@ -39,6 +40,7 @@ const TABS: Tab[] = [
   { id: 'gateways', label: 'Gateways', Page: GatewaysTab },
   { id: 'mcp', label: 'MCP servers', Page: McpTab },
   { id: 'programs', label: 'Programs', Page: ProgramsTab },
+  { id: 'webhooks', label: 'Webhooks', Page: WebhooksTab },
   { id: 'look', label: 'Appearance', Page: LookTab },
   { id: 'about', label: 'About', Page: AboutTab },
 ];
@@ -51,6 +53,13 @@ const INDEX: IndexEntry[] = [
     label: 'Telegram, Slack and Discord chat gateways',
     words:
       'telegram bot two way slack discord chat app message brain agent team token user ids channels allow files retry socket mode botfather',
+  },
+  {
+    tab: 'webhooks',
+    find: 'Receive webhooks',
+    label: 'Webhooks',
+    words:
+      'webhook webhooks github stripe linear slack gitlab tunnel cloudflare tailscale funnel serve port public address',
   },
   { tab: 'general', find: 'API keys', label: 'AI keys', words: 'openrouter venice key api anthropic token' },
   { tab: 'general', find: 'Venice key', label: 'Venice key', words: 'venice api key balance diem models' },

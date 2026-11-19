@@ -78,6 +78,7 @@ import { GaugeIcon } from '@phosphor-icons/react/dist/csr/Gauge';
 import { GearIcon } from '@phosphor-icons/react/dist/csr/Gear';
 import { GitBranchIcon } from '@phosphor-icons/react/dist/csr/GitBranch';
 import { GlobeIcon } from '@phosphor-icons/react/dist/csr/Globe';
+import { WebhooksLogoIcon } from '@phosphor-icons/react/dist/csr/WebhooksLogo';
 import { HandIcon } from '@phosphor-icons/react/dist/csr/Hand';
 import { HardDrivesIcon } from '@phosphor-icons/react/dist/csr/HardDrives';
 import { HouseIcon } from '@phosphor-icons/react/dist/csr/House';
@@ -215,6 +216,7 @@ export const PHOSPHOR: Record<string, PhosphorIcon> = {
   brain: BrainIcon,
   wrench: WrenchIcon,
   globe: GlobeIcon,
+  webhook: WebhooksLogoIcon,
   folder: FolderSimpleIcon,
   'user-plus': UserPlusIcon,
   'arrow-up': ArrowUpIcon,

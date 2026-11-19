@@ -48,6 +48,9 @@ import * as learning from './learning.ts';
 import * as uploads from './uploads.ts';
 import * as files from './files.ts';
 import * as routinesMod from './routines.ts';
+import * as webhookListener from './webhooks/listener.ts';
+import * as webhookTunnel from './webhooks/tunnel.ts';
+import { dropOldBodies, markInterruptedDeliveries } from './webhooks/store.ts';
 import * as backup from './backup.ts';
 import { devPage, pageCsp, viteFromArgs } from './devpage.ts';
 import { saveToolStats } from './toolstats.ts';
@@ -57,6 +60,7 @@ import { startSceneWatch } from './scene/history.ts';
 import { setScenePages } from './scene/look.ts';
 import type { Agent, Project } from '../shared/types.ts';
 import { BRAIN_ID } from './brainmcp.ts';
+import { alwaysAllowed, stricterAutonomy } from '../shared/autonomy.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of [
@@ -72,6 +76,9 @@ const argv = process.argv.slice(2);
 const PORT = (argv.includes('--port') && Number(argv[argv.indexOf('--port') + 1])) || DEFAULT_PORT;
 setPort(PORT);
 const OPEN = !argv.includes('--no-open') && !process.env.DASH_NO_OPEN;
+// --hooks-port: where webhooks are received (else the setting, else the dashboard's port + 1)
+if (argv.includes('--hooks-port'))
+  webhookListener.setHooksPortArg(Number(argv[argv.indexOf('--hooks-port') + 1]) || null);
 const PUBLIC = path.join(ROOT, 'public');
 const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`]);
 // `bun run dev`: the page's code comes from the Vite dev server (hot reload) instead of public/dist
@@ -353,6 +360,10 @@ const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined)
     toolGroups: run.agent.toolGroups,
     mcpServers: run.agent.mcpServers,
     _teamSkills: run.agent._teamSkills,
+    // a run capped for its start (a webhook's "ask first") stays capped, whatever the saved setting says now
+    autonomy: stricterAutonomy(agent.autonomy, run.agent._autonomyCap),
+    // (and its "Always allow" doesn't count, and work it hands on is capped too)
+    ...(run.agent._autonomyCap ? { _autonomyCap: run.agent._autonomyCap } : {}),
   };
 };
 get('/api/internal/tools', async (_p, _b, q) => {
@@ -429,7 +440,7 @@ async function claudePermission(
   { tool_name, input = {} }: PermissionRequest,
   runId: string | null,
 ) {
-  if ((agent.alwaysAllow || []).includes(tool_name)) return { behavior: 'allow', updatedInput: input };
+  if (alwaysAllowed(agent).includes(tool_name)) return { behavior: 'allow', updatedInput: input };
   const detail = input.command || input.file_path || input.url || input.pattern || JSON.stringify(input, null, 2);
   const account = mcp.accountOfTool(tool_name);
   const d = await requestApproval({
@@ -783,6 +794,11 @@ void irc
   );
 routinesMod.markInterruptedRoutines();
 routinesMod.startRoutineScheduler();
+markInterruptedDeliveries();
+dropOldBodies();
+setInterval(() => dropOldBodies(), 3_600_000).unref();
+webhookListener.watchWebhooks();
+void webhookListener.syncListener().then(() => webhookTunnel.watchTunnel());
 projectSync.startAutoSave();
 startSceneWatch();
 programs.startProgramScan();
@@ -812,8 +828,10 @@ const shutdown = () => {
   if (stopping) return;
   stopping = true;
   terms.closeAll();
+  // the tunnel goes first: nothing outside should reach a dashboard that is stopping
+  webhookTunnel.stopTunnel();
   // agents' CLIs are stopped too: they would go on writing into the project with no dashboard to see it
-  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns()])
+  void Promise.allSettled([gatewaySupervisor.stop(), engines.stopAllRuns(), webhookListener.stopListener()])
     .finally(() => Promise.allSettled([eveCoordinator.close(), eveRuntime.close()]))
     .finally(() => {
       try {

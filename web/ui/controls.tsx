@@ -15,6 +15,8 @@ export interface Choice<V extends string> {
   value: V;
   label: ReactNode;
   title?: string;
+  /** Can't be picked now (title says why). */
+  disabled?: boolean;
 }
 
 // The tab row's layout. :where() takes away its weight, so whatever a page passes in rowClassName
@@ -98,6 +100,7 @@ export function Segmented<V extends string>({
           key={o.value}
           value={o.value}
           title={o.title}
+          disabled={o.disabled}
           className={(s) => on(s.pressed, 'inline-flex min-h-[30px] items-center justify-center')}
         >
           {o.label}

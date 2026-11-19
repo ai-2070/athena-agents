@@ -23,6 +23,7 @@ import { world, worlds } from './world.ts';
 import { scene } from './scene.ts';
 import { gateways } from './gateways.ts';
 import { outbox } from './outbox.ts';
+import { webhooks } from './webhooks.ts';
 import { artifacts, backups, files, layout, memory, terminals, uploads } from './files.ts';
 
 export const contract = {
@@ -61,4 +62,5 @@ export const contract = {
   scene,
   gateways,
   outbox,
+  webhooks,
 };
