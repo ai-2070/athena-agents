@@ -10,7 +10,8 @@ import { getSkill, listSkills } from './skills.ts';
 import { pickMember } from './brain.ts';
 import { due } from './workflows.ts';
 import { cleanSchedule, findMentions, renameMentions } from '../shared/routines.ts';
-import type { Agent, Routine, RoutineMention, RoutineRun, RoutineRunTarget, Team } from '../shared/types.ts';
+import { routineDeleted } from './webhooks/store.ts';
+import type { Agent, Autonomy, Routine, RoutineMention, RoutineRun, RoutineRunTarget, Team } from '../shared/types.ts';
 
 const MAX_TEXT = 20000;
 const MAX_OUTPUT = 4000;
@@ -115,6 +116,7 @@ export function deleteRoutine(id: string) {
   const r = routines.get(id);
   if (!r) return;
   routines.remove(r.id);
+  routineDeleted(r.id);
   for (const run of routineRuns.list())
     if (run.routineId === r.id && run.status !== 'running') routineRuns.remove(run.id);
   log('routine', `Deleted routine "${r.name}"`);
@@ -165,9 +167,19 @@ export function routineStatus(
   return targets.some((t) => t.status === 'failed') ? 'failed' : 'stopped';
 }
 
+export interface StartRoutineOptions {
+  trigger?: string;
+  input?: string;
+  /** What started it, when not you or its schedule (a webhook delivery). */
+  source?: RoutineRun['source'];
+  /** The agents it reaches directly work at most at this autonomy (a webhook's "ask first"). Not team members:
+   *  they pick the work up in the team chat with their own settings. */
+  cap?: Autonomy;
+}
+
 export async function startRoutine(
   id: string,
-  { trigger = 'manual', input = '' }: { trigger?: string; input?: string } = {},
+  { trigger = 'manual', input = '', source, cap }: StartRoutineOptions = {},
 ): Promise<RoutineRun> {
   const r = getRoutine(id);
   if (!r) throw oops('No such routine.', 404);
@@ -185,6 +197,7 @@ export async function startRoutine(
     routineId: r.id,
     routineName: r.name,
     trigger,
+    ...(source ? { source } : {}),
     status: 'running',
     skills,
     targets,
@@ -224,7 +237,7 @@ export async function startRoutine(
             chatId: chat.id,
             parentRunId: run.id,
             signal: ac.signal,
-            extra: { skills },
+            extra: { skills, ...(cap ? { autonomy: cap } : {}) },
           });
           t.status = ac.signal.aborted ? 'stopped' : 'done';
           t.output = summary(text);

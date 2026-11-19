@@ -735,6 +735,8 @@ export interface Agent {
   updatedAt?: number;
   /** Set only while an agent works for a team: that team's skills. Never saved. */
   _teamSkills?: string[];
+  /** Set only for a run that may not go beyond this autonomy (a webhook's "Agents ask before risky steps"). Never saved. */
+  _autonomyCap?: Autonomy;
 }
 
 // ---------- teams (stored in the "workflows" collection) ----------
@@ -845,6 +847,8 @@ export interface RunAccess {
   toolGroups?: string[];
   mcpServers?: string[];
   skills?: string[];
+  /** The run may not go beyond this autonomy, whatever the agent's own setting (a webhook's "ask first"). */
+  autonomy?: Autonomy;
 }
 
 export interface ExecutionRun {
@@ -1101,7 +1105,9 @@ export interface RoutineRun {
   id: string;
   routineId: string;
   routineName: string;
-  trigger: 'manual' | 'schedule' | string;
+  trigger: 'manual' | 'schedule' | 'webhook' | string;
+  /** A webhook run: which webhook and delivery started it. */
+  source?: { webhookId: string; deliveryId: string };
   status: 'running' | 'done' | 'failed' | 'stopped';
   skills: string[];
   targets: RoutineRunTarget[];
@@ -1784,6 +1790,113 @@ export interface Settings {
   activeProject?: string;
   /** The voxel world projects without a built world of their own show ('' = the most recently built one). */
   defaultWorld: string;
+  /** Receiving webhooks (Settings › Webhooks). Changed through the webhooks routes only. */
+  webhooks: WebhookSettings;
+}
+
+// ---------- webhooks ----------
+/** How a sender proves a webhook is really from it. */
+export type WebhookPreset =
+  'github' | 'gitlab' | 'stripe' | 'slack' | 'linear' | 'standard' | 'hmac' | 'token' | 'none';
+
+/** A webhook's check, without its secret (that stays in data/webhook-secrets.json). */
+export interface WebhookVerify {
+  preset: WebhookPreset;
+  /** hmac and token: the header with the signature or the token. */
+  header?: string;
+  /** hmac only */
+  algorithm?: 'sha256' | 'sha1';
+  encoding?: 'hex' | 'base64';
+  /** hmac only: text before the signature, such as "sha256=". */
+  prefix?: string;
+  /** hmac and token: the headers that name the event and the delivery, if the sender sends them. */
+  eventHeader?: string;
+  idHeader?: string;
+}
+
+/** Another service starts a routine by sending to this webhook's secret address. Kept per project, on this PC only. */
+export interface Webhook {
+  id: string;
+  name: string;
+  routineId: string;
+  enabled: boolean;
+  verify: WebhookVerify;
+  /** Only these events start a run (empty: every event). */
+  events: string[];
+  /** The agents the routine reaches directly work at most at "Ask first" for these runs. */
+  askFirst: boolean;
+  /** At most this many runs start in a minute, and this many go at once. */
+  perMinute: number;
+  atOnce: number;
+  /** Keep what was sent (for Run again), for 7 days. */
+  keepBodies: boolean;
+  /** The secret address's last characters, to tell addresses apart. */
+  addressHint: string;
+  /** Why it was turned off by itself (its routine was deleted). */
+  offReason?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+/** A webhook as the page lists it. */
+export interface WebhookListing extends Webhook {
+  /** No secret address on this PC (data copied from elsewhere): make a new one. */
+  needsAddress: boolean;
+  /** A signing secret or token is saved. */
+  hasSecret: boolean;
+  lastDelivery: WebhookDelivery | null;
+}
+
+/** What creating a webhook (or making a new address or secret) answers, the one time the secrets are shown. */
+export interface WebhookCreated {
+  webhook: WebhookListing;
+  /** The full address, with the public address when there is one, else this computer's (null: the address didn't
+   *  change, and can't be shown again). */
+  address: string | null;
+  /** A signing secret Athena made (null when the sender gives you one, or the check needs none). */
+  secret: string | null;
+}
+
+export type WebhookDeliveryStatus = 'started' | 'duplicate' | 'skipped' | 'refused' | 'limited' | 'failed';
+
+/** One request a webhook received, and what came of it. */
+export interface WebhookDelivery {
+  id: string;
+  webhookId: string;
+  receivedAt: number;
+  status: WebhookDeliveryStatus;
+  /** Why it didn't start a run, in plain words. */
+  reason: string | null;
+  event: string | null;
+  /** The sender's own id for this delivery, used to notice repeats. */
+  senderId: string | null;
+  bytes: number;
+  /** Only harmless headers: never ones that carry a signature or token. */
+  headers: Record<string, string>;
+  /** What was sent (cut to 64 KB), when the webhook keeps it. */
+  body?: string;
+  routineRunId: string | null;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface WebhookSettings {
+  /** Receive webhooks at all. */
+  on: boolean;
+  /** The webhooks port; null: the dashboard's port + 1. */
+  port: number | null;
+  /** Where the internet reaches the webhooks port (a tunnel's address), '' when there is none. */
+  publicUrl: string;
+}
+
+/** How the webhooks listener is doing. */
+export interface WebhookStatus {
+  on: boolean;
+  listening: boolean;
+  port: number;
+  publicUrl: string;
+  /** Why it isn't listening, in plain words. */
+  error: string | null;
 }
 
 export type SecretKey =
@@ -2153,7 +2266,15 @@ export interface PresetListing {
 /** What a preset keeps of an agent: everything but what belongs to one copy of it. */
 export type AgentTemplate = Omit<
   Agent,
-  'id' | 'createdAt' | 'updatedAt' | 'lastModel' | 'lastModelAt' | 'pinned' | 'workspace' | '_teamSkills'
+  | 'id'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'lastModel'
+  | 'lastModelAt'
+  | 'pinned'
+  | 'workspace'
+  | '_teamSkills'
+  | '_autonomyCap'
 >;
 /** What a preset keeps of a team (its members are kept as agents beside it). */
 export type TeamTemplate = Partial<Pick<Team, 'name' | 'description' | 'color' | 'access' | 'skills' | 'schedule'>>;

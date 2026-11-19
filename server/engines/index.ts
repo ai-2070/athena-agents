@@ -1,5 +1,6 @@
 // Runs agents. One run = one user message answered by an agent (with any tool calls in between).
 // Engines stream events; this file turns them into chat history and live updates for the browser.
+import { stricterAutonomy } from '../../shared/autonomy.ts';
 import { createHash } from 'node:crypto';
 import {
   agents as agentStore,
@@ -1954,6 +1955,9 @@ export async function askAgent(
       toolGroups: [...new Set([...(fresh.toolGroups || []), ...(extra.toolGroups || [])])],
       mcpServers: teamWorkServers(fresh.mcpServers || [], extra.mcpServers || []),
       _teamSkills: extra.skills || [],
+      ...(extra.autonomy
+        ? { autonomy: stricterAutonomy(fresh.autonomy, extra.autonomy), _autonomyCap: extra.autonomy }
+        : {}),
     };
   const parentConversation = conversationOfRun(parentRunId);
   const existing = chatId ? chats.get(fresh.id, chatId) : null;

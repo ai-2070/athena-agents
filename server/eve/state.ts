@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { chats, listProjects, withProject, workflows } from '../store.ts';
 import { findAgent } from '../liveagents.ts';
 import { teamWorkServers } from '../mcp.ts';
+import { stricterAutonomy } from '../../shared/autonomy.ts';
 import { listFiles } from '../util.ts';
 import { privateDataPath } from '../private.ts';
 import { privateTeamDefinition } from '../private-conversations.ts';
@@ -193,6 +194,9 @@ export function sessionContext(id: string): { binding: EveSessionBinding; projec
         toolGroups: [...new Set([...agent.toolGroups, ...(extra.toolGroups || [])])],
         mcpServers: teamWorkServers(agent.mcpServers, extra.mcpServers || []),
         _teamSkills: extra.skills || [],
+        ...(extra.autonomy
+          ? { autonomy: stricterAutonomy(agent.autonomy, extra.autonomy), _autonomyCap: extra.autonomy }
+          : {}),
       };
     }
     return { ...context, agent };

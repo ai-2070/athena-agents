@@ -23,6 +23,7 @@ import { worldRouter, worldsRouter } from './world.ts';
 import { sceneRouter } from './scene.ts';
 import { gatewaysRouter } from './gateways.ts';
 import { outboxRouter } from './outbox.ts';
+import { webhooksRouter } from './webhooks.ts';
 import {
   artifactsRouter,
   backupsRouter,
@@ -69,4 +70,5 @@ export const apiRouter = implement(contract).router({
   scene: sceneRouter,
   gateways: gatewaysRouter,
   outbox: outboxRouter,
+  webhooks: webhooksRouter,
 });
