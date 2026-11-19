@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mountReact } from '../../web/ui/react.tsx';
-import { pasteNote, RoutineWebhooks } from '../../web/views/routine-webhooks.tsx';
+import { openWebhookForm, pasteNote, RoutineWebhooks } from '../../web/views/routine-webhooks.tsx';
 import { statusLine, tunnelLine, WebhooksTab } from '../../web/views/webhooks.tsx';
 import type {
   WebhookCreated,
@@ -54,6 +54,7 @@ const tunnel = (over: Partial<WebhookTunnel> = {}): WebhookTunnel => ({
   linkLabel: null,
   changed: false,
   tools: { cloudflared: true, tailscale: true },
+  toolPaths: { cloudflared: '', tailscale: '' },
   output: [],
   ...over,
 });
@@ -72,7 +73,16 @@ const click = async (label: string, root: ParentNode = document) => {
 beforeEach(() => {
   document.body.innerHTML = '<div id="view"></div><div id="modal-root"></div><div id="toasts"></div>';
   host = document.getElementById('view')!;
-  status = { on: true, listening: true, port: 4801, publicUrl: '', error: null, tunnel: tunnel() };
+  status = {
+    on: true,
+    listening: true,
+    port: 4801,
+    portSet: null,
+    defaultPort: 4801,
+    publicUrl: '',
+    error: null,
+    tunnel: tunnel(),
+  };
   list = [hook];
   calls = [];
   vi.stubGlobal('fetch', async (url: string, init: RequestInit = {}) => {
@@ -89,6 +99,9 @@ beforeEach(() => {
         secret: 'f'.repeat(64),
       };
       out = made;
+    } else if (path === '/api/webhooks/w1' && method === 'PUT') {
+      const changed: WebhookCreated = { webhook: hook, address: null, secret: 'e'.repeat(64) };
+      out = changed;
     } else if (path === '/api/webhooks-setup') {
       if (method === 'PUT' && body.share)
         status = {
@@ -234,6 +247,47 @@ it("shows a webhook's address again, and says when the Cloudflare address change
 });
 
 it('describes the listener in plain words', () => {
-  expect(statusLine({ on: false, listening: false, port: 4801, publicUrl: '', error: null })).toMatch(/^Off/);
-  expect(statusLine({ on: true, listening: false, port: 4801, publicUrl: '', error: null })).toMatch(/Starts when/);
+  expect(statusLine({ on: false, listening: false, port: 4801, error: null })).toMatch(/^Off/);
+  expect(statusLine({ on: true, listening: false, port: 4801, error: null })).toMatch(/Starts when/);
+});
+
+it('shows the new secret once when another sender got one on Save', async () => {
+  await act(async () => openWebhookForm('r1', 'On push', hook));
+  await settle();
+  await click('Save', document.querySelector('.modal-foot')!);
+  expect(calls.some((c) => c.method === 'PUT' && c.url.endsWith('/api/webhooks/w1'))).toBe(true);
+  expect(document.querySelector('.webhook-made')?.textContent).toContain('e'.repeat(64));
+});
+
+it('Settings › Webhooks goes back to the usual port and finds a program by itself again when emptied', async () => {
+  status = {
+    ...status,
+    port: 5000,
+    portSet: 5000,
+    tunnel: tunnel({
+      tools: { cloudflared: false, tailscale: true },
+      toolPaths: { cloudflared: '/opt/nope/cloudflared', tailscale: '' },
+    }),
+  };
+  await act(async () => {
+    unmount = mountReact(host, <WebhooksTab />).unmount;
+  });
+  await settle();
+  const inputs = [...host.querySelectorAll<HTMLInputElement>('input')];
+  const port = inputs.find((i) => i.type === 'number')!;
+  const tool = inputs.find((i) => i.value === '/opt/nope/cloudflared')!;
+  expect(port.value).toBe('5000');
+  expect(host.textContent).toContain('empty it to look for it again');
+  const empty = async (input: HTMLInputElement) =>
+    act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
+  await empty(port);
+  await empty(tool);
+  await settle();
+  const puts = calls.filter((c) => c.method === 'PUT').map((c) => c.body);
+  expect(puts).toContainEqual({ port: null });
+  expect(puts).toContainEqual({ toolPaths: { cloudflared: '' } });
 });

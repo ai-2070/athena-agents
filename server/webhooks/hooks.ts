@@ -138,19 +138,24 @@ export async function createWebhook(input: WebhookInput): Promise<WebhookCreated
   return { webhook: listing(h), address: addressFor(token), secret: made };
 }
 
-export async function changeWebhook(id: string, patch: WebhookInput): Promise<WebhookListing> {
+/** Changes a webhook. Another sender needs its own secret: the one pasted, or (for the senders Athena makes one for)
+ *  a new one, in the answer this once. */
+export async function changeWebhook(id: string, patch: WebhookInput): Promise<WebhookCreated> {
   const h = getWebhook(id);
   if (patch.name !== undefined) h.name = patch.name.trim().slice(0, 120) || h.name;
   if (patch.routineId !== undefined) h.routineId = routineFor(patch.routineId).id;
   const s = secretsOf(h.id);
+  const given = (patch.secret || '').trim();
+  let made: string | null = null;
   if (patch.verify !== undefined) {
     const next = cleanVerify(patch.verify);
-    // another kind of check needs its own secret
-    if (next.preset !== h.verify.preset && next.preset !== 'none' && !(patch.secret || '').trim())
-      throw oops('A different sender needs its secret: paste it, or make a new secret after saving.');
+    if (next.preset !== h.verify.preset && next.preset !== 'none' && !given) {
+      if (SENDER_SECRET.has(next.preset)) throw oops(SENDER_WORDS[next.preset] || 'Paste the secret.');
+      if (s) made = crypto.randomBytes(32).toString('hex');
+    }
     h.verify = next;
   }
-  if (patch.secret?.trim() && s) saveSecrets(h.id, { ...s, secret: patch.secret.trim() });
+  if (s && (given || made)) saveSecrets(h.id, { ...s, secret: given || made || '' });
   if (patch.events !== undefined) h.events = cleanEvents(patch.events);
   if (patch.askFirst !== undefined) h.askFirst = patch.askFirst;
   if (patch.perMinute !== undefined) h.perMinute = limit(patch.perMinute, 20, 600);
@@ -168,7 +173,7 @@ export async function changeWebhook(id: string, patch: WebhookInput): Promise<We
   }
   webhooks.save(h);
   await syncListener();
-  return listing(h);
+  return { webhook: listing(h), address: null, secret: made };
 }
 
 export async function removeWebhook(id: string): Promise<void> {

@@ -138,6 +138,7 @@ export function tunnelStatus(): WebhookTunnel {
     linkLabel: st.linkLabel,
     changed: !!s.tunnelChanged,
     tools: { cloudflared: !!findTool('cloudflared'), tailscale: !!findTool('tailscale') },
+    toolPaths: { cloudflared: s.toolPaths?.cloudflared || '', tailscale: s.toolPaths?.tailscale || '' },
     output: st.output.slice(-50),
   };
 }

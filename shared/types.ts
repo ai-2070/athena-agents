@@ -1928,6 +1928,8 @@ export interface WebhookTunnel {
   changed: boolean;
   /** Which tools are installed. */
   tools: { cloudflared: boolean; tailscale: boolean };
+  /** The paths set in Settings ('' to find them by themselves). */
+  toolPaths: { cloudflared: string; tailscale: string };
   /** The tool's last lines of output. */
   output: string[];
 }
@@ -1937,6 +1939,10 @@ export interface WebhookStatus {
   on: boolean;
   listening: boolean;
   port: number;
+  /** The port set in Settings (null: the default). */
+  portSet: number | null;
+  /** The port used when none is set. */
+  defaultPort: number;
   publicUrl: string;
   /** Why it isn't listening, in plain words. */
   error: string | null;

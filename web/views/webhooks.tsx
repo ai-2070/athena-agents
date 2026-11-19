@@ -11,7 +11,7 @@ import { Icon, useServerEvents } from '../ui/react.tsx';
 import type { WebhookShare, WebhookStatus, WebhookTunnel } from '../../shared/types.ts';
 
 /** The listener's state in a few words. */
-export function statusLine(s: Omit<WebhookStatus, 'tunnel'>): string {
+export function statusLine(s: Pick<WebhookStatus, 'on' | 'listening' | 'port' | 'error'>): string {
   if (s.error) return s.error;
   if (!s.on) return 'Off: webhooks are refused.';
   if (s.listening) return `Listening on 127.0.0.1:${s.port}, for webhooks only.`;
@@ -173,7 +173,6 @@ function OwnTunnel({ s, save, check }: { s: WebhookStatus; save: (url: string) =
 
 export function WebhooksTab() {
   const [status, setStatus] = useState<WebhookStatus | null>(null);
-  const [port, setPort] = useState('');
   const [busy, setBusy] = useState(false);
   const load = useCallback(
     () =>
@@ -268,24 +267,7 @@ export function WebhooksTab() {
         )}
       </Section>
       <Section title="Advanced" description="Where webhooks are received, and where the tunnel programs are.">
-        <FieldRow
-          label="Webhooks port"
-          size="sm"
-          hint={`Only webhooks are answered here, never the dashboard. Empty: ${status.port}.`}
-        >
-          <input
-            type="number"
-            min={1024}
-            max={65535}
-            placeholder={String(status.port)}
-            value={port}
-            onChange={(e) => setPort(e.target.value)}
-            onBlur={() => {
-              if (port.trim() === '') return;
-              void setup({ port: Number(port) }, 'Port saved').then(() => setPort(''));
-            }}
-          />
-        </FieldRow>
+        <PortField status={status} save={setup} />
         <ToolPath tool="cloudflared" status={status} save={setup} />
         <ToolPath tool="tailscale" status={status} save={setup} />
       </Section>
@@ -293,23 +275,48 @@ export function WebhooksTab() {
   );
 }
 
-function ToolPath({
-  tool,
-  status,
-  save,
-}: {
-  tool: 'cloudflared' | 'tailscale';
-  status: WebhookStatus;
-  save: (patch: { toolPaths: { cloudflared?: string; tailscale?: string } }, ok?: string) => Promise<void>;
-}) {
-  const [value, setValue] = useState('');
+type Save = (patch: Parameters<typeof rpc.webhooks.setup>[0], ok?: string) => Promise<void>;
+
+/** The webhooks port; emptied, it goes back to the usual one. */
+function PortField({ status, save }: { status: WebhookStatus; save: Save }) {
+  const saved = status.portSet === null ? '' : String(status.portSet);
+  const [port, setPort] = useState(saved);
+  return (
+    <FieldRow
+      label="Webhooks port"
+      size="sm"
+      hint={`Only webhooks are answered here, never the dashboard. Empty: ${status.defaultPort}.`}
+    >
+      <input
+        type="number"
+        min={1024}
+        max={65535}
+        placeholder={String(status.defaultPort)}
+        value={port}
+        onChange={(e) => setPort(e.target.value)}
+        onBlur={() => {
+          const next = port.trim();
+          if (next === saved) return;
+          void save({ port: next ? Number(next) : null }, next ? 'Port saved' : 'Back to the usual port');
+        }}
+      />
+    </FieldRow>
+  );
+}
+
+/** Where a tunnel program is; emptied, Athena finds it by itself again. */
+function ToolPath({ tool, status, save }: { tool: 'cloudflared' | 'tailscale'; status: WebhookStatus; save: Save }) {
+  const saved = status.tunnel.toolPaths[tool];
+  const [value, setValue] = useState(saved);
   return (
     <FieldRow
       label={`${INSTALL[tool].name} program`}
       hint={
-        status.tunnel.tools[tool]
-          ? 'Found. Set a path only to use another copy.'
-          : 'Not found. Install it, or give its full path.'
+        saved && !status.tunnel.tools[tool]
+          ? 'Not found there. Fix the path, or empty it to look for it again.'
+          : status.tunnel.tools[tool]
+            ? 'Found. Set a path only to use another copy.'
+            : 'Not found. Install it, or give its full path.'
       }
     >
       <input
@@ -317,7 +324,10 @@ function ToolPath({
         placeholder="Found by itself"
         spellCheck={false}
         onChange={(e) => setValue(e.target.value)}
-        onBlur={() => value.trim() && void save({ toolPaths: { [tool]: value.trim() } }, 'Saved')}
+        onBlur={() => {
+          const next = value.trim();
+          if (next !== saved) void save({ toolPaths: { [tool]: next } }, next ? 'Saved' : 'Found by itself again');
+        }}
       />
     </FieldRow>
   );

@@ -206,6 +206,8 @@ function WebhookForm({
   const generic = preset === 'hmac' || preset === 'token';
   const needsSecret =
     SENDER_SECRET.has(preset) && (!existing || existing.verify.preset !== preset || !existing.hasSecret);
+  // (another sender gets a new secret: the saved one was given to the old sender)
+  const keepsSecret = !!existing?.hasSecret && existing.verify.preset === preset;
 
   const verify = (): WebhookVerify => ({
     preset,
@@ -227,9 +229,11 @@ function WebhookForm({
       atOnce: Number(atOnce) || 3,
     };
     if (existing) {
-      const ok = await attempt(() => rpc.webhooks.change({ id: existing.id, ...body }), 'Saved');
+      const changed = await attempt(() => rpc.webhooks.change({ id: existing.id, ...body }), 'Saved');
       setBusy(false);
-      if (ok) close();
+      if (!changed) return;
+      close();
+      if (changed.secret) showMade(changed, 'New secret');
       return;
     }
     const made = await attempt(() => rpc.webhooks.create({ routineId, ...body }));
@@ -327,8 +331,8 @@ function WebhookForm({
           ) : null}
           {preset !== 'none' ? (
             <Field
-              label={needsSecret ? 'Signing secret' : existing?.hasSecret ? 'Signing secret (saved)' : 'Signing secret'}
-              hint={existing?.hasSecret && !needsSecret ? 'Leave empty to keep the saved one.' : SECRET_HINT[preset]}
+              label={keepsSecret ? 'Signing secret (saved)' : 'Signing secret'}
+              hint={keepsSecret ? 'Leave empty to keep the saved one.' : SECRET_HINT[preset]}
             >
               <input type="password" autoComplete="off" value={secret} onChange={(e) => setSecret(e.target.value)} />
             </Field>

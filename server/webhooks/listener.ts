@@ -215,6 +215,8 @@ export function listenerStatus(): Omit<WebhookStatus, 'tunnel'> {
     on: s.on,
     listening: !!server,
     port: server ? port : webhookPort(),
+    portSet: s.port,
+    defaultPort: portArg ?? PORT + 1,
     publicUrl: s.publicUrl,
     error,
   };

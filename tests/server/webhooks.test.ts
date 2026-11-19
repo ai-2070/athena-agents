@@ -440,6 +440,27 @@ describe('secrets', () => {
     expect(() => hooks.newSecret(hooks.listWebhooks().find((h) => h.verify.preset === 'stripe')!.id)).toThrow(/whsec_/);
   });
 
+  it('gives another sender a new secret when none is pasted, shown once', async () => {
+    agent('Switcher');
+    const r = saveRoutine({ name: 'Switched', text: '@Switcher works.' });
+    const made = await hooks.createWebhook({ routineId: r.id, verify: { preset: 'github' } });
+    const same = await hooks.changeWebhook(made.webhook.id, { verify: { preset: 'github' }, name: 'Renamed' });
+    expect(same.secret).toBeNull();
+    expect(secretsOf(made.webhook.id)?.secret).toBe(made.secret);
+    const other = await hooks.changeWebhook(made.webhook.id, { verify: { preset: 'token', header: 'x-token' } });
+    expect(other.secret).toMatch(/^[0-9a-f]{64}$/);
+    expect(other.secret).not.toBe(made.secret);
+    expect(secretsOf(made.webhook.id)?.secret).toBe(other.secret);
+    expect(other.webhook.verify.preset).toBe('token');
+    expect(JSON.stringify(hooks.listWebhooks())).not.toContain(other.secret!);
+    // a pasted one is kept and not shown back
+    const pasted = await hooks.changeWebhook(made.webhook.id, { verify: { preset: 'gitlab' }, secret: 'mine' });
+    expect(pasted.secret).toBeNull();
+    expect(secretsOf(made.webhook.id)?.secret).toBe('mine');
+    // the senders that give their own still need it pasted
+    await expect(hooks.changeWebhook(made.webhook.id, { verify: { preset: 'stripe' } })).rejects.toThrow(/whsec_/);
+  });
+
   it("needs the sender's secret for Stripe, Slack, Linear and Standard Webhooks", async () => {
     agent('Payee');
     const r = saveRoutine({ name: 'Paid', text: '@Payee checks.' });

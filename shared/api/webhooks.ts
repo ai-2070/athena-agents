@@ -71,10 +71,11 @@ export const webhooks = {
     .route({ method: 'POST', path: '/webhooks' })
     .input(z.object({ ...fields, routineId: z.string({ error: 'Choose the routine this webhook starts.' }) }))
     .output(type<WebhookCreated>()),
+  /** Another sender needs its own secret: one Athena makes for it is in the answer, shown this once. */
   change: oc
     .route({ method: 'PUT', path: '/webhooks/{id}' })
     .input(oneWebhook.extend(fields))
-    .output(type<WebhookListing>()),
+    .output(type<WebhookCreated>()),
   remove: oc.route({ method: 'DELETE', path: '/webhooks/{id}' }).input(oneWebhook).output(type<{ ok: true }>()),
   /** A new secret address (the old one stops working), shown this once. */
   newAddress: oc
