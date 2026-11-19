@@ -112,7 +112,7 @@ describe('the workflow editor', () => {
       row.textContent?.includes('Also draft a Telegram message in Outbox'),
     )!;
     expect(label).toBeTruthy();
-    expect(el.textContent).toContain('Choose the gateway recipient and approve the draft in Outbox before it sends.');
+    expect(el.textContent).toContain('In the Outbox, choose the chat it goes to and approve it before it sends.');
     await act(async () => label.querySelector<HTMLElement>('.toggle-text')!.click());
     expect(label.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true');
     await act(async () => btn('Save').click());

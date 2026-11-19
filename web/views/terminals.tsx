@@ -68,7 +68,7 @@ function TerminalsPage({ asked }: { asked?: string }) {
     if (current === id) navigate('#/terminals');
   };
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)]">
+    <div className="flex flex-col h-[calc(var(--spacing-window)-56px)]">
       <nav className="flex gap-1 border-b border-line bg-panel px-3 overflow-x-auto flex-none" aria-label="Terminals">
         {list.map((t) => (
           <div key={t.id} className={t.id === current ? TAB_ON : TAB}>

@@ -1276,7 +1276,7 @@ details.compaction .hint.warn {
 }
 .modal {
   width: min(880px, 100%);
-  max-height: calc(100vh - 48px);
+  max-height: calc(var(--spacing-window) - 48px);
   display: flex;
   flex-direction: column;
   border-radius: 16px;

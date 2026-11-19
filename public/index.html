@@ -12,11 +12,11 @@
   <body>
     <div
       id="app"
-      class="grid min-h-screen grid-cols-[var(--spacing-nav)_1fr] max-md:grid-cols-[1fr] md:in-[.nav-slim]:grid-cols-[58px_1fr]"
+      class="grid min-h-window grid-cols-[var(--spacing-nav)_1fr] max-md:grid-cols-[1fr] md:in-[.nav-slim]:grid-cols-[58px_1fr]"
     >
       <aside
         id="nav"
-        class="sticky top-0 flex h-screen flex-col border-r border-line bg-side pt-5 pb-4 max-md:fixed max-md:left-0 max-md:z-40 max-md:w-nav max-md:[transform:translateX(-100%)] max-md:[transition:transform_0.2s] max-md:in-[.nav-open]:transform-none max-md:in-[.nav-open]:shadow-pop max-md:in-[.nav-slim.nav-wide]:bottom-0 max-md:in-[.nav-slim.nav-wide]:z-80 max-md:in-[.nav-slim.nav-wide]:transform-none max-md:in-[.nav-slim.nav-wide]:shadow-pop max-md:in-[.nav-slim.nav-wide]:animate-[nav-wide-in_0.24s_cubic-bezier(.2,.8,.2,1)] md:in-[.nav-slim]:fixed md:in-[.nav-slim]:top-0 md:in-[.nav-slim]:bottom-0 md:in-[.nav-slim]:left-0 md:in-[.nav-slim]:z-80 md:in-[.nav-slim]:w-nav md:in-[.nav-slim]:overflow-hidden md:in-[.nav-slim]:animate-none md:in-[.nav-slim]:border-r-transparent md:in-[.nav-slim]:[clip-path:inset(0_calc(100%-58px)_0_0)] md:in-[.nav-slim]:[transition:clip-path_0.45s_cubic-bezier(.22,.9,.25,1),box-shadow_0.45s_ease] md:in-[.nav-slim]:after:pointer-events-none md:in-[.nav-slim]:after:absolute md:in-[.nav-slim]:after:top-0 md:in-[.nav-slim]:after:bottom-0 md:in-[.nav-slim]:after:left-[57px] md:in-[.nav-slim]:after:w-px md:in-[.nav-slim]:after:bg-line md:in-[.nav-slim]:after:[transition:opacity_0.3s_ease] md:in-[.nav-slim.nav-wide]:border-r-line md:in-[.nav-slim.nav-wide]:shadow-pop md:in-[.nav-slim.nav-wide]:[clip-path:inset(0_-120px_0_0)] md:in-[.nav-slim.nav-wide]:after:opacity-0"
+        class="sticky top-0 flex h-window flex-col border-r border-line bg-side pt-5 pb-4 max-md:fixed max-md:left-0 max-md:z-40 max-md:w-nav max-md:[transform:translateX(-100%)] max-md:[transition:transform_0.2s] max-md:in-[.nav-open]:transform-none max-md:in-[.nav-open]:shadow-pop max-md:in-[.nav-slim.nav-wide]:bottom-0 max-md:in-[.nav-slim.nav-wide]:z-80 max-md:in-[.nav-slim.nav-wide]:transform-none max-md:in-[.nav-slim.nav-wide]:shadow-pop max-md:in-[.nav-slim.nav-wide]:animate-[nav-wide-in_0.24s_cubic-bezier(.2,.8,.2,1)] md:in-[.nav-slim]:fixed md:in-[.nav-slim]:top-0 md:in-[.nav-slim]:bottom-0 md:in-[.nav-slim]:left-0 md:in-[.nav-slim]:z-80 md:in-[.nav-slim]:w-nav md:in-[.nav-slim]:overflow-hidden md:in-[.nav-slim]:animate-none md:in-[.nav-slim]:border-r-transparent md:in-[.nav-slim]:[clip-path:inset(0_calc(100%-58px)_0_0)] md:in-[.nav-slim]:[transition:clip-path_0.45s_cubic-bezier(.22,.9,.25,1),box-shadow_0.45s_ease] md:in-[.nav-slim]:after:pointer-events-none md:in-[.nav-slim]:after:absolute md:in-[.nav-slim]:after:top-0 md:in-[.nav-slim]:after:bottom-0 md:in-[.nav-slim]:after:left-[57px] md:in-[.nav-slim]:after:w-px md:in-[.nav-slim]:after:bg-line md:in-[.nav-slim]:after:[transition:opacity_0.3s_ease] md:in-[.nav-slim.nav-wide]:border-r-line md:in-[.nav-slim.nav-wide]:shadow-pop md:in-[.nav-slim.nav-wide]:[clip-path:inset(0_-120px_0_0)] md:in-[.nav-slim.nav-wide]:after:opacity-0"
       >
         <a
           class="flex items-center gap-3 px-6 pb-6 text-ink max-md:in-[.nav-slim]:justify-center max-md:in-[.nav-slim]:px-0 max-md:in-[.nav-slim.nav-wide]:justify-start max-md:in-[.nav-slim.nav-wide]:px-6 md:in-[.nav-slim]:justify-start md:in-[.nav-slim]:pr-0 md:in-[.nav-slim]:pl-[17px] md:in-[.nav-slim]:[transition:padding_0.45s_cubic-bezier(.22,.9,.25,1)] md:in-[.nav-slim.nav-wide]:pl-6"
@@ -35,7 +35,7 @@
         >
           <div
             id="nav-status"
-            class="flex max-h-[max(8rem,calc(100dvh-30rem))] min-h-0 min-w-0 flex-col overflow-hidden text-dim"
+            class="flex max-h-[max(8rem,calc(var(--spacing-window)-30rem))] min-h-0 min-w-0 flex-col overflow-hidden text-dim"
           ></div>
           <div
             id="nav-about"

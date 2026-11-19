@@ -586,52 +586,31 @@ const TOOLS: ToolDef[] = [
       return { text: `Saved to Artifacts${a.teamName ? ` (team ${a.teamName})` : ''}: ${a.title}.` };
     },
   },
-  {
-    name: 'prepare_gateway_files',
-    group: 'core',
-    risk: 'none',
-    when: (s) => isGatewayConversation(s.conversationId),
-    description:
-      'Inspect specific finished files for this active gateway assignment. Returns paths, names, sizes and SHA-256 hashes without sending them. Only your own workspace and safe project uploads are eligible. Use send_gateway_files with the returned paths and hashes to request delivery; ordinary artifacts and tool images are not sent automatically.',
-    parameters: obj(
-      { paths: { type: 'array', items: str('Absolute path of a finished file'), minItems: 1, maxItems: 10 } },
-      ['paths'],
-    ),
-    run: async (args, ctx) => {
-      const { prepareGatewayFiles } = await import('./gateways/deliverables.ts');
-      return { text: JSON.stringify(await prepareGatewayFiles(ctx.runId, ctx.agent.id, args)) };
-    },
-  },
+  // Risk high: the files leave the dashboard (to the person this chat app conversation is with, and only them).
   {
     name: 'send_gateway_files',
     group: 'core',
     risk: 'high',
     when: (s) => isGatewayConversation(s.conversationId),
     description:
-      'Request delivery of explicitly chosen finished files to the sender of this active gateway assignment. Pass the paths and SHA-256 hashes returned by prepare_gateway_files. Uses the normal approval policy, refuses changed bytes, and queues files after the final answer. The destination cannot be changed. One immutable selection per assignment; the result confirms selection, not remote delivery. Never retry an uncertain delivery with another tool call; review it in Athena.',
+      'Send finished files to the person you are answering in this Telegram, Slack or Discord chat. They go right after your answer. Absolute paths of files in your workspace or the project uploads; at most 10 per answer.',
     parameters: obj(
-      {
-        files: {
-          type: 'array',
-          minItems: 1,
-          maxItems: 10,
-          items: obj(
-            {
-              path: str('Absolute path returned by prepare_gateway_files'),
-              sha256: str('SHA-256 returned by prepare_gateway_files'),
-            },
-            ['path', 'sha256'],
-          ),
-        },
-      },
-      ['files'],
+      { paths: { type: 'array', items: str('Absolute path of a finished file'), minItems: 1, maxItems: 10 } },
+      ['paths'],
     ),
-    run: async (args, ctx) => {
-      const { sendGatewayFiles } = await import('./gateways/deliverables.ts');
-      const count = await sendGatewayFiles(ctx.runId, ctx.agent.id, args);
-      return {
-        text: `Selected ${count} file${count === 1 ? '' : 's'} for this gateway assignment. Delivery waits for the final answer; check its receipts in Athena.`,
-      };
+    run: async ({ paths }: { paths: string[] }, ctx) => {
+      const { runInfo } = await import('./engines/index.ts');
+      const { finishedFile } = await import('./boardfiles.ts');
+      const { gateways } = await import('./gateways/supervisor.ts');
+      const run = runInfo(ctx.runId);
+      if (!run?.conversationId) throw new Error('This run is not answering a chat app message.');
+      const files = (Array.isArray(paths) ? paths : []).map((p) => {
+        const real = finishedFile(run, String(p));
+        return { path: real, name: path.basename(real) };
+      });
+      if (!files.length) throw new Error('Name the files to send.');
+      const count = gateways.queueFiles(run.conversationId, files);
+      return { text: `${count} file${count === 1 ? '' : 's'} will be sent with your answer.` };
     },
   },
   // ---------- a Tasks board task (only in the task's own conversation) ----------
@@ -1867,17 +1846,17 @@ const TOOLS: ToolDef[] = [
     group: 'social',
     risk: 'none',
     description:
-      'Draft a Telegram or Discord message in the Outbox. The user picks the gateway conversation, checks the text and approves. Never sends, and cannot list gateway conversations.',
+      'Draft a Telegram, Slack or Discord message in the Outbox. The user chooses the chat it goes to (one the gateway has talked in), checks the text and approves. Never sends by itself.',
     parameters: obj(
       {
-        platform: { type: 'string', enum: ['telegram', 'discord'] },
+        platform: { type: 'string', enum: ['telegram', 'slack', 'discord'] },
         text: str('Exact message text'),
         note: str('Context for the user'),
       },
       ['platform', 'text'],
     ),
     run: async ({ platform, text, note }: { platform: string; text: string; note?: string }, ctx) => {
-      if (platform !== 'telegram' && platform !== 'discord') throw new Error('Choose Telegram or Discord.');
+      if (!social.isGatewayPlatform(platform)) throw new Error('Choose Telegram, Slack or Discord.');
       const item = await social.draftPost({
         platform,
         text,
@@ -1886,56 +1865,8 @@ const TOOLS: ToolDef[] = [
         agentName: ctx.agent.name,
         chatId: await chatOf(ctx),
       });
-      return {
-        text: `Saved Outbox draft ${item.id}. The user must choose its gateway recipient and approve before it sends.`,
-      };
+      return { text: `Saved Outbox draft ${item.id}. The user chooses its chat and approves before it sends.` };
     },
-  },
-  {
-    name: 'telegram_send',
-    group: 'social',
-    risk: 'high',
-    description:
-      'Send a Telegram message through a gateway instance to a completed conversation, using IDs the user gave you (otherwise use gateway_draft). Queued is not delivered: receipts are in the Outbox.',
-    parameters: obj(
-      {
-        text: str('Exact message'),
-        instance_id: str('Telegram gateway instance ID'),
-        event_id: str('Completed source event ID'),
-      },
-      ['text', 'instance_id', 'event_id'],
-    ),
-    run: async ({ text, instance_id, event_id }: { text: string; instance_id: string; event_id: string }, ctx) => ({
-      text: await social.sendTelegram(
-        text,
-        { instanceId: instance_id, eventId: event_id },
-        { agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) },
-        ctx.signal,
-      ),
-    }),
-  },
-  {
-    name: 'discord_send',
-    group: 'social',
-    risk: 'high',
-    description:
-      'Send a Discord message through a gateway instance to a completed conversation, using IDs the user gave you (otherwise use gateway_draft). Queued is not delivered: receipts are in the Outbox.',
-    parameters: obj(
-      {
-        text: str('Exact message'),
-        instance_id: str('Discord gateway instance ID'),
-        event_id: str('Completed source event ID'),
-      },
-      ['text', 'instance_id', 'event_id'],
-    ),
-    run: async ({ text, instance_id, event_id }: { text: string; instance_id: string; event_id: string }, ctx) => ({
-      text: await social.sendDiscord(
-        text,
-        { instanceId: instance_id, eventId: event_id },
-        { agentId: ctx.agent.id, agentName: ctx.agent.name, chatId: await chatOf(ctx) },
-        ctx.signal,
-      ),
-    }),
   },
   // ---------- team ----------
   {
@@ -2374,14 +2305,9 @@ const TOOLS: ToolDef[] = [
     name: 'notify_user',
     group: 'core',
     risk: 'none',
-    description:
-      'Show the user a notification in the dashboard. For an external message, use gateway_draft or an explicitly approved gateway send.',
+    description: 'Show the user a notification in the dashboard. For a message in a chat app, use gateway_draft.',
     parameters: obj({ text: str('Message') }, ['text']),
-    run: async ({ text, telegram }: { text: string; telegram?: boolean }, ctx) => {
-      if (telegram)
-        throw new Error(
-          'Telegram notifications now require a selected gateway recipient and approval. Use gateway_draft.',
-        );
+    run: async ({ text }: { text: string }, ctx) => {
       emit('toast', { text: `${ctx.agent.name}: ${text}` });
       log('notify', `${ctx.agent.name}: ${text}`, { agentId: ctx.agent.id });
       return { text: 'The user has been notified.' };

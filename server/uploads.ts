@@ -127,12 +127,10 @@ export async function receiveSource(
     declaredBytes = 0,
     maxBytes = Infinity,
     signal,
-    reserved,
   }: {
     declaredBytes?: number;
     maxBytes?: number;
     signal?: AbortSignal;
-    reserved?: (target: string, temporary: string) => void;
   } = {},
 ): Promise<UploadedFile> {
   // No size limit of its own; a caller with one (a gateway's file limits) passes it.
@@ -171,7 +169,6 @@ export async function receiveSource(
     descriptor = fs.openSync(tmp, 'wx');
     const st = fs.fstatSync(descriptor);
     part = { dev: st.dev, ino: st.ino };
-    reserved?.(target, tmp);
     const stream = fs.createWriteStream(tmp, { fd: descriptor, autoClose: true });
     descriptor = undefined;
     await pipeline(source, count, stream, { signal });
@@ -194,21 +191,6 @@ export async function receiveSource(
     name: path.basename(target),
     size,
   };
-}
-
-/** Only a gateway's recorded batch is passed here, while its exclusive worker owns the inbox. */
-export function cleanOwnedBatch(batch: string, keep: string[]): void {
-  if (!/^[\w-]{1,64}$/.test(batch)) throw new UploadError(400, 'Bad upload batch.');
-  const root = checkedRoot();
-  const dir = path.join(root, batch);
-  if (!inside(root, dir)) throw new UploadError(400, 'Bad upload path.');
-  if (!exists(dir)) return;
-  if (!fs.lstatSync(dir).isDirectory()) throw new UploadError(400, 'Bad upload path.');
-  const retained = new Set(keep.map((file) => path.resolve(file)));
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const file = path.join(dir, entry.name);
-    if ((entry.isFile() || entry.isSymbolicLink()) && !retained.has(path.resolve(file))) fs.unlinkSync(file);
-  }
 }
 
 interface FileId {

@@ -116,6 +116,9 @@ export function applyLook(look: Partial<LookSetting> = {}): LookSetting {
   const scale = Math.max(70, Math.min(160, Number(l.scale) || 100));
   // the desktop app on macOS and Linux zooms the whole page itself (src-tauri/src/look.rs)
   root.style.zoom = scale === 100 || windowZooms() ? '' : String(scale / 100);
+  // h-window and friends divide by it (--spacing-window in web/styles/app.css)
+  if (root.style.zoom) root.style.setProperty('--ui-zoom', root.style.zoom);
+  else root.style.removeProperty('--ui-zoom');
   paintAccent(l.accent);
   root.classList.toggle('reduce-motion', l.motion === 'reduced');
   const font = chatFont(l.chatFont);

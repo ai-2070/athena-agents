@@ -18,10 +18,6 @@ runtime/eve/.vercel/
 # Desktop release files gathered by scripts/desktop-release.ts
 release/
 
-# Hosted WhatsApp relay build and local Worker state
-relay/whatsapp/dist/
-relay/whatsapp/.wrangler/
-relay/whatsapp/.dev.vars*
 
 # Python, from running the skills' scripts and their tests
 __pycache__/

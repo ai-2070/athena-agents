@@ -13,7 +13,6 @@ import {
   newBatch,
   receive,
   receiveSource,
-  cleanOwnedBatch,
   removeUpload,
   safeParts,
   uploadsRoot,
@@ -57,18 +56,12 @@ describe('receiving files', () => {
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 
-  it('cleans only unrecorded files of an owned batch and refuses a batch replaced by a link', async () => {
+  it('refuses a batch replaced by a link', async () => {
     const owner = newBatch();
-    const retained = await receiveSource(Readable.from([Buffer.from('keep')]), owner.batch, 'keep.txt');
-    const orphan = await receiveSource(Readable.from([Buffer.from('orphan')]), owner.batch, 'orphan.txt');
-    cleanOwnedBatch(owner.batch, [retained.path]);
-    expect(fs.existsSync(retained.path)).toBe(true);
-    expect(fs.existsSync(orphan.path)).toBe(false);
     const other = newBatch();
     const victim = await receiveSource(Readable.from([Buffer.from('safe')]), other.batch, 'victim.txt');
     fs.rmSync(owner.dir, { recursive: true });
     fs.symlinkSync(other.dir, owner.dir, process.platform === 'win32' ? 'junction' : 'dir');
-    expect(() => cleanOwnedBatch(owner.batch, [])).toThrow('Bad upload path');
     await expect(receiveSource(Readable.from([Buffer.from('no')]), owner.batch, 'new.txt')).rejects.toThrow(
       'batch is gone',
     );

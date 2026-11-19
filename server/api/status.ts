@@ -23,7 +23,7 @@ import { overview } from '../overview.ts';
 import { toolStats } from '../toolstats.ts';
 import { codexModelList } from '../models.ts';
 import { PROVIDERS, listModels } from '../providers.ts';
-import { gatewaySupervisor } from '../gateways/live.ts';
+import { gateways as gatewaySupervisor } from '../gateways/supervisor.ts';
 import { HOME, PORT, dataPath } from '../util.ts';
 import type { AppState, HeadbarInfo, ProviderUsage, UsageLimits } from '../../shared/types.ts';
 

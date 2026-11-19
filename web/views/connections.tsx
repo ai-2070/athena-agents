@@ -129,11 +129,11 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
 
         <Section
           title={<ProgramLabel id="telegram">Telegram</ProgramLabel>}
-          description="Connect bot instances to the Brain, a team or an agent in Settings › Gateways."
+          description="Talk to the Brain, a team or an agent from Telegram, and send their messages there."
         >
           <Row
-            title="Set up a gateway instance"
-            description="Add fresh credentials in Gateways. The old global token and chat ID are no longer used. Review a message in Outbox to send to a known conversation."
+            title="A Telegram bot"
+            description="Set it up in Gateways. Messages agents draft for Telegram wait in the Outbox until you approve them."
           >
             <ButtonLink size="small" variant="ghost" href="#/settings?tab=gateways">
               Open Gateways
@@ -143,11 +143,11 @@ function AccountsForms({ loaded, reload }: { loaded: Loaded; reload: () => Promi
 
         <Section
           title={<ProgramLabel id="discord">Discord</ProgramLabel>}
-          description="Connect bot instances to the Brain, a team or an agent in Settings › Gateways."
+          description="Talk to the Brain, a team or an agent from Discord, and send their messages there."
         >
           <Row
-            title="Set up a gateway instance"
-            description="Add a bot with fresh credentials in Gateways. Old channel webhooks are no longer used. Review a message in Outbox to send to a known conversation."
+            title="A Discord bot"
+            description="Set it up in Gateways. Messages agents draft for Discord wait in the Outbox until you approve them."
           >
             <ButtonLink size="small" variant="ghost" href="#/settings?tab=gateways">
               Open Gateways

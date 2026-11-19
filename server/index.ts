@@ -23,7 +23,7 @@ import * as engines from './engines/index.ts';
 import { eveRuntime } from './eve/runtime.ts';
 import { EveOwnershipError } from './eve/ownership.ts';
 import { eveCoordinator } from './eve/coordinator.ts';
-import { gatewaySupervisor } from './gateways/live.ts';
+import { gateways as gatewaySupervisor } from './gateways/supervisor.ts';
 import * as tools from './tools.ts';
 import { inlineToolImagesNoted, withImageNote } from './toolimages.ts';
 import * as programs from './programs.ts';
@@ -785,7 +785,7 @@ skills.ensureBuiltinSkills();
 learning.startLearning();
 irc.startIrc();
 eveCoordinator.start();
-await gatewaySupervisor.start();
+gatewaySupervisor.start();
 boardWork.boardWork.start();
 void irc
   .recoverWork()

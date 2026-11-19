@@ -1,7 +1,6 @@
 // Types shared by the server (server/) and the browser app (web/).
 // The server stores these as JSON files; the browser gets them from the API.
 import type { Effort } from './effort.ts';
-import type { SerializedMessage } from 'chat';
 import type { UIMessageChunk } from 'ai';
 export type { Effort } from './effort.ts';
 
@@ -13,628 +12,98 @@ export type EngineId = 'claude-code' | 'eve' | 'hermes' | 'codex' | 'pi' | 'omp'
 export type Autonomy = 'ask' | 'auto' | 'full';
 export type ProviderId = 'openrouter' | 'venice' | 'lmstudio' | 'ollama' | 'custom';
 
-// ---------- chat gateway instances ----------
-export type GatewayPlatform = 'telegram' | 'slack' | 'discord' | 'whatsapp';
+// ---------- chat gateways (server/gateways/): Telegram, Slack and Discord bots ----------
+export type GatewayPlatform = 'telegram' | 'slack' | 'discord';
 export type GatewayTarget = { kind: 'brain' } | { kind: 'team'; id: string } | { kind: 'agent'; id: string };
-export interface GatewayTargets {
-  agents: { id: string; name: string }[];
-  teams: { id: string; name: string }[];
-}
 
-export type GatewaySenderPolicy =
-  | { platform: 'telegram'; allowedUserIds: string[] }
-  | { platform: 'whatsapp'; allowedPhones: string[] }
-  | { platform: 'slack' | 'discord'; allowedUserIds: string[] };
-
-/** Versioned protocol for the separate hosted WhatsApp relay. Not part of dashboard state. */
-export interface GatewayWhatsAppRelayLimits {
-  bodyBytes: number;
-  queueBytes: number;
-  queueEvents: number;
-  replayEntries: number;
-  retentionMs: number;
-  replayMs: number;
-  pairingMs: number;
-  leaseMs: number;
-  batchBytes: number;
-  batchEvents: number;
-}
-export interface GatewayWhatsAppRelayEnvelope {
-  sequence: number;
-  id: string;
-  receivedAt: number;
-  expiresAt: number;
-  bodyBase64: string;
-  signature: string;
-  contentType: string;
-}
-export interface GatewayWhatsAppRelayStatus {
-  version: 1;
-  installationId: string;
-  businessAccountId: string;
-  phoneNumberId: string;
-  epoch: string;
-  cursor: number;
-  gap: { at: number; through: number } | null;
-  limits: GatewayWhatsAppRelayLimits;
-  queuedEvents: number;
-  queuedBytes: number;
-}
-/** Private Durable Object metadata; plaintext pairing, client and lease keys are never stored. */
-export interface GatewayWhatsAppRelayState {
-  version: 1;
-  installationId: string;
-  businessAccountId: string;
-  phoneNumberId: string;
-  epoch: string;
-  nextSequence: number;
-  cursor: number;
-  lastAckId: string | null;
-  lastReceivedAt: number;
-  lostThrough: number;
-  gapAt: number | null;
-  tokenHash: string | null;
-  pairingHash: string | null;
-  pairingExpiresAt: number;
-  leaseHash: string | null;
-  leaseConsumer: string | null;
-  leaseExpiresAt: number;
-  deliveredThrough: number;
-}
-
-/** Browser-safe configuration. Credentials are stored separately and never included here. */
+/** A bot that brings messages from a chat app to the Brain, a team or an agent of one project, and answers there. */
 export interface GatewayInstance {
   id: string;
-  name: string;
   platform: GatewayPlatform;
-  accountId: string;
+  name: string;
   projectId: string;
   target: GatewayTarget;
-  senderPolicy: GatewaySenderPolicy;
-  scope: { directMessages: boolean; conversationIds: string[]; guildIds: string[] };
-  fileLimits: { perFileBytes: number; perMessageBytes: number; filesPerMessage: number; dailyBytes: number };
+  /** Sender user IDs it answers. Empty: nobody on Telegram, and nobody in Discord direct messages (anyone can find
+   *  those bots); everyone who can reach it on Slack and in the listed Discord channels. Who it ignored shows in
+   *  Settings, to let them in. */
+  users: string[];
+  /** Slack or Discord channel IDs where it answers when mentioned (direct messages need no channel). */
+  channels: string[];
   enabled: boolean;
-  routeGeneration: number;
   createdAt: number;
   updatedAt: number;
-}
-
-/** A connection as the Gateways page lists it: who it answers as, and which of its secrets are saved. */
-export type GatewayListing = GatewayInstance & { targetName: string; credentials: Record<string, boolean> };
-
-/** Removing an instance keeps its identity and receipts, never its credentials. */
-export interface GatewayRetiredInstance {
-  version: 1;
-  id: string;
-  name: string;
-  platform: GatewayPlatform;
-  accountId: string;
-  projectId: string;
-  target: GatewayTarget;
-  routeGeneration: number;
-  startedAt: number;
-  completedAt?: number;
-}
-
-/** Queued work keeps this route even when the instance is edited. */
-export interface GatewayRoute {
-  instanceId: string;
-  projectId: string;
-  target: GatewayTarget;
-  generation: number;
-}
-
-/** Private SDK coordination state, separate from the application inbox and delivery ledgers. */
-export interface GatewaySdkState {
-  version: 1;
-  values: Record<string, { value: unknown; expiresAt: number | null }>;
-  lists: Record<string, { values: unknown[]; expiresAt: number | null }>;
-  locks: Record<string, { threadId: string; token: string; expiresAt: number }>;
-  subscriptions: string[];
-  queues: Record<string, { enqueuedAt: number; expiresAt: number; message: SerializedMessage }[]>;
-}
-
-/** Private Discord resume state. Never returned by the instance API. */
-export interface GatewayDiscordState {
-  version: 1;
-  accountId: string;
-  intents: number;
-  identifiedAt?: number;
-  retryAt?: number;
-  session?: { id: string; url: string; sequence: number };
-  gap?: { at: number; reason: 'session-lost' };
-  reviewedGaps?: { at: number; gapAt: number; sequence: number; revision: string }[];
-}
-
-/** Safe recovery preview; session IDs and resume addresses stay private. */
-export interface GatewayDiscordRecovery {
-  gap: { at: number; revision: string } | null;
-}
-
-export interface GatewayInbound {
-  platform: GatewayPlatform;
-  accountId: string;
-  conversationId: string;
-  guildId?: string;
-  parentConversationId?: string;
-  threadId: string;
-  sourceEventId: string;
-  sourceMessageId: string;
-  sentAt?: number;
-  whatsappUserId?: string;
-  kind: 'message' | 'edit';
-  actor: { id: string; label: string; kind: 'user' | 'bot' | 'anonymous' };
-  directMessage: boolean;
-  triggered: boolean;
-  mediaGroupId?: string;
-  text: string;
-  media: {
-    kind: 'image' | 'file' | 'audio' | 'video';
-    fileId: string;
-    name?: string;
-    mimeType?: string;
-    size?: number;
-    sha256?: string;
-  }[];
-}
-
-export interface GatewayConversationBinding {
-  id: string;
-  rootId?: string;
-  accountId: string;
-  conversationId: string;
-  guildId?: string;
-  parentConversationId?: string;
-  threadId: string;
-  route: GatewayRoute;
-  createdAt: number;
-}
-
-export interface GatewayInboxEvent {
-  id: string;
-  bindingId: string;
-  route: GatewayRoute;
-  input: GatewayInbound;
-  sequence: number;
-  receivedAt: number;
-  relay?: GatewayWhatsAppReceipt & { confirmed: boolean };
-  dismissed?: { at: number; revision: string };
-  deliveryFinished?: { at: number; revision: string };
-  workKept?: { at: number; revision: string; throughSequence: number; serial: number };
-  deliveryReviews?: (
-    | {
-        at: number;
-        revision: string;
-        action: 'confirmed';
-        target: GatewayDeliveryTarget;
-        remoteId: string;
-        previousRemoteId?: string;
-      }
-    | { at: number; revision: string; action: 'finish-local' }
-  )[];
-  status: 'queued' | 'waiting-files' | 'running' | 'done' | 'needs-review';
-  operationId?: string;
-  reason?: string;
-  fileBatch?: string;
-  files?: GatewayIncomingFile[];
-  dispatch?: GatewayDispatch;
-  reply?: { parts: GatewayReplyPart[]; createdAt: number; reason?: string };
-  notices?: Partial<Record<'working' | 'approval', GatewayReplyPart>>;
-  outgoing?: GatewayOutgoingFile[];
-  reconciliation?: GatewayReconciliation;
-  album?: { leaderId: string; memberIds?: string[] };
-  albumBlocked?: true;
-}
-
-export interface GatewayRequestReview {
-  revision: string;
-  canDismiss: boolean;
-  reason: string;
-}
-
-export interface GatewayWorkReview {
-  revision: string;
-  reason: string;
-  canKeep: boolean;
-  needsPrepare: boolean;
-  keptAt?: number;
-  heldRequests: number;
-  source: {
-    platform: GatewayPlatform;
-    actor: string;
-    conversationId: string;
-    threadId: string;
-    messageId: string;
-    projectId: string;
-    target: GatewayTarget;
-  };
-  operationId?: string;
-  native?: {
-    state: GatewayDispatch['state'];
-    conversation: GatewayLocalConversation;
-    runId?: string;
-    messageId?: string;
-    briefId?: string;
-  };
-}
-
-export type GatewayDeliveryTarget =
-  { kind: 'text' | 'file'; index: number } | { kind: 'notice'; notice: 'working' | 'approval' };
-
-export interface GatewayDeliveryReview {
-  revision: string;
-  reason: string;
-  canFinish: boolean;
-  needsPrepare: boolean;
-  closedAt?: number;
-  source: {
-    platform: GatewayPlatform;
-    actor: string;
-    conversationId: string;
-    threadId: string;
-    messageId: string;
-    projectId: string;
-    target: GatewayTarget;
-  };
-  items: {
-    target: GatewayDeliveryTarget;
-    label: string;
-    text?: string;
-    status: GatewayOutgoingFile['status'];
-    remoteId?: string;
-    canConfirm: boolean;
-    confirmedAt?: number;
-  }[];
-}
-
-export interface GatewayRetiredFinishReview {
-  revision: string;
-  kind: 'delivery' | 'work' | 'unavailable';
-  reason: string;
-  canFinish: boolean;
-  needsPrepare: boolean;
-  closedAt?: number;
-  source: GatewayDeliveryReview['source'];
-  operationId?: string;
-  native?: GatewayWorkReview['native'];
-  heldRequests: number;
-  items: { label: string; text?: string; status: GatewayOutgoingFile['status']; remoteId?: string }[];
-}
-
-export interface GatewayTelegramSetupState {
-  version: 1;
-  check?: {
-    at: number;
-    configRevision: string;
-    revision: string;
-    fingerprint: string;
-    webhook: boolean;
-    host?: string;
-    pendingUpdates: number;
-  };
-  switches: { at: number; revision: string; state: 'started' | 'confirmed' | 'uncertain'; checkedAt?: number }[];
-}
-
-export interface GatewayTelegramSetup {
-  reason: string;
-  revision: string | null;
-  check: { at: number; webhook: boolean; host?: string; pendingUpdates: number } | null;
-  attempt: { at: number; state: 'started' | 'confirmed' | 'uncertain'; checkedAt?: number } | null;
-  switches: number;
-}
-
-/** Local receipt only; raw webhook bodies and relay keys never enter the application inbox. */
-export interface GatewayWhatsAppReceipt {
-  epoch: string;
-  sequence: number;
-  id: string;
-}
-
-export interface GatewayWhatsAppIntakeState {
-  epoch: string;
-  cursor: number;
-  startedAt?: number;
-  senderReviews?: { at: number; throughSequence: number; phone: string; identityKey: string; revision: string }[];
-  receipt?: GatewayWhatsAppReceipt & {
-    confirmed: boolean;
-    accepted: number;
-    ignored: number;
-    unmatchedSenders: number;
-  };
-  identities?: GatewayWhatsAppIdentities;
-  connection?: GatewayWhatsAppRelayConnection;
-  recovery?: { at: number; reason: 'gap' | 'cursor' | 'epoch' | 'installation' | 'envelope' };
-  gapReview?: { at: number; from: number; through: number; remoteCursor: number };
-  reviewedGaps?: {
-    at: number;
-    gapAt: number;
-    from: number;
-    through: number;
-    revision: string;
-    receipt?: NonNullable<GatewayWhatsAppIntakeState['receipt']>;
-  }[];
-  restorations?: {
-    at: number;
-    heldAt: number;
-    reason: 'cursor' | 'epoch' | 'installation' | 'envelope';
-    revision: string;
-    remoteCursor: number;
-  }[];
-}
-
-export interface GatewayWhatsAppRecovery {
-  reason: NonNullable<GatewayWhatsAppIntakeState['recovery']>['reason'] | null;
-  gap: { at: number; revision: string } | null;
-  restoration?: { at: number; revision: string };
-}
-
-/** Private paired identity. Pull/lease tokens are stored separately or kept in memory. */
-export interface GatewayWhatsAppRelayConnection {
-  origin: string;
-  installationId: string;
-  businessAccountId: string;
-  phoneNumberId: string;
-  epoch: string;
-}
-
-/** Private setup receipt, stored with gateway secrets so the returned pull key saves atomically. */
-export type GatewayWhatsAppPairing =
-  | {
-      phase: 'requesting';
-      attemptId: string;
-      origin: string;
-      businessAccountId: string;
-      phoneNumberId: string;
-      replacement?: { epoch: string; revision: string };
-    }
-  | {
-      phase: 'received';
-      attemptId: string;
-      connection: GatewayWhatsAppRelayConnection;
-      cursor: number;
-      gap: boolean;
-      replacement?: { epoch: string; revision: string };
-    };
-
-export interface GatewayWhatsAppSetup {
-  paired: boolean;
-  pending: null | { phase: GatewayWhatsAppPairing['phase']; revision: string; replacement?: true };
-  recoveryRequired: boolean;
-}
-
-export interface GatewayWhatsAppReplacement {
-  revision: string | null;
-  retired: number;
-}
-
-export interface GatewayWhatsAppSenders {
-  reason: string;
-  retired: number;
-  waiting: number;
-  unallowed: number;
-  senders: {
-    phone: string;
-    status: 'needs-proof' | 'verified' | 'needs-review' | 'reviewed';
-    changedAt?: number;
-    revision: string | null;
-    requests: number;
-    reason: string;
-  }[];
-}
-
-export interface GatewayWhatsAppCheck {
-  checkedAt: number;
-  account: 'verified';
-  relay: 'ready' | 'acknowledgement-pending' | 'needs-review';
-}
-
-/** Scoped to one instance, business account and relay epoch; retired IDs are never reused. */
-export interface GatewayWhatsAppIdentities {
-  businessAccountId: string;
-  users: { id: string; phone: string | null; at: number; retired: boolean; parentId?: string }[];
-  phoneChanges: { phone: string; at: number }[];
-}
-
-export interface GatewayRunInput {
-  text: string;
-  attachments: string[];
-}
-
-export interface GatewayReconciliation {
-  at: number;
-  state: 'tracking' | 'completed' | 'needs-review';
-}
-
-export interface GatewayOutgoingFile {
-  path: string;
-  name: string;
-  size: number;
-  sha256: string;
-  source?: { runId: string; agentId: string; chatId: string; workspace: string };
-  status: GatewayReplyPart['status'] | 'skipped';
-  attempts: { day: string; bytes: number }[];
-  remoteId?: string;
-  retryAt?: number;
-  reason?: string;
-}
-
-export interface GatewayDispatch {
-  conversation: GatewayLocalConversation;
-  state: 'starting' | 'running' | 'completed' | 'needs-review';
-  startedAt: number;
-  runId?: string;
-  messageId?: string;
-  briefId?: string;
-  briefRevision?: number;
-  brain?: { answer: string; delegate: Pick<BrainDelegate, 'kind' | 'id' | 'name' | 'message' | 'sent'> | null };
-  answer?: string;
-}
-
-export interface GatewayReplyPart {
-  text: string;
-  status: 'pending' | 'sending' | 'sent' | 'uncertain' | 'failed';
-  attempts: number;
-  remoteId?: string;
-  retryAt?: number;
-}
-
-/** Exact text and recipient reviewed for an approved Outbox send, separate from native replies. */
-export interface GatewayOutboxApproval {
-  instanceId: string;
-  projectId: string;
-  postId: string;
-  eventId: string;
-  parts: string[];
-  revision: string;
-}
-
-export interface GatewayOutboxPreview {
-  approval: GatewayOutboxApproval;
-  recipient: {
-    platform: 'telegram' | 'discord';
-    instanceName: string;
-    accountId: string;
-    conversationId: string;
-    threadId: string;
-    sourceMessageId: string;
-    sender: string;
-  };
-}
-
-export interface GatewayOutboxDestination {
-  instanceId: string;
-  eventId: string;
-  recipient: GatewayOutboxPreview['recipient'];
-}
-
-export interface GatewayOutboxProgress {
-  state: 'queued' | 'sending' | 'sent' | 'failed' | 'uncertain' | 'held' | 'closed' | 'unavailable';
-  recipient?: GatewayOutboxPreview['recipient'];
-  parts: { status: GatewayReplyPart['status']; attempts: number; remoteId?: string; retryAt?: number }[];
-  approvedAt?: number;
-  closedAt?: number;
-  reviewRevision?: string;
-  reviewAvailable?: true;
-  paused: boolean;
-}
-
-export type GatewayOutboxReviewRecord =
-  | { action: 'confirmed'; at: number; revision: string; index: number; attempt: number; remoteId: string }
-  | {
-      action: 'retry';
-      at: number;
-      revision: string;
-      index: number;
-      attempt: number;
-      from: 'pending' | 'failed' | 'uncertain';
-    };
-
-export interface GatewayOutboxDeliveryReview {
-  revision: string;
-  recipient: GatewayOutboxPreview['recipient'];
-  paused: boolean;
-  removed?: true;
-  reason: string;
-  needsPrepare: boolean;
-  canRetry: boolean;
-  retryReason: string;
-  nextIndex?: number;
-  canFinish: boolean;
-  closedAt?: number;
-  reviewHeld: boolean;
-  parts: {
-    text: string;
-    status: GatewayReplyPart['status'];
-    attempts: number;
-    remoteId?: string;
-    canConfirm: boolean;
-    confirmedAt?: number;
-  }[];
-}
-
-export interface GatewayOutboxPostPreview extends GatewayOutboxPreview {
-  draftRevision: string;
-}
-
-/** Private receipt. Fingerprints bind approval to current access, credentials and saved input. */
-export interface GatewayOutboxDelivery extends GatewayOutboxApproval {
-  recipient: GatewayOutboxPreview['recipient'];
-  bindingId: string;
-  configHash: string;
-  sourceHash: string;
-  approvedAt: number;
-  receipts: GatewayReplyPart[];
-  held?: 'destination-changed';
-  reviewHeld?: true;
-  reviews?: GatewayOutboxReviewRecord[];
-  closed?: { at: number; revision: string };
-}
-
-export interface GatewayOutboxJournal {
-  version: 1;
-  deliveries: GatewayOutboxDelivery[];
-}
-
-export type GatewayDeliveryFailureReason = 'whatsapp-window' | 'whatsapp-file-type';
-export type GatewayDeliveryOutcome =
-  | { remoteId: string }
-  | { status: 'pending' | 'failed' | 'uncertain'; retryAt?: number; reason?: GatewayDeliveryFailureReason };
-
-export interface GatewayIncomingFile {
-  index: number;
-  status: 'pending' | 'transferring' | 'saved' | 'failed';
-  attempts: { id: string; day: string; bytes: number }[];
-  file?: UploadedFile;
-  sha256?: string;
-  reason?: string;
-}
-
-/** Private ownership of upload scratch files, recorded before streaming any bytes. */
-export interface GatewayUploadReservation {
-  version: 1;
-  instanceId: string;
-  projectId: string;
-  eventId: string;
-  batch: string;
-  root: string;
-  createdAt: number;
-  target: { name: string; dev: number; ino: number; birthtimeMs: number };
-  temporary: { name: string; dev: number; ino: number; birthtimeMs: number };
-}
-
-/** One atomic receipt includes its binding and route; transport acknowledgement follows this write. */
-export interface GatewayInboxJournal {
-  version: 1;
-  nextSequence: number;
-  bindings: GatewayConversationBinding[];
-  events: GatewayInboxEvent[];
-  retired?: string[];
-  retiredQuota?: { day: string; incomingBytes: number; outgoingBytes: number }[];
-  retiredAlbums?: string[];
-  whatsappRelay?: GatewayWhatsAppIntakeState;
-  whatsappRetired?: { at: number; attemptId: string; revision: string; state: GatewayWhatsAppIntakeState }[];
 }
 
 export interface GatewayHealth {
-  instanceId: string;
-  status: 'paused' | 'connecting' | 'connected' | 'needs-setup' | 'retrying';
-  reason: string;
-  attempts: number;
-  updatedAt: number;
-  retryAt?: number;
-  recoveryRequired?: boolean;
+  status: 'off' | 'connecting' | 'connected' | 'error';
+  error?: string;
+  /** The bot's own name on the platform, once connected. */
+  bot?: string;
 }
 
-/** Navigation metadata only: no credentials, sender rules or message contents. */
+/** An instance as Settings shows it: which secrets are saved (never their values) and how it is doing. */
+export interface GatewayListing extends GatewayInstance {
+  projectName: string;
+  targetName: string;
+  credentials: { botToken: boolean; appToken: boolean };
+  health: GatewayHealth;
+  /** People and channels it ignored lately (not on its lists), so you can let them in. */
+  refused: { kind: 'user' | 'channel'; id: string; name: string; at: number }[];
+}
+
+/** A chat a gateway has talked in: the Outbox can send there. */
+export interface GatewayChat {
+  key: string;
+  instanceId: string;
+  chatId: string;
+  /** A Telegram topic, Slack thread or Discord thread inside the chat. */
+  threadId?: string;
+  title: string;
+  lastAt: number;
+}
+
+export interface GatewayFile {
+  name: string;
+  /** Where it was saved (a file that came in) or is sent from (one an agent chose). */
+  path?: string;
+  /** The platform's handle for a file that came in (kept on the server, never shown). */
+  ref?: string;
+  size?: number;
+  error?: string;
+  sent?: boolean;
+}
+
+/** One message someone sent a gateway, and how its answer went. */
+export interface GatewayMessage {
+  id: string;
+  instanceId: string;
+  chatKey: string;
+  chatTitle: string;
+  /** The platform's id of the message, to answer as a reply to it. */
+  sourceId: string;
+  sender: { id: string; name: string };
+  text: string;
+  /** Files that came with it, saved in the project's uploads. */
+  files: GatewayFile[];
+  status: 'queued' | 'working' | 'done' | 'failed';
+  error?: string;
+  answer?: string;
+  /** Answer parts already delivered: a retry sends only the rest. */
+  sentParts?: number;
+  /** Files an agent chose to send back (send_gateway_files). */
+  outFiles?: GatewayFile[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** The sidebar's line for one instance. */
 export interface GatewayStatus {
   id: string;
   name: string;
   platform: GatewayPlatform;
-  projectId: string;
   projectName: string;
-  enabled: boolean;
   status: GatewayHealth['status'];
-  reviewCount: number | null;
+  failed: number;
 }
 
 /** Stable private runtime identities; the configured agent/team stays the source of its settings. */
@@ -646,9 +115,6 @@ export interface PrivateConversation {
   createdAt: number;
 }
 
-export type GatewayLocalConversation = { conversationId: string; projectId: string; sender: string } & (
-  { kind: 'brain' } | { kind: 'agent'; agentId: string; chatId: string } | { kind: 'team'; teamId: string }
-);
 export type ClaudeAuth = 'login' | 'anthropic' | 'openrouter';
 
 /** An API model's advertised limits. Missing capabilities mean the provider did not say. */
@@ -1647,14 +1113,14 @@ export interface Artifact {
 
 export interface OutboxPost {
   id: string;
-  platform: 'x' | 'x_dm' | 'reddit' | 'telegram' | 'discord' | string;
+  platform: 'x' | 'x_dm' | 'reddit' | GatewayPlatform | string;
   accountId?: string | null;
   accountLabel?: string;
   parts: string[];
-  gateway?: { instanceId: string; eventId: string };
-  gatewayApprovedRevision?: string;
-  gatewayDraftRevision?: string;
-  gatewayProgress?: GatewayOutboxProgress;
+  /** Telegram, Slack or Discord: the gateway and the chat it goes to (chosen by you before it sends). */
+  gateway?: { instanceId: string; chatKey: string };
+  /** Parts already delivered by a gateway: sending again sends only the rest. */
+  sentParts?: number;
   /** Image files (full paths inside the project's folders) that go with the first part. X only. */
   images?: string[];
   /** Alt text (a description for people who can't see it) by image path. X only. */
