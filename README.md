@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="#get-started">Get started</a> · <a href="#connect-a-model">Connect a model</a> · <a href="#a-tour">A tour</a> · <a href="#safety">Safety</a> · <a href="#your-data">Your data</a> · <a href="#development">Development</a> · <a href="docs/guide.md">Full guide</a>
+  <a href="https://ai2070.net/athena-agents">Website</a> · <a href="#get-started">Get started</a> · <a href="#connect-a-model">Connect a model</a> · <a href="#a-tour">A tour</a> · <a href="#safety">Safety</a> · <a href="#your-data">Your data</a> · <a href="#development">Development</a> · <a href="docs/guide.md">Full guide</a>
 </p>
 
 <p align="center">
@@ -29,6 +29,8 @@
 - **Describe the job, get a team.** Tell the Brain what you want done. It sets up the agents, gives them instructions and tools, and hands out the work.
 - **Use any model, mix them freely.** Claude Code, OpenAI Codex, Hermes, pi, oh-my-pi, OpenClaw, opencode, or any OpenAI-compatible API, including local models through Ollama and LM Studio. One team can use several.
 - **You stay in charge.** Risky steps wait for your OK. Agents ask you when they're stuck. Posts and messages sit in the Outbox until you approve them.
+- **It learns how you work.** Every agent keeps notes on what you like and what you decided. `/learn` turns a document, a link, a video or a screen recording of you doing a task into a skill any agent can use.
+- **Reach it from anywhere.** Talk to the Brain or a team from Telegram, Slack or Discord, and let GitHub, Stripe or Linear start work with a webhook.
 - **Your work stays with the project.** Each project keeps its own agents, teams, chats and results, saved into its folder and easy to back up.
 
 ## Get started
@@ -100,9 +102,11 @@ Or pick **Scene**: the Station becomes a web page your agents make for the proje
 
 Everyone in a team sees the whole conversation. Your message goes to the lead, or to whoever you @mention. Agents hand work to each other with @mentions and post what they make right in the chat: images, video, audio and 3D models you can turn with the mouse. Write **#Team name** to ask another team.
 
+Change course any time: write while they work and most agents read your message between steps and carry on with it, without starting over. Type **/** for the commands: `/queue` lines up the next message, `/loop` repeats one (`/loop 15m check the build`), `/goal` says what done looks like, and `/learn` makes a skill. When you ask for real work, the Brain checks it got done and follows up, and anything that needs you lands in **Needs you**.
+
 Chats open in floating windows. Drag tabs between windows, snap them side by side, or minimize them with **Ctrl+↓** / **⌘↓**. **New chat** starts a fresh conversation with a team, an agent or the Brain, and **Chats**, next to **Tasks** at the top of the chat, opens the earlier ones to pick up again or delete.
 
-![The Launch team's chat with two finished images, next to the team panel listing its members and their models](docs/images/team-chat.png)
+![The Launch team's chat with the launch card the X Writer made, next to the team panel listing its members and their models](docs/images/team-chat.png)
 
 ### The Outbox: nothing goes out without you
 
@@ -120,17 +124,17 @@ A board for the project's work: To do, In progress, In review, Blocked and Done.
 
 Everything the teams finished, in one place: written results, files and folders, each with a preview, who made it, for which team, and when.
 
-![The Artifacts page with a launch plan and a coffee bag label image](docs/images/artifacts.png)
+![The Artifacts page with a coffee bag label image and a launch plan](docs/images/artifacts.png)
 
 ### Agents, with any model
 
 Every agent has its own instructions, knowledge, memory, model, skills, tools and workspace. The Agents page shows how many are working and which models they use.
 
-![The Agents page: eight agents, a chart of the models they use, and a card for each agent with its engine](docs/images/agents.png)
+![The Agents page: ten agents, a chart of the models they use, and a card for each agent with its engine](docs/images/agents.png)
 
 ### Agent library
 
-Hire a specialist with its instructions already written. 89 agents come with the app, written for it and its tools: engineers, designers, marketers, researchers, a bookkeeper, a World Builder for the voxel world, a Scene Builder for the Station's scene and more. Each one starts with the tools and skills its work needs, and takes on nearby work too: its role is where it's strongest, not a limit. **Add Athena team** on Home hires the starter team (a Coordinator, an X Writer, an Image Maker, a Researcher…) in one click. You can also use your Hermes profiles, Claude Code subagents and your own presets.
+Hire a specialist with its instructions already written. 89 agents come with the app, Athena's own, written for it and its tools: engineers, designers, marketers, researchers, a bookkeeper, a World Builder for the voxel world, a Scene Builder for the Station's scene and more. Each one starts with the tools and skills its work needs, and takes on nearby work too: its role is where it's strongest, not a limit. **Add Athena team** on Home hires the starter team (a Coordinator, an X Writer, an Image Maker, a Researcher…) in one click. You can also use your Hermes profiles, Claude Code subagents and your own presets.
 
 ![The Agent library: specialists by category, with a choice of which engine they run on](docs/images/library.png)
 
@@ -144,7 +148,8 @@ Connect agents to programs and services with the Model Context Protocol. Add ser
 
 - **Overview:** every project's agents, teams, Brain and tasks at work on one page, with what needs you first. Open their chats side by side and write to another project's agents without switching to it.
 - **Chat gateways:** talk to the Brain, a team or an agent from Telegram, Slack or Discord, files included. Each bot answers only the people and channels you let in, and nothing on your computer is opened to the internet.
-- **Skills:** instructions in plain words ("our brand voice", "how we test checkout"), shared across agents and teams.
+- **Skills:** instructions in plain words ("our brand voice", "how we test checkout"), shared across agents and teams. Athena's own skills come with the app (debugging, code review, GitHub, PDF, Word, Excel and PowerPoint, research, email, maps, one-take videos…), plus sets for Higgsfield, Cua, Orca, Composio, the storytold Crafting Apps and motion graphics. Write your own in plain words, install one from GitHub, or `/learn` one.
+- **Memory:** every agent and the Brain keep a `MEMORY.md` for each project with how you like things done and what you decided, read with every message. You can read and change it, and History keeps its earlier versions.
 - **Routines:** work you want done again and again, run by hand, on a schedule, or by a webhook from GitHub, Stripe, Linear, Slack and others, shared through Cloudflare or Tailscale in one click.
 - **Programs:** the Programs page finds creative and CAD apps on your computer (Blender, Photoshop, DaVinci Resolve, GIMP, OpenSCAD…) so agents can use them. Agents run your ComfyUI workflows with their own prompts and pictures, and get the images, video, audio and 3D files back.
 - **History:** every agent, team, skill and memory keeps its last 50 versions, so any change can be undone.
@@ -199,8 +204,8 @@ Read [`AGENTS.md`](AGENTS.md) for the code layout, conventions and security rule
 
 Athena Agents is yours to use under either the [MIT license](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), whichever you prefer. Anything you contribute is offered under the same two licenses unless you say otherwise.
 
-Some bundled parts keep their own licenses: the skills in `skills/` (each folder's `README.md` says where it's from), the list of roles the Agent library started from (MIT, in `library/athena-agents/LICENSE-agency-agents`), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos belong to their owners.
+Some bundled parts keep their own licenses: the skills in `skills/` (each folder's `README.md` says where it's from), the Crafting App icons in `public/craft-icons/` (MIT OR Apache-2.0), Lucide icons (ISC) and Simple Icons logos (CC0). Brand names and logos belong to their owners.
 
 ## Credits
 
-Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office). The Agent library started from the roles in [agency-agents](https://github.com/msitarzewski/agency-agents).
+Inspired by [agent-office](https://github.com/AgentSystemLabs/agent-office).
