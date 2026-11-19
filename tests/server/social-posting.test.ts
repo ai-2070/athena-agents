@@ -158,7 +158,8 @@ describe("X's length limit", () => {
 });
 
 describe('alt text on X images', () => {
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.homedir(), 'alt-')));
+  // .native, like the server: it expands Windows short names (RUNNER~1)
+  const dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.homedir(), 'alt-')));
   const img = (name: string) => {
     const p = path.join(dir, name);
     fs.writeFileSync(p, Buffer.alloc(10));

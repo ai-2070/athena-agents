@@ -60,8 +60,8 @@ export function inSceneFolder(p: string): boolean {
 }
 
 /** A built-in file tool wrote into the scene folder: the version it leads to is this agent's. The tools hand over
- *  the real path, so the folder counts by its real path too (a data folder behind a link: /var on macOS, a short
- *  name on Windows). */
+ *  the real path (realTarget, with long names on Windows), so the folder counts by that same real path too (a data
+ *  folder behind a link: /var on macOS, a short name on Windows). */
 export function noteSceneWrite(abs: string, agent: Pick<ToolAgent, 'id' | 'name'>, runId?: string | null): void {
   if (!inSceneFolder(abs) && !inRealSceneFolder(abs)) return;
   writers.set(activeProject().id, { by: authorOf(agent, runId), at: Date.now() });
@@ -69,7 +69,7 @@ export function noteSceneWrite(abs: string, agent: Pick<ToolAgent, 'id' | 'name'
 
 function inRealSceneFolder(p: string): boolean {
   try {
-    return path.isAbsolute(p) && isInside(fs.realpathSync(sceneDir(activeProject())), p);
+    return path.isAbsolute(p) && isInside(fs.realpathSync.native(sceneDir(activeProject())), p);
   } catch {
     return false;
   }
