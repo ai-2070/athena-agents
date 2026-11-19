@@ -638,7 +638,8 @@ async function askPermission(
   const action = str(d.action) || 'tool';
   const resources = Array.isArray(d.resources) ? d.resources.map(String) : [];
   const keys = allowKeys(action, resources);
-  const allowed = agents.get(agent.id)?.alwaysAllow || agent.alwaysAllow || [];
+  // (a run capped by a webhook's "ask first" asks even about what is always allowed)
+  const allowed = agent._autonomyCap ? [] : agents.get(agent.id)?.alwaysAllow || agent.alwaysAllow || [];
   if (keys.every((k) => allowed.includes(k))) return reply('once');
   const detail = [str(d.message), ...resources].filter(Boolean).join('\n') || action;
   const verb = VERBS[action] || (action.includes('_') ? `use ${action.replace('_', ' › ')}` : `use ${action}`);

@@ -5,7 +5,7 @@
 import { uid } from './util.ts';
 import { activeProject, chats } from './store.ts';
 import { readExecution, saveHandoff } from './execution.ts';
-import type { Agent, Chat, SavedHandoff } from '../shared/types.ts';
+import type { Agent, Autonomy, Chat, SavedHandoff } from '../shared/types.ts';
 
 export interface Handoff extends SavedHandoff {
   /** settles when the work ends, either way */
@@ -25,7 +25,12 @@ export async function startHandoff(
   from: Pick<Agent, 'id' | 'name'>,
   target: Agent,
   task: string,
-  { depth, parentRunId, signal }: { depth: number; parentRunId?: string | null; signal?: AbortSignal },
+  {
+    depth,
+    parentRunId,
+    signal,
+    cap,
+  }: { depth: number; parentRunId?: string | null; signal?: AbortSignal; cap?: Autonomy },
 ): Promise<Handoff> {
   const { askAgent, conversationOfRun: conversationOf, isStopping, RunStopped } = await import('./engines/index.ts');
   // (the helper's chat is in the asker's private conversation, if it is in one: its work stays there)
@@ -52,6 +57,7 @@ export async function startHandoff(
     parentRunId,
     signal,
     reservedRunId: h.runId,
+    ...(cap ? { extra: { autonomy: cap } } : {}),
   }).then(
     (answer) => {
       h.answer = answer;

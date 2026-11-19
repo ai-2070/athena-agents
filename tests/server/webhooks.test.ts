@@ -27,6 +27,7 @@ import {
 } from '../../server/webhooks/store.ts';
 import { signFor } from '../../server/webhooks/verify.ts';
 import { packProject } from '../../server/backup.ts';
+import { callTool, needsApproval } from '../../server/tools.ts';
 import { dataPath, PORT } from '../../server/util.ts';
 import type { RoutineRun, Webhook, WebhookVerify } from '../../shared/types.ts';
 
@@ -267,6 +268,37 @@ describe('a webhook', () => {
       hold = null;
       release();
     }
+  });
+
+  it('keeps work handed on from an "Ask first" run at "Ask first" too', async () => {
+    const asker = {
+      ...agent('Asker', 'full'),
+      toolGroups: ['agents'],
+      autonomy: 'ask' as const,
+      _autonomyCap: 'ask' as const,
+    };
+    const helper = agent('Fearless', 'full');
+    let release = () => {};
+    hold = new Promise<void>((res) => {
+      release = res;
+    });
+    try {
+      const sent = await callTool(asker, 'ask_agent', { agent: helper.name, message: 'run this' }, { depth: 0 });
+      expect(sent.isError).toBe(false);
+      let runId: string | undefined;
+      await waitFor(() => !!(runId = activeRuns().find((x) => x.agentId === helper.id)?.id));
+      expect(runInfo(runId)?.agent).toMatchObject({ autonomy: 'ask', _autonomyCap: 'ask' });
+    } finally {
+      hold = null;
+      release();
+    }
+  });
+
+  it('asks about risky steps in an "Ask first" run, even ones that are always allowed', () => {
+    const own = { id: 'a1', name: 'Allowed', autonomy: 'full' as const, alwaysAllow: ['run_command'] };
+    expect(needsApproval(own, 'high', 'run_command')).toBe(false);
+    expect(needsApproval({ ...own, autonomy: 'ask', _autonomyCap: 'ask' }, 'high', 'run_command')).toBe(true);
+    expect(needsApproval({ ...own, autonomy: 'ask', _autonomyCap: 'ask' }, 'none', 'run_command')).toBe(false);
   });
 
   it('is refused (and turned off) once its routine is deleted', async () => {

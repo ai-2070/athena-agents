@@ -60,7 +60,7 @@ import { startSceneWatch } from './scene/history.ts';
 import { setScenePages } from './scene/look.ts';
 import type { Agent, Project } from '../shared/types.ts';
 import { BRAIN_ID } from './brainmcp.ts';
-import { stricterAutonomy } from '../shared/autonomy.ts';
+import { alwaysAllowed, stricterAutonomy } from '../shared/autonomy.ts';
 
 // If the dashboard was started from inside a Claude Code session, don't let agents inherit that session's markers.
 for (const k of [
@@ -362,6 +362,8 @@ const bridgeAgent = (run: engines.RunInfo | null, id: string | null | undefined)
     _teamSkills: run.agent._teamSkills,
     // a run capped for its start (a webhook's "ask first") stays capped, whatever the saved setting says now
     autonomy: stricterAutonomy(agent.autonomy, run.agent._autonomyCap),
+    // (and its "Always allow" doesn't count, and work it hands on is capped too)
+    ...(run.agent._autonomyCap ? { _autonomyCap: run.agent._autonomyCap } : {}),
   };
 };
 get('/api/internal/tools', async (_p, _b, q) => {
@@ -438,7 +440,7 @@ async function claudePermission(
   { tool_name, input = {} }: PermissionRequest,
   runId: string | null,
 ) {
-  if ((agent.alwaysAllow || []).includes(tool_name)) return { behavior: 'allow', updatedInput: input };
+  if (alwaysAllowed(agent).includes(tool_name)) return { behavior: 'allow', updatedInput: input };
   const detail = input.command || input.file_path || input.url || input.pattern || JSON.stringify(input, null, 2);
   const account = mcp.accountOfTool(tool_name);
   const d = await requestApproval({

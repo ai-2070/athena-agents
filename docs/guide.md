@@ -322,7 +322,7 @@ A webhook lets another service start a routine: GitHub when someone pushes or op
 Athena then shows the webhook's **address** and any secret it made, with where to paste them in the service. A secret Athena made is shown only then: if you lose it, make a new one. **Show address** brings the full address back whenever you need it (Cloudflare's changes, see below).
 
 - **Only these events** limits which events start a run (`push`, `issues.opened`, `invoice.paid`…). Others are recorded and skipped.
-- **Agents ask before risky steps** (on by default): for these runs, the agents the routine mentions work at **Ask first**, whatever their own setting, in every engine. Team members pick the work up in the team chat with their own settings.
+- **Agents ask before risky steps** (on by default): for these runs, the agents the routine mentions work at **Ask first**, whatever their own setting, in every engine. Their **Always allow** lists don't count in these runs, and work they hand to another agent runs at **Ask first** too. Team members pick the work up in the team chat with their own settings.
 - Repeats of the same delivery are ignored for a day; more than the limits you set (20 a minute and 3 at once by default) are held back, and the service tries again later.
 - **Deliveries** lists what came in and what came of it. **Run again** starts the routine again from what was sent; Athena keeps it for 7 days (switch that off per webhook, or **Remove what was kept**).
 - **Send a test** signs a sample the way the service would and puts it through every check, without starting anything.

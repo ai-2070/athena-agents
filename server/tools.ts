@@ -69,6 +69,7 @@ import { isBoardConversation, isGatewayConversation } from './private-conversati
 import { sessionSearchFor } from './sessionaccess.ts';
 import { BRAIN_ID, brainToolOffered, brainTools, brainTurn, sawSkill } from './braintools.ts';
 import type { Agent, ToolGroup, ToolListing } from '../shared/types.ts';
+import { alwaysAllowed } from '../shared/autonomy.ts';
 
 /** none: never asks. low: asks when autonomy is "ask". high: asks unless autonomy is "full". */
 export type Risk = 'none' | 'low' | 'high';
@@ -96,7 +97,9 @@ export interface ToolResult {
 
 /** The part of an agent the tools use. Dashboard agents fit; so do stand-ins (workflows, external MCP clients). */
 export type ToolAgent = Pick<Agent, 'id' | 'name'> &
-  Partial<Pick<Agent, 'toolGroups' | 'autonomy' | 'alwaysAllow' | 'workspace' | 'knowledge' | 'engine'>>;
+  Partial<
+    Pick<Agent, 'toolGroups' | 'autonomy' | 'alwaysAllow' | 'workspace' | 'knowledge' | 'engine' | '_autonomyCap'>
+  >;
 
 /** Which run a tool call belongs to: approvals, the Stop button and delegation depth come from here. */
 export interface ToolRunInfo {
@@ -1974,6 +1977,8 @@ const TOOLS: ToolDef[] = [
         depth: (ctx.depth || 0) + 1,
         parentRunId: ctx.runId,
         signal: ctx.signal,
+        // (work handed on from a capped run stays capped: a webhook's "ask first" can't be escaped by asking another)
+        cap: ctx.agent._autonomyCap,
       });
       const sent = `Sent to ${target.name} (handle ${h.id}).`;
       const wait = Math.min(
@@ -2552,7 +2557,7 @@ export const allTools = (): ToolListing[] =>
 
 export function needsApproval(agent: ToolAgent, risk: Risk, toolName: string): boolean {
   // "Always allow" never covers high-risk calls of tools whose risk depends on the arguments.
-  if ((agent.alwaysAllow || []).includes(toolName)) return false;
+  if (alwaysAllowed(agent).includes(toolName)) return false;
   const mode = agent.autonomy || 'auto';
   if (mode === 'full') return false;
   if (mode === 'auto') return risk === 'high';
