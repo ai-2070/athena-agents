@@ -96,6 +96,8 @@ describe('Settings › Gateways', () => {
     expect(row.textContent).toContain('Telegram · Home · answered by Brain');
     expect(row.textContent).toContain('Connected as @athena_bot');
     expect(row.textContent).toContain('Ignored Bob (user 7)');
+    expect(row.querySelector('.gateway-logo svg')?.getAttribute('aria-label')).toBe('Telegram');
+    expect(button('Slack').querySelector('.gateway-logo svg')?.getAttribute('aria-label')).toBe('Slack');
     await act(async () => button('Let them in').click());
     expect(requests.find((r) => r.url === '/api/gateways/g1/allow')?.body).toEqual({ kind: 'user', value: '7' });
   });

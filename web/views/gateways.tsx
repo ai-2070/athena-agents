@@ -10,7 +10,8 @@ import { Dot, Pill } from '../ui/marks.tsx';
 import type { PillTone } from '../ui/marks.tsx';
 import { FieldRow, PanelNote, Row, RowActions, Section, Sections, Switch } from '../ui/controls.tsx';
 import { SelectControl } from '../ui/select.tsx';
-import { Icon, useAppState, useServerEvents } from '../ui/react.tsx';
+import { DomNode, Icon, useAppState, useServerEvents } from '../ui/react.tsx';
+import { logo } from '../icons.ts';
 import type { DotTone } from '../ui/classes.ts';
 import type {
   GatewayListing,
@@ -76,6 +77,7 @@ export function GatewaysTab() {
             onClick={() => setView({ kind: 'edit', id: null, platform })}
           >
             <Icon name="plus" size={13} />
+            <PlatformLogo platform={platform} size={14} />
             {PLATFORM[platform]}
           </Button>
         ))}
@@ -107,6 +109,18 @@ export function GatewaysTab() {
   );
 }
 
+/** The platform's own logo (Telegram, Slack, Discord), in its brand colour. */
+function PlatformLogo({ platform, size }: { platform: GatewayPlatform; size: number }) {
+  return (
+    <DomNode
+      as="span"
+      className="gateway-logo inline-flex shrink-0"
+      make={() => logo(platform, size)}
+      deps={[platform, size]}
+    />
+  );
+}
+
 function GatewayRow({ g, open }: { g: GatewayListing; open: (v: View) => void }) {
   const [tone, state] = gatewayState(g);
   const toggle = (on: boolean) =>
@@ -127,6 +141,7 @@ function GatewayRow({ g, open }: { g: GatewayListing; open: (v: View) => void })
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[14px] leading-snug font-medium text-ink">
             <Dot tone={tone} />
+            <PlatformLogo platform={g.platform} size={15} />
             <span className="truncate">{g.name}</span>
           </div>
           <div className="mt-1 text-[13px] text-dim">
