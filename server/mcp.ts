@@ -1594,7 +1594,7 @@ async function connect(name: string, { test = false } = {}): Promise<Client> {
   if (cfg.enabled === false && !test) throw new Error(`The MCP server "${name}" is turned off.`);
   if (clients.has(name)) return clients.get(name)!;
   const job = (async () => {
-    const client = new Client({ name: 'athena-agents', version: '1.0.0' });
+    const client = new Client({ name: 'athena-agents', version: '1.0.1' });
     if (cfg.type === 'stdio') {
       const { command, args } = resolveCommand(cfg.command, cfg.args || []);
       const transport = new StdioClientTransport({
@@ -1623,7 +1623,7 @@ async function connect(name: string, { test = false } = {}): Promise<Client> {
         const status = authStatus(e);
         if (status) throw new Error(needsSignIn(status));
         // Older servers only speak SSE.
-        const c2 = new Client({ name: 'athena-agents', version: '1.0.0' });
+        const c2 = new Client({ name: 'athena-agents', version: '1.0.1' });
         try {
           await c2.connect(new SSEClientTransport(url, { requestInit }));
         } catch (e2) {
