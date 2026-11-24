@@ -75,7 +75,7 @@
     "@jitl/quickjs-singlefile-mjs-release-sync": "0.32.0",
     "@lydell/node-pty": "1.2.0-beta.18",
     "@modelcontextprotocol/sdk": "1.32.2",
-    "@openuidev/react-headless": "0.18.9",
+    "@openuidev/react-headless": "0.18.10",
     "@openuidev/react-lang": "1.1.1",
     "@openuidev/react-ui": "0.18.9",
     "@orpc/client": "1.16.4",
