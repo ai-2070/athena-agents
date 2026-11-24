@@ -77,7 +77,7 @@
     "@modelcontextprotocol/sdk": "1.32.2",
     "@openuidev/react-headless": "0.18.9",
     "@openuidev/react-lang": "1.1.1",
-    "@openuidev/react-ui": "0.18.9",
+    "@openuidev/react-ui": "0.18.10",
     "@orpc/client": "1.16.4",
     "@orpc/contract": "1.16.4",
     "@orpc/openapi": "1.16.4",
