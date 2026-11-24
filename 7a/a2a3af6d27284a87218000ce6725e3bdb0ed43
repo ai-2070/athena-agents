@@ -1,0 +1,33 @@
+tests/server/eve-admission.test.ts
+  s_caa8626501dac1::t_92efc7a3270359 493-511,514
+tests/server/context.test.ts
+  s_caa8626501dac1::t_92efc7a3270359 2,26-57
+docs/guide.md
+  s_caa8626501dac1::t_f47bbce5536520 389
+server/eve/admission.ts
+  s_caa8626501dac1::t_d5a24b6787e872 9
+  s_caa8626501dac1::t_40791084d55e1f 274-291,293
+server/context.ts
+  s_caa8626501dac1::t_5ff1118953699a 173,176-179,181,184-187,189,192,205-206
+  s_caa8626501dac1::t_f47bbce5536520 199-204
+  s_caa8626501dac1::t_aba2a7261fd048 139-168,171,191,196-198
+tests/server/team-context.test.ts
+  s_caa8626501dac1::t_f0be5b13427570 155
+  s_caa8626501dac1::t_84f2af5faefb2a 147,151-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7aa2a3af6d27284a87218000ce6725e3bdb0ed43",
+  "prompts": {},
+  "sessions": {
+    "s_caa8626501dac1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1fd8e337-e1de-4239-8e9b-1d05a82b9310",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,68 @@
+skills/athena/arxiv/scripts/arxiv_search.py
+  s_7b8dda0dc555e7::t_174de5fce9e25c 24
+skills/athena/learn/scripts/learn_source.py
+  s_7b8dda0dc555e7::t_174de5fce9e25c 16
+skills/athena/README.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 130,164
+skills/athena/xlsx/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 14
+tests/skills/requirements.txt
+  s_7b8dda0dc555e7::t_174de5fce9e25c 1
+  s_7b8dda0dc555e7::t_115a8e622fc4d2 8
+skills/athena/pdf/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 13
+skills/athena/comfyui/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 33
+skills/athena/grounded-citations/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 23
+skills/athena/stocks/scripts/market_data.py
+  s_7b8dda0dc555e7::t_174de5fce9e25c 25
+skills/athena/comfyui/scripts/comfy_upload.py
+  s_7b8dda0dc555e7::t_174de5fce9e25c 17
+skills/athena/powerpoint/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 14
+skills/athena/rss-feeds/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 15
+docs/guide.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 247
+skills/athena/youtube-content/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 19
+AGENTS.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 33
+skills/athena/llm-wiki/scripts/wiki_lint.py
+  s_7b8dda0dc555e7::t_174de5fce9e25c 7
+skills/athena/comfyui/scripts/comfy_check.py
+  s_7b8dda0dc555e7::t_174de5fce9e25c 14
+skills/athena/grounded-citations/scripts/sources.py
+  s_7b8dda0dc555e7::t_174de5fce9e25c 27
+skills/athena/arxiv/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 16
+skills/athena/llm-wiki/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 27
+skills/athena/docx/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 14
+skills/athena/maps/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 18
+skills/athena/rss-feeds/scripts/feeds.py
+  s_7b8dda0dc555e7::t_174de5fce9e25c 9
+skills/athena/stocks/SKILL.md
+  s_7b8dda0dc555e7::t_174de5fce9e25c 14
+.github/workflows/ci.yml
+  s_7b8dda0dc555e7::t_81a4485cc487c3 82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8ef5e696d63eafd5e2c23f9bbaf26cd47a11961c",
+  "prompts": {},
+  "sessions": {
+    "s_7b8dda0dc555e7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "70a03ebe-d0bb-44c9-86f1-a0b93a294969",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
