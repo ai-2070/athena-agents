@@ -1,0 +1,31 @@
+package.json
+  s_c7ce1ec8d2236f::t_a17f06fa39369a 3
+server/mcp-bridge.ts
+  s_c7ce1ec8d2236f::t_a17f06fa39369a 85
+server/reddit.ts
+  s_c7ce1ec8d2236f::t_a17f06fa39369a 84
+src-tauri/Cargo.toml
+  s_c7ce1ec8d2236f::t_a17f06fa39369a 4
+server/mcp.ts
+  s_c7ce1ec8d2236f::t_a17f06fa39369a 1597,1626
+server/webread.ts
+  s_c7ce1ec8d2236f::t_a17f06fa39369a 28
+src-tauri/Cargo.lock
+  s_c7ce1ec8d2236f::t_140e7dc51a6e5a 183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab40334e52ffebf5cf293703007ead6f201faf4d",
+  "prompts": {},
+  "sessions": {
+    "s_c7ce1ec8d2236f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e71bba19-c1da-4590-b157-322b24e1db1c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
