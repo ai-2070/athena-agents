@@ -82,7 +82,7 @@ function call<T>(pathname: string, body?: unknown, signal?: AbortSignal): Promis
   });
 }
 
-const server = new Server({ name: 'dashboard', version: '1.0.1' }, { capabilities: { tools: { listChanged: true } } });
+const server = new Server({ name: 'dashboard', version: '1.0.2' }, { capabilities: { tools: { listChanged: true } } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   try {

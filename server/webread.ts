@@ -25,7 +25,7 @@ export async function readPage(url: string, reader: string, signal?: AbortSignal
   if (kept && Date.now() - kept.at < KEPT_MS) return kept.page;
   // (never the dashboard itself, not even through a redirect)
   const { res, url: final } = await agentFetch(url, {
-    headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) athena-agents/1.0.1' },
+    headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) athena-agents/1.0.2' },
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
   });
   const type = res.headers.get('content-type') || '';
