@@ -30,7 +30,7 @@ bun scripts/build-desktop.ts && bun run desktop:smoke   # run the bundled server
 
 Single test file: `bunx vitest run tests/server/skills.test.ts`. CI (`.github/workflows/ci.yml`) runs typecheck, lint,
 format check, test and build on ubuntu and windows, plus a desktop job (stage, smoke test, Rust check) and the skill
-scripts' tests (`python -m pytest tests/skills`, Python 3.10). `.github/workflows/desktop.yml` builds installers.
+scripts' tests (`python -m pytest tests/skills`, Python 3.11). `.github/workflows/desktop.yml` builds installers.
 
 ## Layout
 

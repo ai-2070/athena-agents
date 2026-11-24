@@ -21,7 +21,7 @@ apart for arxiv.org's BibTeX pages (the site's robots.txt), 1 second apart for S
 gap before it ends, so runs one after another keep to it too. A Semantic Scholar API key, if the user has one, is read
 from the environment variable SEMANTIC_SCHOLAR_API_KEY and never printed.
 
-Standard library only (Python 3.10+). ARXIV_SEARCH_TEST_SERVER (a http://127.0.0.1 address) is for this script's
+Standard library only (Python 3.11+). ARXIV_SEARCH_TEST_SERVER (a http://127.0.0.1 address) is for this script's
 tests: it sends every request to that local stand-in and shortens the waits.
 """
 

@@ -11,7 +11,7 @@ of its box, shapes on top of each other or a font the computer doesn't have; onl
 
 ## Before you start
 
-- **Python 3.10 or newer with python-pptx 1.0 or newer** (it brings lxml, Pillow and XlsxWriter) and **pypdfium2**
+- **Python 3.11 or newer with python-pptx 1.0 or newer** (it brings lxml, Pillow and XlsxWriter) and **pypdfium2**
   for pictures of slides. Each script names a missing package and the command that installs it. Installing is the
   user's call: ask first, then run `python -m pip install python-pptx pypdfium2`.
 - **LibreOffice**, to draw the slides. `python <skill folder>/scripts/soffice.py find` says where it is, or prints how

@@ -10,7 +10,7 @@ back, the changed pages rendered and looked at. Then it says plainly what it cou
 
 ## Before you start
 
-- **Python 3.10 or newer** with the packages the job needs: `pypdf` (everything), `pdfplumber` (text, tables, form
+- **Python 3.11 or newer** with the packages the job needs: `pypdf` (everything), `pdfplumber` (text, tables, form
   layouts), `reportlab` (new PDFs, stamps, forms), `pillow` (images, rendered pages), `pypdfium2` (pages as images)
   and `cryptography` (AES passwords). Each script names a missing package with the command that installs it.
   Installing is the user's call: ask first, then run

@@ -16,7 +16,7 @@ doesn't cover what the user asked about instead of filling the gap from elsewher
   so this is for the user's personal use: one video at a time, when they ask, from their own computer. No batches (a
   whole channel or playlist), no proxies, no retry loops, no signing in with cookies, nothing that gets around a
   refusal. When YouTube refuses, stop and tell the user, and offer the manual way under "When YouTube says no".
-- **Python 3.10 or newer** with `youtube-transcript-api` 1.2 or newer; the script names the install command when it's
+- **Python 3.11 or newer** with `youtube-transcript-api` 1.2 or newer; the script names the install command when it's
   missing. Installing is the user's call: ask first, then run `python -m pip install youtube-transcript-api`.
 - **The script** is in this skill's folder (its path comes with the skill). Run it in a shell as
   `python <skill folder>/scripts/youtube_transcript.py …` (`py` instead of `python` on Windows if `python` isn't

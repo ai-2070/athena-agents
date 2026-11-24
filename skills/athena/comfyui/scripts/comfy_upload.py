@@ -14,7 +14,7 @@ which is what ComfyUI's mask editor does: a Load Image node's MASK output then m
 --mask-kind white (the default) the mask is a black-and-white picture, white = repaint; with transparent, its
 transparent pixels mark the area. The mask must be the image's size.
 
-Standard library (Python 3.10+), plus Pillow for white masks and the size check: python -m pip install pillow
+Standard library (Python 3.11+), plus Pillow for white masks and the size check: python -m pip install pillow
 """
 
 from __future__ import annotations

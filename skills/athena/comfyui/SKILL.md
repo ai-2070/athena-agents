@@ -30,7 +30,7 @@ downloads nothing without a yes, and shows the results.
   Desktop lists, of the Legacy Desktop's, and of installs in their default places, plus Settings › Extra ComfyUI
   workflow folders. Only that folder itself, not folders inside it. For a ComfyUI elsewhere, ask where it's installed
   and have the user add `<install>\ComfyUI\user\default\workflows` there.
-- **The scripts** need Python 3.10 or newer (`python <skill folder>/scripts/<name>.py`); the upload script needs
+- **The scripts** need Python 3.11 or newer (`python <skill folder>/scripts/<name>.py`); the upload script needs
   Pillow for masks (`python -m pip install pillow`, with the user's OK).
 - **No ComfyUI at all**: setting it up is the user's call. Ask first whether they want it on this computer or on Comfy
   Cloud (paid), then follow `references/setup-and-deps.md`.

@@ -6,7 +6,7 @@
   reddit sub NAME | search QUERY | thread URL | user NAME
                        Reddit through its anonymous .rss feeds: no account, about one request a minute
 
-The standard library only; Python 3.10 or newer. Addresses must be http or https (https:// is added when there's
+The standard library only; Python 3.11 or newer. Addresses must be http or https (https:// is added when there's
 none). A redirect is followed only on the same site (www. or not, and never from https down to http). A 429 "too
 many requests" is waited out once when the site says how long to wait (up to 90 seconds); then the command stops.
 Results are printed on stdout as JSON. Exit codes: 0 done; 1 it ran but something is missing (a feed that couldn't be

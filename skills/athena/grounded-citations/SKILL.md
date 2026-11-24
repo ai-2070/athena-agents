@@ -20,7 +20,7 @@ where sources disagree, and when the stakes are high it shows each source's own 
   about a named person or company.
 - **Working folder**: `research-work/` in the workspace, holding `sources.txt` (the list) and `pages/` (saved texts).
   Give helpers its full path. It goes before you hand over (see Done means).
-- **The script**, `scripts/sources.py` in this skill's folder, needs Python 3.10 or newer and nothing else. Run it as
+- **The script**, `scripts/sources.py` in this skill's folder, needs Python 3.11 or newer and nothing else. Run it as
   `python <skill folder>/scripts/sources.py …` (`py` on Windows or `python3` elsewhere if `python` isn't found). It
   isn't needed while you research, so a shell that asks approval for each command costs a few approvals at the end,
   not one per page. Without a shell the whole method works with file tools.

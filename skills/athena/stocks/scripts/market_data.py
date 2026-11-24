@@ -22,7 +22,7 @@ Prints JSON on stdout; with --out, writes the whole result to that file and prin
 did come through, and "not_fetched" lists what's left); 2 it couldn't do the job, with one line on stderr.
 
 MARKET_DATA_TEST_BASE, when set, sends every request to that address instead (the tests use a stand-in server).
-Standard library only (Python 3.10+).
+Standard library only (Python 3.11+).
 """
 
 from __future__ import annotations

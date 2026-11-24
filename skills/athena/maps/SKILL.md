@@ -15,7 +15,7 @@ phone, and credits OpenStreetMap.
 - **The script** runs in a shell as `python <skill folder>/scripts/maps_tool.py <command> …` (`py` on Windows if
   `python` isn't found), for example
   `python <skill folder>/scripts/maps_tool.py nearby 48.8584,2.2945 --category pharmacy --contact <their email>`.
-  It needs only Python 3.10 or newer, except for `timezone`: a point or place needs the `timezonefinder` package
+  It needs only Python 3.11 or newer, except for `timezone`: a point or place needs the `timezonefinder` package
   (about 50 MB with its map data), and on Windows any time zone needs `tzdata`. Installing is the user's call: ask,
   then `python -m pip install timezonefinder tzdata`.
 - **Contact.** The services want to know who is asking. Ask the user once whether you may send an email address of

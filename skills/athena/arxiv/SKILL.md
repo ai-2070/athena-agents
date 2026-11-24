@@ -13,7 +13,7 @@ account of what was searched, when, and what that leaves out. arXiv keeps no cit
 - **Two ways in.** The dashboard's page fetching reads arXiv's API (`https://export.arxiv.org/api/query?…`), papers'
   pages and Semantic Scholar's JSON with no shell: raw XML or JSON, cut off after 20,000 characters unless you ask for
   more, GET only. (A fetch tool that returns a summary instead of the text suits papers, not API answers.) The script
-  (Python 3.10+, standard library only) parses, takes batches of ids, fetches BibTeX and makes Semantic Scholar's POST
+  (Python 3.11+, standard library only) parses, takes batches of ids, fetches BibTeX and makes Semantic Scholar's POST
   requests: `python <skill folder>/scripts/arxiv_search.py <command> …` in a shell (`py` on Windows if need be).
 - **arXiv's rules**: one request at a time, at least 3 seconds apart, and no repeating a query (results change only
   when new papers are announced, so keep answers in a working file). arxiv.org's pages ask automated readers for 15

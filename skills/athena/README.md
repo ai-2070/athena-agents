@@ -127,7 +127,7 @@ skill that makes or changes files holds to this, and says so where it matters:
 
 ### Scripts
 
-- Python 3.10 or newer (Node where the field is JavaScript), the standard library plus named packages. Each script says
+- Python 3.11 or newer (Node where the field is JavaScript), the standard library plus named packages. Each script says
   its packages at the top and prints a one-line install hint when one is missing.
 - A command-line program with `--help`. It switches its output to UTF-8 first thing (a Windows pipe is cp1252
   otherwise). Stdout carries only the result, as JSON when it's data. Exit codes mean the same everywhere: **0** done;
@@ -161,7 +161,7 @@ skill that makes or changes files holds to this, and says so where it matters:
 - Every script has pytest tests in `tests/skills/<id>/`, outside the skill folder so they don't get copied into
   people's libraries. They run on real files the test makes (a PDF, a workbook, a deck), not mocks, and on real
   failures (an output path that's a folder, a password file saved as UTF-16), and check no traceback is printed. A
-  script that needs a network service is tested against a fake server built from the service's real answers. CI runs them on Linux and Windows with Python 3.10, the oldest
+  script that needs a network service is tested against a fake server built from the service's real answers. CI runs them on Linux and Windows with Python 3.11, the oldest
   version the skills promise.
 
 ## Changing a skill

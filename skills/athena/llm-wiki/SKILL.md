@@ -24,7 +24,7 @@ the user can open in Obsidian or any Markdown viewer.
   (Agents › Knowledge › Link a folder).
 - **An existing wiki** is the folder with `SCHEMA.md`, `index.md` and `log.md` at its root. Look in the workspace; if
   it isn't there, ask for the path rather than search the home folder.
-- **The check script** needs Python 3.10 or newer and nothing else. Run it in a shell as
+- **The check script** needs Python 3.11 or newer and nothing else. Run it in a shell as
   `python <skill folder>/scripts/wiki_lint.py …` (`py` on Windows if `python` isn't found).
 - The wiki is plain Markdown with `[[wikilinks]]`, so Obsidian opens its folder as a vault as it is.
 

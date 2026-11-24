@@ -24,7 +24,7 @@ Commands:
   check     check a draft's citations, Sources block and quotations against the list
   coverage  count the draft's sentences with a citation, with [unverified], and with neither
 
-The list's path is --sources, or else the SOURCES_FILE environment variable. Standard library only, Python 3.10 or
+The list's path is --sources, or else the SOURCES_FILE environment variable. Standard library only, Python 3.11 or
 newer. Results are JSON on stdout, except that render without --in-place or --out prints the block itself. Exit
 codes: 0 done; 1 it ran and found problems, listed in the JSON; 2 it couldn't do the job, and one line on stderr says
 why.

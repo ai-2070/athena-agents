@@ -11,7 +11,7 @@ when the look matters) and says plainly what it couldn't do.
 
 ## Before you start
 
-- **Python 3.10 or newer with python-docx 1.2 or newer** (it brings lxml). The scripts name it when it's missing.
+- **Python 3.11 or newer with python-docx 1.2 or newer** (it brings lxml). The scripts name it when it's missing.
   Installing is the user's call: ask first, then run `python -m pip install python-docx`.
 - **The scripts** are in this skill's folder (its path comes with the skill). Run them in a shell as
   `python <skill folder>/scripts/docx_tool.py …` (`py` instead of `python` on Windows if `python` isn't found). Every

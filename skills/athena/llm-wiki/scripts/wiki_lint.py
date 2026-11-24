@@ -4,7 +4,7 @@
     python wiki_lint.py check <wiki folder> [--skip FOLDER] [--raw FOLDER] [--require FIELDS] [--limit N]
     python wiki_lint.py hash <file> [<file> ...]
 
-Standard library only, Python 3.10 or newer.
+Standard library only, Python 3.11 or newer.
 
 check reads index.md and every page (each .md file except those in the raw folder, dot folders and --skip folders,
 and the root's SCHEMA.md, index.md, log.md and log-*.md) and prints what it found as JSON:

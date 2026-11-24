@@ -12,7 +12,7 @@ reads it without an account.
 
 ## Before you start
 
-- **Python 3.10 or newer**, standard library only. Run the script in a shell as `python <skill folder>/scripts/feeds.py
+- **Python 3.11 or newer**, standard library only. Run the script in a shell as `python <skill folder>/scripts/feeds.py
 …` (on Windows, `py` if `python` isn't found; `python3` there can open the Microsoft Store instead of Python). Every
   command has `--help` and prints JSON. Exit code 0 means done; 1 that it ran but something is missing (a feed in a list
   that failed, no feed found), which the JSON says; 2 that it couldn't do the job, with the reason in one line on

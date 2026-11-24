@@ -11,7 +11,7 @@ move, recalculates and reads the numbers back before quoting them, and says plai
 
 ## Before you start
 
-- **Python 3.10 or newer with openpyxl 3.1 or newer**, and Pillow when the workbook has pictures (without it openpyxl
+- **Python 3.11 or newer with openpyxl 3.1 or newer**, and Pillow when the workbook has pictures (without it openpyxl
   drops them). Check with `python -c "import openpyxl; print(openpyxl.__version__)"` (`py` instead of `python` on
   Windows if `python` isn't found). Installing is the user's call: ask, then `python -m pip install openpyxl pillow`.
 - **LibreOffice, to recalculate.** `python <skill folder>/scripts/soffice.py find` says where it is, or how to install

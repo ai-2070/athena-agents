@@ -13,7 +13,7 @@ probe and frames need FFmpeg (ffmpeg and ffprobe on PATH, or --ffmpeg <its folde
 Every command strips characters that are invisible or change the reading direction (zero-width, bidi controls, tag
 characters): they can make a text read one way to a person and another to an agent. The JSON on stdout says how many.
 
-Python 3.10 or newer, standard library only. Exit codes: 0 done; 1 done, with something to look at (a chapter with no
+Python 3.11 or newer, standard library only. Exit codes: 0 done; 1 done, with something to look at (a chapter with no
 text, a DRM-locked book, a video with no length in it: see "warnings"); 2 couldn't do it (one line on stderr).
 """
 

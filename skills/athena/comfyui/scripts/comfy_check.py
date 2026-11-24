@@ -11,7 +11,7 @@ the new Comfy Desktop's) and then 127.0.0.1:8000 (the old ComfyUI Desktop's).
 Prints a JSON report. Exit status: 0 when nothing is missing, 1 when something is, 2 when the check couldn't run.
 It only reads: it asks the server with GET requests and installs nothing.
 
-Standard library only (Python 3.10+).
+Standard library only (Python 3.11+).
 """
 
 from __future__ import annotations

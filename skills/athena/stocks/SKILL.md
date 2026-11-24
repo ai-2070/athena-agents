@@ -11,7 +11,7 @@ and never turns the numbers into advice.
 
 ## Before you start
 
-- **Python 3.10 or newer**, nothing to install. Run `python <skill folder>/scripts/market_data.py <command> …` in a
+- **Python 3.11 or newer**, nothing to install. Run `python <skill folder>/scripts/market_data.py <command> …` in a
   shell (`py` on Windows if `python` isn't found). It prints JSON and exits 0 when done; 1 when it ran but something
   wasn't found or it stopped partway (`problems` says what, `not_fetched` what's left); 2 when it couldn't run, with
   the reason on one line.
