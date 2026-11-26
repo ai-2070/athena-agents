@@ -1,0 +1,26 @@
+server/teams.ts
+  s_47c68b7ef3aa26::t_fc26c62c070967 84-86,883-885,1132-1133,1302-1304,1306,1315,1326
+tests/server/teams.test.ts
+  s_47c68b7ef3aa26::t_dd7c305f7be7b6 9,82-83,154-176
+  s_47c68b7ef3aa26::t_d610dd21e03e09 177
+shared/types.ts
+  s_47c68b7ef3aa26::t_fc26c62c070967 508-509
+docs/guide.md
+  s_47c68b7ef3aa26::t_f9d92116c6aafa 360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b540dc7241e36fa545cd448bf59e401d7c62390",
+  "prompts": {},
+  "sessions": {
+    "s_47c68b7ef3aa26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a9185b94-c120-491d-9f89-a6094caab02f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
