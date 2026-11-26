@@ -1,0 +1,30 @@
+server/eve/version.ts
+  s_e0e1744f19f97b::t_173f229d1b1aa2 3
+runtime/eve/launch.mjs
+  s_e0e1744f19f97b::t_5d2af1440c9a9c 14-16
+package.json
+  s_e0e1744f19f97b::t_2eec93800fadf2 94
+  s_e0e1744f19f97b::t_173f229d1b1aa2 62-63,78,80-86,92,114-115,127
+runtime/eve/package.json
+  s_e0e1744f19f97b::t_173f229d1b1aa2 8
+runtime/eve-world/README.md
+  s_e0e1744f19f97b::t_ae47bf361c198e 9-12
+bun.lock
+  s_e0e1744f19f97b::t_30c0e303a44822 8-9,24,26-32,38,40,60-61,73,83,85,87,91,93,211-213,217,219,221,223,225,227,229,231,233,235,237,239,241,243,465,469,537,539,557,725,1335,1373-1375,1393-1394,1429
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7117a2f0fbb3a31452f6f94e6d4839b31362ceec",
+  "prompts": {},
+  "sessions": {
+    "s_e0e1744f19f97b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ec1bcb7-6893-45bd-949f-84a939242a0c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
