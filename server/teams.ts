@@ -81,6 +81,9 @@ const MAX_BRAIN_REPLIES = 4; // times the Brain answers @Brain per message you s
 const MAX_RELAYS = 4; // times a team asks other teams per message you send
 const MAX_RELAY_DEPTH = 3; // a team asking a team asking a team, at most
 const ANSWER_CHARS = 8000; // of a team's answer, passed back to the team that asked
+/** A reply that says this: posted, but it wakes nobody (no handoff, no return to the lead). */
+export const NOTHING_TO_ADD = '[nothing to add]';
+const NOTHING_LINE = /^[ \t]*\[nothing to add\][ \t.]*$/im;
 /** Who the Brain is in a thread (TeamMessage.from, and in TeamState.working while it answers). */
 export const BRAIN = 'brain';
 
@@ -877,7 +880,9 @@ function answerRelays(teamId: string, stopped: boolean) {
     }
     const at = thread.findIndex((m) => m.id === x.postedId);
     const answer =
-      at < 0 ? undefined : thread.slice(at + 1).findLast((m) => m.from === BRAIN || team.members.includes(m.from));
+      at < 0
+        ? undefined
+        : thread.slice(at + 1).findLast((m) => !m.quiet && (m.from === BRAIN || team.members.includes(m.from)));
     if (stopped || !answer) {
       post(asker, {
         id: `relay-error-${x.id}`,
@@ -1124,6 +1129,8 @@ ${roster}${teamsNote}${builds ? `\n\nThis team builds in the voxel world. ${DIOR
 How this chat works:
 - Everyone sees the whole thread. Your reply is posted to the team as a message from you.
 - To hand work to a teammate, mention them exactly as @Name and say precisely what you need back. Only mention someone who needs to act now; each stage should have one owner.
+- Every @Name starts that person's turn. To thank or answer someone without giving them work, write their name without the @.
+- When you have nothing new to do or say (you were only thanked, or your status hasn't changed), reply with just ${NOTHING_TO_ADD} on its own line. It wakes nobody; don't repeat your last status.
 - Do your own part fully before handing off. Don't redo work a teammate owns.
 - A task you hand to a teammate is theirs: don't also do it yourself, and don't give the same task to two people. Work that needs something only one member has (see "has" above) goes to that member.
 - Anything that needs the user's judgment or help, or that only they can unblock: ask them with ask_user (with short choices to click), not only in your reply, and don't mention a teammate for it.
@@ -1292,8 +1299,11 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
     session.items = session.items.filter((i) => !(i.type === 'steer' && ids.has(i.steerId)));
     chats.save(session);
   }
+  // nothing to add: it posts what it wrote, but nobody is woken by it (an @Name in a thank-you included)
+  const quiet = !stopped && NOTHING_LINE.test(text);
+  if (quiet) text = text.replace(new RegExp(NOTHING_LINE.source, 'gim'), '').trim() || 'Nothing to add.';
   // (a stopped turn hands nothing on)
-  const mentions = stopped ? [] : parseMentions(team, text, agent.id);
+  const mentions = stopped || quiet ? [] : parseMentions(team, text, agent.id);
   const to = chats.get(agent.id, chatId)?.items.length ?? from;
   const msg = post(team, {
     id: `reply-${delivery.runId}`,
@@ -1302,6 +1312,7 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
     mentions,
     ...(to > delivery.from ? { turn: { chatId, from: delivery.from, to } } : {}),
     ...(stopped ? { stopped: item.steered ? ('steer' as const) : ('stop' as const) } : {}),
+    ...(quiet ? { quiet: true as const } : {}),
   });
   const worked =
     text.length >= CHATTER_CHARS ||
@@ -1312,7 +1323,7 @@ async function runTurn(team: Team, item: QueueItem, native?: Promise<string>) {
   emit('team', { teamId: team.id, event: { kind: 'turn', agentId: agent.id, state: 'end' } });
   // your messages sent into its turn that it ended before reading: it takes them next, as an ordinary turn
   for (const m of missed) if (m.teamMessageId) enqueue(team, agent.id, m.teamMessageId, true, false, item.skills);
-  if (stopped) return;
+  if (stopped || quiet) return;
   enqueueMany(team, mentions, msg.id, false, false, item.skills);
   // it asked the Brain: the Brain's answer comes back to it
   const askedBrain = mentionsBrain(text);

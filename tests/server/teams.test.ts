@@ -6,6 +6,7 @@ import { newAgent } from '../../server/library.ts';
 import { bus, chats, saveSettings, workflows } from '../../server/store.ts';
 import {
   MAX_CHATTER,
+  NOTHING_TO_ADD,
   TURN_ASK,
   briefing,
   editQueuedTeam,
@@ -78,6 +79,8 @@ beforeAll(async () => {
         ? 'All done, the thumbnail is ready.'
         : 'Plan: @Maker please make the thumbnail.';
     else if (system.includes('You are Maker')) reply = 'Done, saved as thumb.png.';
+    else if (system.includes('You are Thanker')) reply = '@Checker thanks for the check.';
+    else if (system.includes('You are Checker')) reply = `@Thanker thanks.\n${NOTHING_TO_ADD}`;
     else if (system.includes('You are Ping')) reply = 'Your turn @Pong.';
     else if (system.includes('You are Pong')) reply = 'Back to you @Ping.';
     // long replies: a draft each turn is work, even without tools
@@ -147,6 +150,30 @@ describe('a team chat', () => {
     expect(lastAsk.Lead).not.toContain('How this chat works');
     expect(lastAsk.Lead.endsWith(TURN_ASK)).toBe(true);
   });
+
+  it('a reply with nothing to add is posted but wakes nobody, not even the lead', async () => {
+    const lead = agent('Thanker');
+    const checker = agent('Checker');
+    const team = workflows.save({
+      name: 'Thanks',
+      members: [lead.id, checker.id],
+      lead: lead.id,
+      steps: [],
+    } as Partial<Team>);
+    await postUserMessage(team.id, 'Thank the checker');
+    await expect.poll(() => getThread(team.id).messages.length, { timeout: 25000 }).toBe(3);
+    await expect.poll(() => teamState(team.id).working.length, { timeout: 5000 }).toBe(0);
+    await new Promise((r) => setTimeout(r, 300));
+    const thread = getThread(team.id);
+    expect(thread.messages.length).toBe(3);
+    const reply = thread.messages[2];
+    expect(reply.from).toBe(checker.id);
+    expect(reply.text).toBe('@Thanker thanks.');
+    expect(reply.quiet).toBe(true);
+    expect(reply.mentions).toEqual([]);
+    expect(asks.Thanker).toHaveLength(1);
+    expect(briefing(team, checker)).toContain(NOTHING_TO_ADD);
+  }, 40000);
 
   it('briefs members to finish their part: no declining, no waiting on teammates, install or ask for what they need', () => {
     const one = agent('Solo');

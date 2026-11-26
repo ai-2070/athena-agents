@@ -505,6 +505,8 @@ export interface TeamMessage {
   turn?: { chatId: string; from: number; to: number };
   /** An agent's turn that was stopped before it finished (steer: to take your new message). Its work so far is in turn. */
   stopped?: 'stop' | 'steer';
+  /** An agent's reply that had nothing to add: it handed nothing on, and isn't a team's answer to another team. */
+  quiet?: true;
   /** Files and folders attached to the message (paths in the project's uploads/ folder). */
   attachments?: string[];
   [k: string]: unknown;
