@@ -1,0 +1,29 @@
+server/teams.ts
+  s_e0e1744f19f97b::t_47410015112622 554-555
+  s_e0e1744f19f97b::t_c48218d53937d5 110
+tests/server/steer-join.test.ts
+  s_e0e1744f19f97b::t_5421826fb218e7 205-206
+web/teamchat.tsx
+  s_e0e1744f19f97b::t_c48218d53937d5 675
+  s_e0e1744f19f97b::t_c591b1ca178628 673-674,676-677
+tests/web/teamchat-turns.test.tsx
+  s_e0e1744f19f97b::t_5421826fb218e7 356-367
+shared/types.ts
+  s_e0e1744f19f97b::t_282d62deda6bb9 510-511
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d99dca02451169662d09bb2cc56d7a7e91470ef",
+  "prompts": {},
+  "sessions": {
+    "s_e0e1744f19f97b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ec1bcb7-6893-45bd-949f-84a939242a0c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "LZL0 <12474488+LZL0@users.noreply.github.com>"
+    }
+  }
+}
