@@ -81,7 +81,7 @@ const load = () => readJSON<AccountsFile>(ACCOUNTS_FILE, { x: {} });
 const save = (a: AccountsFile) => writeJSON(ACCOUNTS_FILE, a);
 
 const userAgent = (username = '') =>
-  `windows:athena-agents:1.0.2 (by /u/${username || getSettings().reddit?.username || 'athena-agents'})`;
+  `windows:athena-agents:1.0.3 (by /u/${username || getSettings().reddit?.username || 'athena-agents'})`;
 
 export function redditAccounts(): RedditAccount[] {
   return Object.values(load().reddit || {}).map(({ id, username, autopost, connectedAt, icon }) => ({
