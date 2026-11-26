@@ -11,4 +11,7 @@ for (const [signal, code] of [
 ]) {
   process.on(signal, () => process.exit(code));
 }
+// Eve up to 1.4.0 chose spec 9 Workflow runs; since 1.5.0 the store declares it, and the local store
+// (runtime/eve-world) only makes spec 9 runs when asked. Its steering, retries and restores rely on them.
+process.env.WORKFLOW_SPEC_VERSION ??= '9';
 await import('./server/index.mjs');

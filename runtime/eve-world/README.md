@@ -6,6 +6,10 @@ runtime because the store reads its own package metadata; both packages stay ext
 runtime build and are copied into the desktop package. The factory protects queue deliveries with
 a private process token and requeues active work after the store has recovered.
 
+Since Eve 1.5.0 the store, not Eve, says which Workflow spec its new runs use. This store makes spec 9 runs (the ones
+Athena's steering, retries and restores rely on) only when `WORKFLOW_SPEC_VERSION=9` is set, so `runtime/eve/launch.mjs`
+sets it before Eve loads. Without it, runs are spec 8 and those break.
+
 `patches/@workflow%2Fworld-local@5.3.0.patch` fixes a crash between a terminal claim, its step
 checkpoint and its event. The original empty claim survives a crash but prevents any subsequent
 completion. The patch puts the exact step and event in the atomic claim until both are saved.
