@@ -202,6 +202,8 @@ describe('a message while a team works', () => {
     await next('do the long job');
     const msg = await steerTeam(team.id, 'also make it blue');
     expect(msg.text).toBe('also make it blue');
+    // (marked: the thread shows it went into the work going on)
+    expect(msg.joined).toEqual([worker.id]);
     // the same turn is asked again, with your message
     const again = await next('also make it blue');
     again.release();

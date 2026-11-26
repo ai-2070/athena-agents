@@ -507,6 +507,8 @@ export interface TeamMessage {
   stopped?: 'stop' | 'steer';
   /** An agent's reply that had nothing to add: it handed nothing on, and isn't a team's answer to another team. */
   quiet?: true;
+  /** Your message sent while they worked, taken into the turns these members were on (nobody stopped for it). */
+  joined?: string[];
   /** Files and folders attached to the message (paths in the project's uploads/ folder). */
   attachments?: string[];
   [k: string]: unknown;

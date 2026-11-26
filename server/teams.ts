@@ -107,6 +107,7 @@ interface NewMessage {
   attachments?: string[];
   turn?: TeamMessage['turn'];
   relay?: TeamRelay;
+  joined?: string[];
 }
 
 type QueueItem = SavedTeamAssignment;
@@ -550,6 +551,8 @@ async function routeMessage(
     replyTo,
     ...(attachments.length ? { attachments } : {}),
     ...(relay ? { relay } : {}),
+    // (so the thread can show it was read mid-turn, not answered as a new one)
+    ...(joined.length ? { joined } : {}),
   });
   if (!wasPosted && track && ((from === 'user' && !mentionsBrain(text)) || fromTeam(from)))
     brainHandlers?.assigned?.(team, msg);

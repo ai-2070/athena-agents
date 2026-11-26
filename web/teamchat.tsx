@@ -670,6 +670,11 @@ const Message = memo(function Message({
         }}
         deps={[m.id, m.text, JSON.stringify(m.attachments || []), project]}
       />
+      {m.from === 'user' && m.joined?.length ? (
+        <div className="tc-joined mt-1.5 text-right text-[12px] leading-[normal] text-faint">
+          {`Sent while ${m.joined.map((id) => agentOf(id)?.name || 'Agent').join(', ')} worked`}
+        </div>
+      ) : null}
       {m.turn && m.from !== 'user' && m.from !== 'system' ? <Work m={m} shown={!!stopped} /> : null}
       {m.mentions?.length && m.from !== 'user' ? (
         <div className="flex items-center gap-1.5 mt-2.5 text-[12px] font-medium leading-[normal] text-ice">

@@ -353,6 +353,18 @@ describe('team chat turns', () => {
     expect(trigger.textContent).toBe('Show the work');
   });
 
+  it('a message of yours an agent took into its turn says so under it', async () => {
+    missed = [
+      { id: 'u2', ts: 2, from: 'user', text: 'use blue', mentions: [], joined: ['maker'] },
+      { id: 'u3', ts: 3, from: 'user', text: 'thanks', mentions: [] },
+    ];
+    const el = document.createElement('div');
+    document.body.append(el);
+    open = renderTeamChat(el, 't1');
+    await settle();
+    expect([...el.querySelectorAll('.tc-joined')].map((n) => n.textContent)).toEqual(['Sent while Maker worked']);
+  });
+
   it("a delegated member's report shows as one line, with the report behind Show the report", async () => {
     missed = [
       {
